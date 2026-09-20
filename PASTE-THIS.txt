@@ -1,0 +1,7 @@
+Paste this in the Catalog chat AND the KorBek chat after you attach the zip.
+
+----- copy from the next line -----
+Read ATTACH-ME.md, then START-HERE.md. Stay in lock-step with this pack. Do not ask me to copy files onto my PC. KorBek is not being built in ollama-electron yet.
+----- copy ends -----
+
+That is the whole job. Same zip in both chats. Same sentence.

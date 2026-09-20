@@ -11,7 +11,7 @@ The founder attaches this zip in the other Grok chats. Assistants read it themse
 ## Founder (one sitting)
 
 1. Attach this zip in the Catalog chat and the KorBek chat.
-2. Say: `Read START-HERE.md. Stay in lock-step with this pack.`
+2. Paste the sentence in `PASTE-THIS.txt`.
 
 That is the whole job. Do not copy this onto a PC.
 
@@ -21,12 +21,13 @@ Public clone: https://github.com/axidamanyame/delkor-fiberk-llm-ingest
 
 ## Assistants (do this)
 
-1. **`START-HERE.md`** — which of the three you are, and what you must not ask the founder to do.
-2. **`PROJECTS.md`** — which product is which.
-3. **`LOCKSTEP.md`** — shared contract, owners, frozen rules.
-4. **`WHAT-WE-BUILT.md`** — ERP snapshot. Do not redo it.
-5. Your lane: ERP constitution + `erp/`, or `catalog/` training, or both if you are KorBek.
-6. If chat and code disagree: **code + these docs win**.
+1. **`ATTACH-ME.md`** — hard stop. This zip is the briefing. Do not ask for a PC copy.
+2. **`START-HERE.md`** — which of the three you are.
+3. **`PROJECTS.md`** — which product is which.
+4. **`LOCKSTEP.md`** — shared contract, owners, frozen rules.
+5. **`WHAT-WE-BUILT.md`** — ERP snapshot. Do not redo it.
+6. Your lane: ERP constitution + `erp/`, or `catalog/` training, or both if you are KorBek.
+7. If chat and code disagree: **code + these docs win**.
 
 Copy `agents/AGENTS.*.md` into your workspace `AGENTS.project.md` if you have one.
 
@@ -36,8 +37,10 @@ Copy `agents/AGENTS.*.md` into your workspace `AGENTS.project.md` if you have on
 
 | Path | Why it is here |
 |---|---|
-| `FOR-FOUNDER.txt` | The only founder steps: attach this zip to the other two chats. |
-| `START-HERE.md` | Assistant entry. Read first. |
+| `ATTACH-ME.md` | First file every other assistant reads. |
+| `PASTE-THIS.txt` | The one sentence the founder pastes in the other two chats. |
+| `FOR-FOUNDER.txt` | Attach this zip. That is the whole job. |
+| `START-HERE.md` | Assistant entry after ATTACH-ME. |
 | `LOCKSTEP.md` | Contract between the three projects. |
 | `WHAT-WE-BUILT.md` | What the ERP already shipped. |
 | `PROJECTS.md` | Shared map. |
@@ -56,5 +59,6 @@ Copy `agents/AGENTS.*.md` into your workspace `AGENTS.project.md` if you have on
 - `.env`, live Supabase publishable keys (replaced with placeholders)
 - Patch zips and `node_modules`
 - Secrets. Do not train on passwords, JWTs, or staff phones.
+- Any “copy this into ollama-electron” install. That workspace is not open.
 
 To **run** the ERP on a computer, use the live folder (start-local.bat → login.html), not this pack.
