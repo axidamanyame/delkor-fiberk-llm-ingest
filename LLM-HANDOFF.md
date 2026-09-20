@@ -3,6 +3,8 @@
 This file is the constitution for any model that must understand what we built.
 It is not the product. The product is the folder. Feed both.
 
+**Read `PROJECTS.md` first.** That is the shared map of ERP, KorBek, Supply Chain Catalog, BNPL field apps, and this ingest pack. This file is the ERP layer only.
+
 Last updated: 2026-09-20
 
 ---
@@ -37,11 +39,14 @@ Our Project Updates/
   start-local.bat  ← Windows local run
   start-local.mjs
   start-local.sh
+  PROJECTS.md      ← shared map for every assistant
+  ERP-CONSTITUTION.md
+  LLM-HANDOFF.md   ← this file
 ```
 
 How humans run it:
 
-1. Test the **same folder** on the computer first (`start-local.bat` → `http://127.0.0.1:5500/login.html`).
+1. Test the **same folder** on the computer first (`start-local.bat` → login page).
 2. After it looks right, upload **that same folder** to Vercel as the project root.
    `index.html`, `js/`, `css/`, `api/`, `vercel.json` must sit at the top — not nested in `public/` on Vercel if they already flattened it. Locally in this workspace the site lives in `Our Project Updates/public`.
 
@@ -59,7 +64,7 @@ These came from the owner across many passes. They override generic ERP habits.
 
 - Keep the existing **teal heading / ultimate-pos shell**. Do not restyle the company header to a sandbox mock header.
 - Left rail: Home, Records, Operations, Purchases, Sales, Finance, Collections, Reports, System, then colour-coded add-on modules.
-- Colour modules (Academy, Accounting, AI Assistance, Asset Management, Call Centre, Catalogue QR, Communications, Connector, CRM, Custom Dashboards, Field Ops, HRM, Manufacturing, Project, Repair, Spreadsheet, WMS, WooCommerce) have their **own floor**.
+- Colour modules (Academy, Accounting, AI Assistance, Asset Management, Call Centre, Supply Chain Catalog, Communications, Connector, CRM, Custom Dashboards, Field Ops, HRM, Manufacturing, Project, Repair, Spreadsheet, WMS, WooCommerce) have their **own floor**.
 - Floor order: **Summary → other headings / topics → Reports → Setup**.
 - Module reports do **not** appear under ERP Reports.
 - Module Setup is **not** System settings. System → Settings → Modules is where HQ turns modules on.
@@ -89,6 +94,11 @@ Must look like the sandbox drop (`erp-report-sandbox-3file`):
 - Clear / Mark all read must **persist across login** (write the DB, don’t only hide locally).
 - Remove: Send test to me, email test, Open unread log, Bell test, Ping my bell.
 
+### Catalog vs ERP
+
+- Product photos live on the Supply Chain Catalog, not in the ERP.
+- Stall identity is shop + short code (A1). ERP `master_sku` (FBK1829) stays internal.
+
 ### Data honesty
 
 - Empty is empty. Do not invent stock, sales, or customers to fill a screen.
@@ -101,6 +111,8 @@ Must look like the sandbox drop (`erp-report-sandbox-3file`):
 
 | Area | Where |
 |---|---|
+| Shared project map | `PROJECTS.md` |
+| ERP constitution | `ERP-CONSTITUTION.md` |
 | Shell, header, left rail, SPA | `public/js/ultimate-shell.js`, `public/css/ultimate-pos.css` |
 | Login | `public/login.html`, `public/js/supabaseClient.js` |
 | Reports boot | `public/reports.html` → `public/js/report-boot.js` → `public/js/sandbox.js` + `public/css/sandbox.css` |
@@ -124,11 +136,12 @@ Reports URL map (ERP Reports, not module reports):
 
 ## 5. How to load this into our own LLM
 
-Give the model **three layers**, in this order:
+Give the model **four layers**, in this order:
 
-1. **This file** as the system / constitution prompt.
-2. **The site** as retrieval: `public/js/*.js`, `public/*.html` for hubs, `public/css/ultimate-pos.css`, SQL.
-3. **Chat export JSON** as extra “owner said” evidence. If chat and code disagree, **code + this constitution win**. Chat is how we got here; the folder is what is true.
+1. **`PROJECTS.md`** — which product is which (ERP vs KorBek vs Catalog vs BNPL vs ingest).
+2. **`ERP-CONSTITUTION.md` / this file** as the system / constitution prompt.
+3. **The site** as retrieval: `public/js/*.js`, `public/*.html` for hubs, `public/css/ultimate-pos.css`, SQL.
+4. **Chat export JSON** as extra “owner said” evidence. If chat and code disagree, **code + constitution win**. Chat is how we got here; the folder is what is true.
 
 Do **not** train on:
 
@@ -139,17 +152,23 @@ Do **not** train on:
 Suggested ingest globs:
 
 ```
+PROJECTS.md
+ERP-CONSTITUTION.md
+LLM-HANDOFF.md
 public/js/**/*.js
 public/*.html
 public/css/*.css
 public/sql/**/*.sql
 *.sql
-LLM-HANDOFF.md
 LOCAL-RUN.txt
 SOURCE.txt
 ```
 
 Skip: `public/uploads/fk-catalog/**` (product photos, not language), `node_modules`, zip backups.
+
+Public clone: https://github.com/axidamanyame/delkor-fiberk-llm-ingest
+
+KorBek on the PC reads `knowledge/PROJECTS.md` + `knowledge/ERP-CONSTITUTION.md` via `knowledge.js`. Do not paste this into the KorBek chat.
 
 ---
 

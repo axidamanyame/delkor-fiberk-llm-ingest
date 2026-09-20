@@ -2,6 +2,15 @@
 
 Start here when the model needs to change or explain a surface.
 
+## Shared map (every assistant)
+
+| File | Role |
+|---|---|
+| `PROJECTS.md` | Which product is which: ERP, KorBek, Catalog, BNPL field apps, ingest |
+| `SYSTEM-PROMPT.md` | Short constitution — paste as system prompt |
+| `ERP-CONSTITUTION.md` | Same rules, KorBek knowledge filename |
+| `LLM-HANDOFF.md` | Longer ERP constitution |
+
 ## Shell and people
 
 | File | Role |
@@ -54,8 +63,6 @@ Start here when the model needs to change or explain a surface.
 | File | Role |
 |---|---|
 | `erp/*.sql` and `erp/public/sql/` | Who-is-who, RLS, roles, modules, tills |
-| `erp/start-local.bat` | Founder’s computer (port 5500, login.html) |
+| `erp/start-local.bat` | Founder’s computer (login.html) |
 | `erp/vercel.json` | Same folder to Vercel |
 | `erp/api/ai.js` | `/api/ai` |
-
-Reports URLs: `/reports.html`, `?t=pp` product purchase, `?t=items` items card, `?t=sell` sell sheet, collections `?t=col-age` … Module reports stay on that module’s Reports heading.

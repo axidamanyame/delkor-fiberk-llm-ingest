@@ -1,5 +1,7 @@
 # Index these (RAG / corpus)
+PROJECTS.md
 SYSTEM-PROMPT.md
+ERP-CONSTITUTION.md
 LLM-HANDOFF.md
 CHAT-EXPORT.md
 FILEMAP.md
