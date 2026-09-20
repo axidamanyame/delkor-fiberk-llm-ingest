@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>View customer</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .who{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin:0 0 12px}
+    .who h2{margin:0 0 6px;font-size:20px}
+    .who p{margin:4px 0;color:var(--ult-text)}
+    .trail{width:100%;border-collapse:collapse;background:var(--ult-card)}
+    .trail th,.trail td{border-bottom:1px solid var(--ult-border);padding:8px 10px;text-align:left;font-size:13px}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main" id="app"></main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { subsidiaryLabel } from './js/entity-scope.js';
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const displayName = (c) => c?.business_name || c?.full_name || c?.name || c?.customer_name || 'Customer';
+  const fmt = (n) => 'GH₵ ' + Number(n || 0).toLocaleString('en-GH', { minimumFractionDigits: 2 });
+  import {
+    findCustomerAnywhere, customerPurchaseTrail, hydrateEasybuyCustomers,
+  } from './js/easybuy-customers.js';
+  import { viewCard } from './js/view-card.js';
+
+  await mountUltimateShell();
+  try { hydrateEasybuyCustomers(); } catch { /* local */ }
+  const app = document.getElementById('app');
+  const id = new URLSearchParams(location.search).get('id');
+
+  function places(trail) {
+    const set = new Map();
+    trail.forEach((t) => {
+      const label = [subsidiaryLabel(t.subsidiary), t.location].filter(Boolean).join(' · ') || t.book;
+      set.set(label, (set.get(label) || 0) + 1);
+    });
+    return [...set.entries()];
+  }
+
+  async function load() {
+    let c = null;
+    let bundle = { sales: [] };
+    try {
+      const { loadCustomer360 } = await import('./js/crm.js');
+      bundle = await loadCustomer360(id);
+      c = bundle.customer;
+    } catch { /* supabase optional */ }
+    if (!c) c = findCustomerAnywhere(id);
+    if (!c) {
+      app.innerHTML = pageChrome('Customer') + `<div class="who">
+        <p>No record for <code>${esc(id || '—')}</code> in live customers, EasyBuy Order List, Payment Record, or sales.</p>
+        <p><a class="ult-btn ult-btn-outline" href="/customers.html">Back to list</a></p>
+      </div>`;
+      return;
+    }
+    const trail = customerPurchaseTrail(c);
+    const captured = subsidiaryLabel(c.subsidiary_code) === '—'
+      ? (c.source === 'easybuy' ? 'BuyNowPaysLater · BNPL Field' : 'Not stamped')
+      : `${subsidiaryLabel(c.subsidiary_code)}${c.location_name || c.location_code ? ' · ' + (c.location_name || c.location_code) : ''}`;
+    const bought = places(trail);
+    /* One standard card for every view popup: facts grid, then colour-coded
+       sections — green for money, blue for movement. The "Bought from" list
+       used to be a run-on sentence; it is rows with counts now, which is the
+       most useful thing on this card. */
+    const money = [
+      ['Opening balance', fmt(c.opening_balance || 0)],
+      ['Sales due', fmt(c.sale_due || bundle.sale_due || 0)],
+      ['Returns due', fmt(c.ret_due || bundle.ret_due || 0)],
+      ['Advance balance', fmt(c.advance_balance || 0)],
+    ];
+    app.innerHTML = viewCard({
+      title: displayName(c) || c.name || 'Customer',
+      subtitle: c.contact_id || c.id || '',
+      facts: [
+        [
+          ['Phone', c.phone || c.mobile],
+          ['Email', c.email],
+          ['Group', c.group_name || c.customer_group],
+        ],
+        [
+          ['Captured under', captured],
+          ['Location', c.location_name || c.location_code],
+          ['Assigned to', c.assigned_to],
+        ],
+        [
+          ['TIN', c.tax_number],
+          ['Credit limit', c.credit_limit ? fmt(c.credit_limit) : ''],
+          ['Pay term', c.pay_term],
+        ],
+      ],
+      sections: [
+        {
+          tone: 'green',
+          columns: money.map(([l]) => l),
+          rows: [money.map(([, v]) => v)],
+        },
+        /* The "Bought from" roll-up and the cross-group purchase list were
+           group reporting on a single-record card. Removed: one section, this
+           customer's own recent transactions. Reports own the group view. */
+        {
+          tone: 'blue',
+          title: 'Recent transactions',
+          columns: ['Date', 'Book', 'Ref', 'Company', 'Location', 'Amount'],
+          rows: trail.slice(0, 12).map((x) => [
+            x.date || '', x.book, x.ref || '',
+            subsidiaryLabel(x.subsidiary), x.location || '', fmt(x.amount || 0),
+          ]),
+        },
+      ],
+      actions: [
+        { label: 'Edit', href: `/customer-form.html?id=${encodeURIComponent(c.id)}`, tone: 'primary' },
+        { label: 'Back to list', href: '/customers.html', tone: 'dark' },
+      ],
+    });
+  }
+  load();
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audit log — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { loadRows } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_AUDIT } from './js/catalog-seed.js';
+    import { ERRORS, NOMENCLATURE, loadErrorLog, SUPPORT } from './js/error-codes.js';
+    const session = await mountUltimateShell();
+    const app = document.getElementById('app');
+
+    async function paint() {
+    const type = new URLSearchParams(location.search).get('type') || '';
+    const errorsOn = type === 'error_code';
+    let rows = await loadRows('audit_logs', CAT_KEYS.audit, SEED_AUDIT);
+    try {
+      const local = JSON.parse(localStorage.getItem('df_audit_logs') || '[]');
+      if (Array.isArray(local) && local.length) {
+        const seen = new Set(rows.map((r) => r.id));
+        local.forEach((r) => { if (!seen.has(r.id)) rows.push(r); });
+      }
+    } catch { /* ignore */ }
+    const localErr = loadErrorLog();
+    if (localErr.length) {
+      const seen = new Set(rows.map((r) => r.id));
+      localErr.forEach((r) => { if (!seen.has(r.id)) rows.push(r); });
+    }
+    const opsHub = type === 'ops_hub' || type === 'operations_hub';
+    if (opsHub) {
+      rows = rows.filter((r) => {
+        const blob = `${r.entity_type || ''} ${r.action || ''} ${r.summary || ''} ${r.subsidiary_code || ''}`.toLowerCase();
+        return /ops.?hub|operations hub|stock_transfer|put.?away|warehouse|wms|receive_stock|opening.stock/.test(blob)
+          || r.subsidiary_code === 'OPS-HUB';
+      });
+    } else if (type) rows = rows.filter((r) =>
+      r.entity_type === type
+      || r.action === type
+      || String(r.action || '').startsWith(type)
+      || (errorsOn && r.code)
+    );
+    rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+    function rowHtml(r) {
+      const code = r.code || r.entity_id || '';
+      const when = r.created_at ? new Date(r.created_at).toLocaleString() : 'now';
+      const actor = r.actor_email || r.actor_name || (r.actor_id ? String(r.actor_id).slice(0, 8) : '—');
+      const event = errorsOn ? (code || r.action) : (r.action || '—');
+      return `<tr>
+        <td>${when}</td>
+        <td>${actor}</td>
+        <td>${event}</td>
+        <td>${r.entity_type || '—'}${r.entity_id ? ' · ' + String(r.entity_id).slice(0, 14) : ''}</td>
+        <td>${r.subsidiary_code || r.company || '—'}</td>
+        <td>${r.summary || r.title || ''}</td>
+      </tr>`;
+    }
+
+    const catalog = Object.values(ERRORS).map((e) =>
+      `<tr><td><code>${e.code}</code></td><td>${e.title}</td><td>${e.hint}</td></tr>`
+    ).join('');
+    const families = NOMENCLATURE.map((n) =>
+      `<tr><td><strong>${n.family}</strong></td><td>${n.range}</td><td>${n.meaning}</td></tr>`
+    ).join('');
+
+    const errorHead = errorsOn ? `
+      <div class="ult-card" style="margin-bottom:16px">
+        <h2 style="margin:0 0 8px;font-size:16px">Error code nomenclature</h2>
+        <p class="ult-muted">IT uses these codes in pop-ups and this log. Quote the code when calling ${SUPPORT.email} · ${SUPPORT.phone}.</p>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Family</th><th>Range</th><th>Meaning</th></tr></thead>
+          <tbody>${families}</tbody>
+        </table></div>
+        <h3 style="margin:16px 0 8px;font-size:14px">Current codes</h3>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Code</th><th>Title</th><th>What it means</th></tr></thead>
+          <tbody>${catalog}</tbody>
+        </table></div>
+      </div>` : '';
+
+    app.innerHTML = pageChrome(errorsOn ? 'Error codes' : 'Audit log', errorsOn ? 'IT nomenclature · failed sign-in and system events' : 'Who changed what · live') + `
+      <p class="ult-muted" id="live-status">Connecting live updates…</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <a class="ult-btn ${!type?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html">All</a>
+        <a class="ult-btn ${errorsOn?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=error_code">Error codes</a>
+        <a class="ult-btn ${type==='view'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=view">Views</a>
+        <a class="ult-btn ${type==='edit'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=edit">Edits</a>
+        <a class="ult-btn ${type==='delete'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=delete">Deletes</a>
+        <a class="ult-btn ${type==='stock_transfer'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=stock_transfer">Transfers</a>
+        <a class="ult-btn ${type==='sales_order'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=sales_order">POS / sales</a>
+        <a class="ult-btn ${type==='attendance'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=attendance">Attendance</a>
+        <a class="ult-btn ${type==='staff_alert'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=staff_alert">Staff alerts</a>
+        <a class="ult-btn ${type==='profile'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=profile">Profiles</a>
+        <a class="ult-btn ${type==='TILL_DISCREPANCY'?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=TILL_DISCREPANCY">Till</a>
+        <a class="ult-btn ${opsHub?'ult-btn-primary':'ult-btn-outline'}" href="/audit-log.html?type=ops_hub">Operations Hub</a>
+      </div>
+      ${errorHead}
+      <div class="ult-card">
+        <div class="ult-table-wrap"><table class="ult-table" data-readonly="1" data-no-act-hoist="1">
+          <thead><tr>
+            <th>When</th><th>Actor</th><th>${errorsOn ? 'Code' : 'Event'}</th><th>Entity</th><th>Company</th><th>Summary</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(rowHtml).join('') || '<tr id="empty-row"><td colspan="6" class="ult-muted">' + (errorsOn ? 'No error codes logged yet. Failed logins appear here.' : 'No audit rows yet — complete a transfer or POS sale') + '</td></tr>'}
+          </tbody>
+        </table></div>
+      </div>`;
+
+    const tbody = app.querySelector('.ult-card:last-of-type tbody');
+    const status = document.getElementById('live-status');
+    let liveCh = null;
+    function dropLive() {
+      try {
+        (supabase.getChannels?.() || []).forEach((ch) => {
+          const topic = String(ch.topic || '');
+          if (topic.includes('audit-live')) {
+            try { supabase.removeChannel(ch); } catch { /* ignore */ }
+          }
+        });
+      } catch { /* ignore */ }
+      if (liveCh) {
+        try { supabase.removeChannel(liveCh); } catch { /* ignore */ }
+        liveCh = null;
+      }
+    }
+    function armLive() {
+      dropLive();
+      if (status) status.textContent = 'Showing saved log';
+      try {
+        const ch = supabase.channel('audit-live-' + Date.now().toString(36));
+        liveCh = ch;
+        ch.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'audit_logs' }, (payload) => {
+          const r = payload.new;
+          if (type && r.entity_type !== type && r.action !== type && !String(r.action || '').startsWith(type)) return;
+          if (errorsOn && !r.code && r.entity_type !== 'error_code') return;
+          document.getElementById('empty-row')?.remove();
+          tbody?.insertAdjacentHTML('afterbegin', rowHtml(r));
+          if (status) status.textContent = 'Live · last event ' + new Date().toLocaleTimeString();
+        });
+        ch.subscribe((s) => {
+          if (!status) return;
+          if (s === 'SUBSCRIBED') status.textContent = 'Live · waiting for events';
+          else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' || s === 'CLOSED') status.textContent = 'Showing saved log (live off)';
+          else status.textContent = 'Realtime: ' + s;
+        });
+      } catch (err) {
+        if (status) status.textContent = 'Showing saved log (live off)';
+        console.warn('audit live', err);
+      }
+    }
+    window.addEventListener('df-spa-leave', dropLive);
+    armLive();
+    }
+    window.addEventListener('df-tab', paint);
+    window.addEventListener('popstate', paint);
+    await paint();
+  </script>
+</body>
+</html>

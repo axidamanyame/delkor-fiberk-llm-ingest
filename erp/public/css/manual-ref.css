@@ -1,0 +1,5 @@
+.manual-ref{margin:0 0 8px;font-size:12px;font-weight:700;color:#0f766e;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.manual-ref a,.manual-ref-a{color:#0f766e;text-decoration:none}
+.manual-ref a:hover,.manual-ref-a:hover{text-decoration:underline}
+.man-ref{display:inline-block;margin-right:8px;font-size:12px;color:#0f766e}
+.mig-note{display:none}

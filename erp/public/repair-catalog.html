@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repair catalog — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"><p class="ult-muted">Loading catalog…</p></main>
+  <script type="module">
+    import { supabase, getAuthSession } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    const app = document.getElementById('app');
+    const session = await mountUltimateShell();
+    if (!session && !(await getAuthSession())) {
+      location.replace('/login.html');
+    }
+
+    async function load() {
+      const [{ data: brands }, { data: devices }, { data: models }] = await Promise.all([
+        supabase.from('repair_brands').select('*').order('name'),
+        supabase.from('repair_devices').select('*, repair_brands(name)').order('name'),
+        supabase.from('repair_models').select('*, repair_devices(name, brand_id, repair_brands(name))').order('name'),
+      ]);
+      paint(brands || [], devices || [], models || []);
+    }
+
+    function paint(brands, devices, models) {
+      app.innerHTML = pageChrome('Repair catalog', 'Brands → devices → models used on the workshop till') + `
+        <p>
+          <a class="ult-btn ult-btn-primary" href="/till-login.html?mode=repair">Open workshop till</a>
+          <a class="ult-btn ult-btn-outline" href="/repair.html">Job sheets</a>
+        </p>
+        <div class="ult-card">
+          <h3>Add brand</h3>
+          <p style="display:flex;gap:8px"><input id="b-name" class="sel-lg" placeholder="Brand name" style="max-width:280px" />
+          <button class="ult-btn ult-btn-primary" id="b-add">Save brand</button></p>
+          <table class="ult-table"><thead><tr><th>Brand</th><th></th></tr></thead>
+          <tbody>${brands.map(b => `<tr><td>${b.name}</td><td><button data-delb="${b.id}">Delete</button></td></tr>`).join('') || '<tr><td colspan="2">Run sql/53</td></tr>'}</tbody></table>
+        </div>
+        <div class="ult-card">
+          <h3>Add device</h3>
+          <p style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="d-brand">${brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('')}</select>
+            <input id="d-name" class="sel-lg" placeholder="Device e.g. Phone" style="max-width:220px" />
+            <button class="ult-btn ult-btn-primary" id="d-add">Save device</button>
+          </p>
+          <table class="ult-table"><thead><tr><th>Brand</th><th>Device</th><th></th></tr></thead>
+          <tbody>${devices.map(d => `<tr><td>${d.repair_brands?.name||''}</td><td>${d.name}</td><td><button data-deld="${d.id}">Delete</button></td></tr>`).join('')}</tbody></table>
+        </div>
+        <div class="ult-card">
+          <h3>Add model</h3>
+          <p style="display:flex;gap:8px;flex-wrap:wrap">
+            <select id="m-dev">${devices.map(d=>`<option value="${d.id}">${d.repair_brands?.name||''} · ${d.name}</option>`).join('')}</select>
+            <input id="m-name" class="sel-lg" placeholder="Model e.g. Spark 40" style="max-width:220px" />
+            <button class="ult-btn ult-btn-primary" id="m-add">Save model</button>
+          </p>
+          <table class="ult-table"><thead><tr><th>Brand / device</th><th>Model</th><th></th></tr></thead>
+          <tbody>${models.map(m => `<tr><td>${m.repair_devices?.repair_brands?.name||''} · ${m.repair_devices?.name||''}</td><td>${m.name}</td><td><button data-delm="${m.id}">Delete</button></td></tr>`).join('')}</tbody></table>
+        </div>`;
+
+      document.getElementById('b-add').onclick = async () => {
+        const name = document.getElementById('b-name').value.trim();
+        if (!name) return;
+        const { error } = await supabase.from('repair_brands').insert({ name });
+        if (error) return alert(error.message);
+        load();
+      };
+      document.getElementById('d-add').onclick = async () => {
+        const name = document.getElementById('d-name').value.trim();
+        const brand_id = document.getElementById('d-brand').value;
+        if (!name || !brand_id) return;
+        const { error } = await supabase.from('repair_devices').insert({ name, brand_id });
+        if (error) return alert(error.message);
+        load();
+      };
+      document.getElementById('m-add').onclick = async () => {
+        const name = document.getElementById('m-name').value.trim();
+        const device_id = document.getElementById('m-dev').value;
+        if (!name || !device_id) return;
+        const { error } = await supabase.from('repair_models').insert({ name, device_id });
+        if (error) return alert(error.message);
+        load();
+      };
+      app.querySelectorAll('[data-delb]').forEach(b => b.onclick = async () => {
+        await supabase.from('repair_brands').delete().eq('id', b.dataset.delb); load();
+      });
+      app.querySelectorAll('[data-deld]').forEach(b => b.onclick = async () => {
+        await supabase.from('repair_devices').delete().eq('id', b.dataset.deld); load();
+      });
+      app.querySelectorAll('[data-delm]').forEach(b => b.onclick = async () => {
+        await supabase.from('repair_models').delete().eq('id', b.dataset.delm); load();
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Barcodes — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, saveRow, deleteRow, setDefault, esc, actMenu } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const KEY = 'df_barcodes';
+  const TABLE = 'barcode_settings';
+  const seed = [{
+    id: 'bc-20', name: '20 Labels per Sheet', description: 'A4 4×5', is_default: true,
+    stickers_in_one_sheet: 20, paper_width: 8.5, paper_height: 11,
+    width: 1.75, height: 1.2, stickers_in_one_row: 4,
+    row_distance: 0.1, col_distance: 0.1, top_margin: 0.5, left_margin: 0.5, right_margin: 0.5, bottom_margin: 0.5,
+    orientation: 'portrait', font_size: 10,
+    show_business_name: true, show_product_name: true, show_price: true, show_sku: true, show_variations: false,
+  }];
+  const rows = await loadRows(TABLE, KEY, seed);
+
+  const nums = [
+    ['stickers_in_one_sheet', 'Stickers in one sheet'],
+    ['paper_width', 'Paper width (inch)'], ['paper_height', 'Paper height (inch)'],
+    ['width', 'Sticker width (inch)'], ['height', 'Sticker height (inch)'],
+    ['stickers_in_one_row', 'Stickers in one row'],
+    ['row_distance', 'Row distance'], ['col_distance', 'Column distance'],
+    ['top_margin', 'Top margin'], ['left_margin', 'Left margin'],
+    ['right_margin', 'Right margin'], ['bottom_margin', 'Bottom margin'],
+    ['font_size', 'Font size'],
+  ];
+
+  if (id) {
+    const row = id === 'new' ? {} : (rows.find((r) => String(r.id) === id) || {});
+    const dis = view ? 'disabled' : '';
+    app.innerHTML = `
+      <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} barcode sticker setting</h1>
+      <form id="f" class="sell-card">
+        <div class="sell-grid">
+          <label class="fld">Sticker sheet setting name *<input name="name" value="${esc(row.name)}" ${dis} required></label>
+          <label class="fld">Description<input name="description" value="${esc(row.description)}" ${dis}></label>
+          ${nums.map(([k, l]) => `<label class="fld">${l}<input name="${k}" type="number" step="0.01" value="${row[k] ?? ''}" ${dis}></label>`).join('')}
+          <label class="fld">Orientation<select name="orientation" ${dis}>
+            <option ${row.orientation !== 'landscape' ? 'selected' : ''}>portrait</option>
+            <option ${row.orientation === 'landscape' ? 'selected' : ''}>landscape</option>
+          </select></label>
+        </div>
+        <div class="chk-row">
+          ${[['show_business_name', 'Business name'], ['show_product_name', 'Product name'], ['show_price', 'Price'], ['show_sku', 'SKU'], ['show_variations', 'Variations'], ['is_default', 'Set as default']].map(([k, l]) =>
+            `<label class="chk"><input type="checkbox" name="${k}" ${row[k] ? 'checked' : ''} ${dis}> ${l}</label>`).join('')}
+        </div>
+        <p>${view ? `<a class="ult-btn ult-btn-primary" href="/barcode-settings.html?id=${esc(row.id)}">Edit</a>` : '<button class="ult-btn ult-btn-primary">Save</button>'}
+           <a class="ult-btn ult-btn-outline" href="/barcode-settings.html">Back</a>
+           <a class="ult-btn ult-btn-outline" href="/print-labels.html">Print labels</a></p>
+      </form>`;
+    const f = document.getElementById('f');
+    if (!view) f.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this sticker setting?'))) return;
+      const fd = new FormData(f);
+      const data = Object.fromEntries([...f.querySelectorAll('input,select')].map((el) => {
+        if (el.type === 'checkbox') return [el.name, el.checked];
+        return [el.name, el.value];
+      }));
+      await saveRow(TABLE, KEY, { ...row, ...data });
+      toast('Saved'); location.href = '/barcode-settings.html';
+    };
+  } else {
+    app.innerHTML = `
+      <h1>Barcode Settings</h1>
+      <p class="sub">Sticker sheets used by Print Labels. SKUs stay AXI / FIB / DEL / BNP.</p>
+      <p style="text-align:right"><a class="ult-btn ult-btn-primary" href="/barcode-settings.html?id=new">Add</a></p>
+      <section class="home-card" data-tbl="bc">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Sticker sheet setting name</th><th>Description</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${actMenu(r.id, [
+              { label: 'View', href: `/barcode-settings.html?id=${r.id}&view=1` },
+              { label: 'Edit', href: `/barcode-settings.html?id=${r.id}` },
+              { label: 'Set as default', act: 'def' },
+              { label: 'Delete', act: 'del' },
+            ])}${r.is_default ? ' <span class="pill paid">Default</span>' : ''}</td>
+            <td>${esc(r.name)}</td><td>${esc(r.description)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="3" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="bc"]'), { title: 'Barcodes', storageKey: 'barcodes' });
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'del') {
+        if (!(await confirmAction('Delete this barcode setting?', 'This sheet will no longer be offered on Print Labels.'))) return;
+        await deleteRow(TABLE, KEY, b.dataset.id); toast('Deleted'); location.reload();
+      }
+      if (b.dataset.act === 'def') { await setDefault(TABLE, KEY, b.dataset.id); toast('Default set'); location.reload(); }
+    };
+  }
+</script>
+</body>
+</html>

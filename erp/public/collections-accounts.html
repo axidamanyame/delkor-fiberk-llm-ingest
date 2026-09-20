@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arrears — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { loadArrears, saveCall, savePromise, saveEscalation, fmt, table } from './js/collections.js';
+  await mountUltimateShell();
+  const rows = await loadArrears().catch(() => []);
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${pageChrome('Accounts in arrears', 'Call book — days and risk only.')}
+    <p><a class="ult-btn ult-btn-outline" href="/collections.html">Dashboard</a></p>
+    ${table(['Name','Phone','Days','Bucket','Risk','Status','Actions'],
+      rows.map((c) => `<tr>
+        <td>${c.name || ''}</td><td>${c.phone || ''}</td>
+        <td>${c.days}</td><td>${c.bucket}</td><td>${c.risk}</td><td>${c.status}</td>
+        <td>
+          <button class="ult-btn" data-act="call" data-id="${c.id}" data-name="${c.name || ''}">Log call</button>
+          <button class="ult-btn ult-btn-outline" data-act="ptp" data-id="${c.id}">Promise</button>
+          <button class="ult-btn ult-btn-outline" data-act="esc" data-id="${c.id}">Escalate</button>
+        </td>
+      </tr>`).join(''))}`;
+  app.onclick = async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const id = b.dataset.id;
+    if (b.dataset.act === 'call') {
+      const notes = prompt('Call notes') || '';
+      const outcome = prompt('Outcome (reached / unreachable / follow-up)', 'reached') || 'reached';
+      await saveCall({ customer_id: id, agent_name: 'agent', call_outcome: outcome, notes });
+      alert('Call logged');
+    }
+    if (b.dataset.act === 'ptp') {
+      const promised_date = prompt('Promise date YYYY-MM-DD');
+      const promised_amount = Number(prompt('Amount') || 0);
+      if (promised_date) await savePromise({ customer_id: id, promised_date, promised_amount, notes: '' });
+    }
+    if (b.dataset.act === 'esc') {
+      const reason = prompt('Escalation reason') || '';
+      const escalation_level = Number(prompt('Level 1-4', '1') || 1);
+      await saveEscalation({ customer_id: id, reason, escalation_level });
+    }
+  };
+</script>
+</body>
+</html>

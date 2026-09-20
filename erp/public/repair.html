@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repair — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .cyan-empty { background:#22d3ee; color:#0f172a; font-weight:700; padding:14px 16px; border-radius:8px; }
+    .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:12px; }
+    @media(max-width:800px){ .stat-grid { grid-template-columns:1fr 1fr; } }
+    .stat { background:#f8fafc; border-radius:10px; padding:12px; }
+    .stat b { display:block; font-size:22px; }
+    .doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+    .doc label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-bottom:10px}
+    .doc input,.doc select,.doc textarea{border:1px solid #111;border-radius:8px;padding:7px 10px;width:100%;box-sizing:border-box}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button{border:1px solid #111;background:#fff;border-radius:8px;padding:5px 10px;font-size:12px}
+  </style>
+</head>
+<body>
+  <main class="ult-main page" id="app"><p class="ult-muted">Loading repair…</p></main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { bootRepairHub } from './js/repair-hub.js';
+    try {
+      const session = await mountUltimateShell();
+      if (!session) throw new Error('auth');
+      await bootRepairHub();
+    } catch (err) {
+      const app = document.getElementById('app');
+      if (app) app.innerHTML = `<div class="st-card"><h1>Repair</h1><p>${String(err?.message || err)}</p></div>`;
+    }
+  </script>
+</body>
+</html>

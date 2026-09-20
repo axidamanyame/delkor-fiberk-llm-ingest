@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Catalogue — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main page" id="app" style="max-width:960px;margin:0 auto;padding:24px">Loading catalogue…</main>
+  <script type="module">
+    import { supabase, fmt } from './js/supabaseClient.js';
+    import { BUSINESS_LOCATIONS } from './js/scope.js';
+    import { loadQrSettings } from './js/catalogue-qr.js';
+    import { esc } from './js/ls-rows.js';
+
+    const loc = new URLSearchParams(location.search).get('loc') || '';
+    const locRow = BUSINESS_LOCATIONS.find((l) => l.code === loc);
+    const s = loadQrSettings();
+    const app = document.getElementById('app');
+
+    const FALLBACK = [
+      { sku: 'FIB-110', name: 'HP 14" Notebook', selling_price: 4850, qty: 12, image_url: '' },
+      { sku: 'FIB-204', name: 'Router AC1200', selling_price: 420, qty: 40, image_url: '' },
+      { sku: 'AXI-331', name: 'Hisense 43" TV', selling_price: 2899, qty: 8, image_url: '' },
+      { sku: 'AXI-118', name: 'USB-C Hub', selling_price: 185, qty: 0, image_url: '' },
+      { sku: 'DEL-090', name: 'Office chair', selling_price: 760, qty: 15, image_url: '' },
+      { sku: 'DEL-044', name: '4ft desk', selling_price: 1240, qty: 6, image_url: '' },
+    ];
+
+    let products = FALLBACK;
+    try {
+      const { data } = await supabase.from('products').select('sku,name,selling_price,current_stock_value,image_url').order('name').limit(40);
+      if (data?.length) products = data.map((p) => ({ ...p, qty: Number(p.current_stock_value ?? p.qty_available ?? p.current_stock ?? 0) }));
+    } catch { /* demo fallback */ }
+    if (s.outOfStock === 'hide') products = products.filter((p) => Number(p.qty || 0) > 0);
+
+    const fields = s.fields || {};
+    function waLink(p) {
+      if (!s.waEnabled || !s.waNumber) return '';
+      const no = String(s.waNumber).replace(/\D/g, '');
+      const msg = encodeURIComponent(`Order from ${locRow?.name || 'catalogue'}\n${p.name} (${p.sku}) · ${fmt(p.selling_price)}`);
+      return `https://wa.me/233${no.replace(/^0/, '')}?text=${msg}`;
+    }
+
+    app.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px">
+        <img src="/brand/delkor-fiberk-letterhead.png" alt="" style="height:36px" onerror="this.style.display='none'" />
+        <h1 style="margin:8px 0 0">${esc(s.title || locRow?.name || 'Catalogue')}</h1>
+        <p class="ult-muted">${esc(s.subtitle || '')} · ${esc(locRow?.name || loc || 'All locations')}</p>
+      </div>
+      <div class="qr-grid">
+        ${products.map((p) => `<div class="qr-card">
+          <div style="font-weight:800">${esc(p.name)}</div>
+          <div class="ult-muted" style="font-size:12px">${esc(p.sku || '')}</div>
+          <div style="font-size:18px;font-weight:800;margin:8px 0">${fmt(p.selling_price)}</div>
+          <div class="ult-muted">${Number(p.qty || 0) > 0 ? 'In stock · ' + p.qty : 'Out of stock'}</div>
+          ${s.waEnabled ? `<p><a class="ult-btn ult-btn-success" href="${waLink(p)}" target="_blank" rel="noopener">Order on WhatsApp</a></p>` : ''}
+        </div>`).join('')}
+      </div>
+      ${s.waEnabled ? `<form class="ult-card" style="margin-top:20px" onsubmit="return false">
+        <h2 style="font-size:16px;margin:0 0 10px">Customer details</h2>
+        ${fields.name !== 'remove' ? `<div class="ult-field"><label>Your Name ${fields.name === 'required' ? '*' : ''}</label><input ${fields.name === 'required' ? 'required' : ''} /></div>` : ''}
+        ${fields.email !== 'remove' ? `<div class="ult-field"><label>Email Address ${fields.email === 'required' ? '*' : ''}</label><input type="email" ${fields.email === 'required' ? 'required' : ''} /></div>` : ''}
+        ${fields.phone !== 'remove' ? `<div class="ult-field"><label>Phone Number ${fields.phone === 'required' ? '*' : ''}</label><input ${fields.phone === 'required' ? 'required' : ''} /></div>` : ''}
+      </form>` : ''}
+    `;
+  </script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMS Settings — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { PROVIDERS, loadSms, saveSms, applyProvider, sendSms, ghanaMsisdn } from './js/sms-gateway.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  let cfg = loadSms();
+  let status = '';
+
+  function field(id, label, value, extra = '') {
+    return `<label style="display:block;font-size:13px;margin-bottom:10px">${label}
+      <input id="${id}" class="ult-input" value="${String(value || '').replace(/"/g, '&quot;')}" ${extra} style="width:100%;margin-top:4px" />
+    </label>`;
+  }
+
+  function paint() {
+    const spec = PROVIDERS[cfg.provider] || PROVIDERS.custom;
+    app.innerHTML = `
+      ${pageChrome('SMS Settings', 'SMS gateway for sale and payment notices.')}
+      <div class="ult-card" style="max-width:920px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+          <label style="display:block;font-size:13px">Provider
+            <select id="sms_provider" class="ult-input" style="width:100%;margin-top:4px">
+              ${Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}" ${cfg.provider === k ? 'selected' : ''}>${v.label}</option>`).join('')}
+            </select>
+          </label>
+          ${field('sms_url', 'SMS URL', cfg.url)}
+          ${field('sms_to', 'Send to parameter', cfg.toParam)}
+          ${field('sms_msg', 'Message parameter', cfg.msgParam)}
+          <label style="display:block;font-size:13px">Request method
+            <select id="sms_method" class="ult-input" style="width:100%;margin-top:4px">
+              <option ${cfg.method === 'POST' ? 'selected' : ''}>POST</option>
+              <option ${cfg.method === 'GET' ? 'selected' : ''}>GET</option>
+            </select>
+          </label>
+          ${field('sms_from', 'Registered sender ID (shows on the customer phone)', cfg.from)}
+          ${field('sms_ids', 'All MTN / NCA sender IDs', cfg.senderIds, 'placeholder="DelkorFBK, Fiberk, AXI"')}
+          ${field('sms_mtn', 'MTN business numbers', cfg.mtnNumbers, 'placeholder="0546443323"')}
+          ${field('sms_test', 'Test number', cfg.testNumber, 'placeholder="233241234567"')}
+          ${field('sms_key', spec.auth === 'basic' ? 'Hubtel Client ID' : 'API key', cfg.apiKey, 'autocomplete="off"')}
+          ${spec.auth === 'basic' ? field('sms_secret', 'Hubtel Client Secret', cfg.apiSecret, 'type="password" autocomplete="off"') : '<input type="hidden" id="sms_secret" />'}
+        </div>
+        <p class="ult-muted" style="margin:12px 0">
+          ${cfg.provider === 'hubtel' ? 'Hubtel uses Basic auth (Client ID + Secret) and From / To / Content.' : ''}
+          ${cfg.provider === 'arkesel' ? 'Arkesel uses header api-key and sender / message / recipients.' : ''}
+          ${cfg.provider === 'mnotify' ? 'Mnotify uses ?key= on the URL.' : ''}
+          Live send goes through the receipt SMS function so the browser is not blocked by CORS.
+          Put the sender ID MTN approved for Delkor-Fiberk in <b>Registered sender ID</b> — that is the name customers see. Business numbers are printed on the digital receipt.
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="ult-btn ult-btn-outline" id="btn-test">Test SMS</button>
+          <button class="ult-btn" id="btn-save">Update Settings</button>
+        </div>
+        <p id="sms-status" style="margin-top:12px">${status}</p>
+      </div>`;
+
+    document.getElementById('sms_provider').onchange = () => {
+      cfg = applyProvider(document.getElementById('sms_provider').value);
+      paint();
+    };
+    document.getElementById('btn-save').onclick = () => {
+      readForm();
+      saveSms(cfg);
+      status = '<span style="color:green">Saved. Receipt SMS will use this provider.</span>';
+      paint();
+    };
+    document.getElementById('btn-test').onclick = async () => {
+      readForm();
+      saveSms(cfg);
+      const num = ghanaMsisdn(cfg.testNumber);
+      if (!num.startsWith('233') || num.length < 12) {
+        status = '<span style="color:#b00">Enter a Ghana test number (233XXXXXXXXX or 0XXXXXXXXX).</span>';
+        paint();
+        return;
+      }
+      status = 'Sending…';
+      paint();
+      const res = await sendSms({
+        phone: num,
+        message: 'Delkor-Fiberk test SMS. If you received this, the gateway is live.',
+      });
+      if (res.status === 'sent') status = `<span style="color:green">Sent via ${res.provider}.</span>`;
+      else if (res.status === 'preview') status = `<span style="color:#b80">${res.error || 'Preview only — add the API key and deploy send-receipt-sms.'}</span>`;
+      else status = `<span style="color:#b00">${res.error || 'Send failed'}</span>`;
+      paint();
+    };
+  }
+
+  function readForm() {
+    cfg = {
+      provider: document.getElementById('sms_provider').value,
+      url: document.getElementById('sms_url').value.trim(),
+      toParam: document.getElementById('sms_to').value.trim(),
+      msgParam: document.getElementById('sms_msg').value.trim(),
+      method: document.getElementById('sms_method').value,
+      from: document.getElementById('sms_from').value.trim() || 'DelkorFBK',
+      senderIds: document.getElementById('sms_ids').value.trim(),
+      mtnNumbers: document.getElementById('sms_mtn').value.trim(),
+      testNumber: document.getElementById('sms_test').value.trim(),
+      apiKey: document.getElementById('sms_key').value.trim(),
+      apiSecret: document.getElementById('sms_secret')?.value.trim() || '',
+    };
+  }
+
+  paint();
+</script>
+</body>
+</html>

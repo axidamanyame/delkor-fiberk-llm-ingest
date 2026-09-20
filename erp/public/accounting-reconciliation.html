@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reconciliation — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/field-ops.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script src="/js/boot-guard.js"></script>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { accNav, esc, dateFilterBtn, bindDateFilter, fiberkDateRange, tableBar, tableFoot } from './js/accounting.js';
+  import { fmt } from './js/supabaseClient.js';
+  import { bindTable } from './js/home-tables.js';
+  import {
+    buildRecon, reconBanner, cedi, hydrateRecon,
+  } from './js/fiberk-recon.js';
+  import { siloHref, migStamp } from './js/fiberk-silo.js';
+  import {
+    ensureBankBooks, reconOverview, categorySummary, statementSummary, monthlyTrend,
+    catLabel, linkTransaction,
+  } from './js/bank-ledger.js';
+
+try {
+  const session = await mountUltimateShell();
+  if (!session) { location.replace('/login.html'); throw new Error('auth'); }
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  let tab = q.get('tab') || 'books';
+  const fk = fiberkDateRange();
+  const state = { preset: fk.preset, from: fk.from, to: fk.to };
+  const TABS = [
+    { id: 'books', label: 'Books' },
+    { id: 'income', label: 'Income wall' },
+    { id: 'catalog', label: 'Catalog' },
+    { id: 'qty', label: 'Quantity' },
+    { id: 'bank', label: 'UBA bank' },
+  ];
+
+  function ymd(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+  }
+
+  function pill(ok, yes = 'Posted', no = 'Open') {
+    return ok
+      ? `<span class="pill paid">${esc(yes)}</span>`
+      : `<span class="pill pending">${esc(no)}</span>`;
+  }
+
+  function booksBody(m) {
+    const poPosted = m.purchases.n && (m.journals.purchase > 0 || m.purchases.payments > 0);
+    const rows = [
+      ['Purchases', m.purchases.n, cedi(m.purchases.grand), `Due ${cedi(m.purchases.due)}`, pill(poPosted), siloHref('purchases')],
+      ['Purchase payments', m.purchases.payments, cedi(m.purchases.paid), 'Dr A/P · Cr Cash on hand', pill(m.purchases.payments), siloHref('purchases')],
+      ['Retail sales (Shop / Jumia / Furniture)', m.sales.retail_n, cedi(m.sales.retail_amt), `Due ${cedi(m.sales.retail_due)}`, pill(m.sales.posted, 'Income', 'Not posted'), siloHref('sales')],
+      ['EasyBuy POS (facilitation)', m.sales.easy_n, cedi(m.sales.easy_amt), 'Lined up vs HP Fiberk sell — not added on top', pill(m.sales.posted, 'In sales book', 'Open'), siloHref('sales')],
+      ['HP Fiberk sell (our income)', m.hp.n, cedi(m.hp.xfer), 'Partner reimbursement only', pill(true, 'Own book'), '/accounting-hp.html'],
+      ['Customer deposit (partner)', m.hp.n, cedi(m.hp.down), 'Not on our books', pill(true, 'Off books'), '/accounting-hp.html'],
+      ['SA commission ₵100 (partner)', m.hp.settled, cedi(m.hp.commission), 'Not on our books, not payroll', pill(true, 'Off books'), '/accounting-hp.html'],
+      ['Stock transfers', m.stock.n, cedi(m.stock.grand || 0), 'Internal — no journal', pill(true, 'WMS only'), siloHref('transfers')],
+      ['Stock adjustments', m.stock.adjustments || 0, cedi(0), 'Fiberkapp book is empty', pill(true, '0'), '/stock-adjustments.html'],
+      ['Products', m.catalog.products, '—', `${m.catalog.aligned} on the Fiberkapp tree`, pill(m.catalog.products, 'Aligned'), siloHref('products')],
+      ['Cost of sales', 0, cedi(0), 'Blank until Franko cost sits on each IMEI', pill(true, 'Not posted'), '/accounting-reports.html?r=pl'],
+      ['Purchases catch-up', 'UBA', 'Live bills', 'Bank stock payments with no PO', pill(true, 'HQ desk'), '/purchase-catchup.html'],
+    ];
+    return `
+      <p class="sub" style="margin:0 0 12px">Source Fiberkapp / ACM vs what is posted here. Pick All in the sidebar if a location filter is hiding EasyBuy.</p>
+      <div class="home-card">
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Book</th><th>Rows</th><th>Amount</th><th>Rule</th><th>Status</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-view="${esc(r[5])}">
+            <td><a href="${esc(r[5])}">${esc(r[0])}</a></td>
+            <td>${r[1]}</td>
+            <td>${esc(String(r[2]))}</td>
+            <td>${esc(r[3])}</td>
+            <td>${r[4]}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+  }
+
+  function incomeBody(m) {
+    return `
+      <div class="ov-card">
+        <h2>What belongs on Fiberk books</h2>
+        <p class="sub">Retail POS cash is ours. For hire-purchase, only the partner reimbursement (Fiberk sell) is our selling price.
+          The customer deposit and the ₵100 SA commission come from the partner’s coffers and never hit our ledger.
+          EasyBuy POS invoices are the Fiberkapp record of those phones — they are lined up here, not added on top of HP.</p>
+        <div class="fo-ol-kpis" style="margin:12px 0 0;border:0">
+          <article><span>Retail income</span><b>${cedi(m.sales.retail_amt)}</b></article>
+          <article><span>Still due (shop)</span><b>${cedi(m.sales.retail_due)}</b></article>
+          <article><span>HP Fiberk sell</span><b>${cedi(m.hp.xfer)}</b></article>
+          <article><span>Deposit (not ours)</span><b>${cedi(m.hp.down)}</b></article>
+        </div>
+      </div>
+      <div class="ov-card">
+        <h2>EasyBuy POS ↔ HP payment record</h2>
+        <p class="sub">${m.sales.easy_n} EasyBuy invoices (${cedi(m.sales.easy_amt)}) vs ${m.hp.n} HP transfers (${cedi(m.hp.xfer)}).
+          Match on IMEI, Ghana last-9, or transfer amount. Unmatched rows stay in review — we do not invent a link.</p>
+        <div class="fo-ol-kpis" style="margin:12px 0 0;border:0">
+          <article><span>Matched</span><b>${m.hp.eb_matched}</b></article>
+          <article><span>Matched value</span><b>${cedi(m.hp.eb_matched_amt)}</b></article>
+          <article><span>Last-9 overlap</span><b>${m.hp.eb_phone}</b></article>
+          <article><span>IMEI overlap</span><b>${m.hp.eb_imei}</b></article>
+          <article><span>EasyBuy unmatched</span><b>${m.hp.eb_unmatched}</b></article>
+        </div>
+        <p style="margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="ult-btn ult-btn-primary" href="/accounting-hp.html">HP reimbursement</a>
+          <a class="ult-btn ult-btn-outline" href="/field-ops.html?tab=master">HP Book</a>
+          <a class="ult-btn ult-btn-outline" href="/sales-orders.html">All sales</a>
+        </p>
+      </div>`;
+  }
+
+  function catalogBody(m) {
+    const miss = [...(m.catalog.po_missing || []), ...(m.catalog.so_missing || [])];
+    return `
+      <div class="ov-card">
+        <h2>Product list on the books</h2>
+        <p class="sub">Purchase and sale SKUs matched to the Fiberkapp category tree. Images stay off the POS until verified.
+          ${m.catalog.with_buy} SKUs already carry a Fiberkapp buy price — that cost is still not allocated to IMEIs, so profit stays blank.</p>
+        <div class="fo-ol-kpis" style="margin:12px 0 0;border:0">
+          <article><span>Products</span><b>${m.catalog.products}</b></article>
+          <article><span>On the tree</span><b>${m.catalog.aligned}</b></article>
+          <article><span>PO SKUs in catalog</span><b>${m.catalog.po_in_catalog}/${m.catalog.po_skus}</b></article>
+          <article><span>Sale SKUs in catalog</span><b>${m.catalog.so_in_catalog}/${m.catalog.so_skus}</b></article>
+          <article><span>Sale lines, no SKU</span><b>${m.catalog.so_no_sku}</b></article>
+        </div>
+        <p style="margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="ult-btn ult-btn-primary" href="/products.html">Product list</a>
+          <a class="ult-btn ult-btn-outline" href="/categories.html">Categories</a>
+        </p>
+      </div>
+      <div class="home-card">
+        <h2 style="margin:0 0 8px;font-size:16px">SKUs not on the product list</h2>
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr><th>SKU</th><th>Name</th><th>Seen on</th><th>Document</th></tr></thead>
+          <tbody>${miss.map((r) => `<tr>
+            <td>${esc(r.sku)}</td><td>${esc(r.name || '')}</td>
+            <td>${esc(r.source)}</td><td>${esc(r.ref || '')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="4">Every purchase and sale SKU is on the product list.</td></tr>'}</tbody>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+  }
+
+  function qtyBody(m) {
+    return `
+      <div class="ov-card">
+        <h2>Quantity through the chain</h2>
+        <p class="sub">Historical Fiberkapp movement. Opening stock already sat on Fiberkapp, so sold qty can exceed purchased qty in this window.
+          WMS receive is posted; on-hand is not inflated.</p>
+        <div class="fo-ol-kpis" style="margin:12px 0 0;border:0">
+          <article><span>Purchased</span><b>${m.qty.purchased}</b></article>
+          <article><span>Transferred</span><b>${m.qty.transferred}</b></article>
+          <article><span>Sold</span><b>${m.qty.sold}</b></article>
+          <article><span>PO lines</span><b>${m.qty.po_lines}</b></article>
+          <article><span>Sale lines</span><b>${m.qty.so_lines}</b></article>
+        </div>
+        <p style="margin:12px 0 0;display:flex;gap:8px;flex-wrap:wrap">
+          <a class="ult-btn ult-btn-outline" href="/wms.html?tab=recv">WMS receiving</a>
+          <a class="ult-btn ult-btn-outline" href="/stock-transfers.html">Stock transfers</a>
+          <a class="ult-btn ult-btn-outline" href="/sales-orders.html">All sales</a>
+        </p>
+      </div>`;
+  }
+
+  function bankBody() {
+    const sum = statementSummary();
+    const recon = reconOverview();
+    const cats = categorySummary();
+    const trend = monthlyTrend();
+    const unmatched = recon.rows.filter((r) => !r.matched);
+    const matched = recon.rows.filter((r) => r.matched);
+    return `
+      <div class="ov-card">
+        <h2>UBA Fiberk statement</h2>
+        <p class="sub">Bank lines vs payroll, expenses and phone inventory. Match ${recon.match_rate}%.
+          Phone-inventory debits are the cash side of Fiberkapp purchases — they are not a second inventory journal.</p>
+        <div class="ult-kpis">
+          <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Bank lines</div><div class="ult-kpi-value">${recon.bank_transactions}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Matched</div><div class="ult-kpi-value">${recon.matched}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Unmatched</div><div class="ult-kpi-value">${recon.unmatched}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Debits</div><div class="ult-kpi-value">${fmt(sum.total_debits)}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Credits</div><div class="ult-kpi-value">${fmt(sum.total_credits)}</div></div></div>
+        </div>
+      </div>
+      <div class="ult-card" style="margin-bottom:14px">
+        <strong>Category totals</strong>
+        <div class="ult-table-wrap" style="margin-top:10px"><table class="ult-table">
+          <thead><tr><th>Category</th><th>Lines</th><th>Debit</th><th>Credit</th></tr></thead>
+          <tbody>${Object.entries(cats).map(([k, v]) => `<tr>
+            <td>${esc(catLabel(k))}</td><td>${v.n}</td>
+            <td class="num">${fmt(v.debit)}</td><td class="num">${fmt(v.credit)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+      <div class="ult-card" style="margin-bottom:14px">
+        <strong>Monthly movement</strong>
+        <div class="ult-table-wrap" style="margin-top:10px"><table class="ult-table">
+          <thead><tr><th>Month</th><th>Debits</th><th>Credits</th></tr></thead>
+          <tbody>${trend.map((row) => `<tr><td>${esc(row.month)}</td><td class="num">${fmt(row.debits)}</td><td class="num">${fmt(row.credits)}</td></tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+      <div class="ult-card" style="margin-bottom:14px">
+        <strong>Unmatched</strong>
+        <div class="ult-table-wrap" style="margin-top:10px"><table class="ult-table">
+          <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Category</th><th>Link as</th></tr></thead>
+          <tbody>${unmatched.map((r) => `<tr>
+            <td>${esc(ymd(r.transaction_date))}</td>
+            <td>${esc(r.description)}</td>
+            <td class="num">${fmt(r.debit || r.credit || 0)}</td>
+            <td>${esc(catLabel(r.category))}</td>
+            <td><select data-link="${esc(r.id)}">
+              <option value="">—</option>
+              <option value="payroll">Payroll</option>
+              <option value="inventory">Inventory</option>
+              <option value="vendor">Vendor</option>
+              <option value="expense">Expense</option>
+              <option value="loan">Loan</option>
+            </select></td>
+          </tr>`).join('') || '<tr><td colspan="5">All lines matched.</td></tr>'}</tbody>
+        </table></div>
+      </div>
+      <div class="ult-card">
+        <strong>Matched · ${matched.length}</strong>
+        <div class="ult-table-wrap" style="margin-top:10px"><table class="ult-table">
+          <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Linked to</th></tr></thead>
+          <tbody>${matched.slice(0, 40).map((r) => `<tr>
+            <td>${esc(ymd(r.transaction_date))}</td>
+            <td>${esc(r.description)}</td>
+            <td class="num">${fmt(r.debit || r.credit || 0)}</td>
+            <td>${esc(r.link_label || r.module)}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  async function paint() {
+    app.innerHTML = `${accNav('recon')}<h1>Reconciliation</h1><p class="sub">Hydrating Fiberkapp books…</p>`;
+    await hydrateRecon();
+    await ensureBankBooks();
+    const m = await buildRecon({ from: state.from, to: state.to });
+    let inner = '';
+    if (tab === 'income') inner = incomeBody(m);
+    else if (tab === 'catalog') inner = catalogBody(m);
+    else if (tab === 'qty') inner = qtyBody(m);
+    else if (tab === 'bank') inner = bankBody();
+    else inner = booksBody(m);
+
+    app.innerHTML = `
+      ${accNav('recon')}
+      <div class="acc-top">
+        <div>
+          <h1>Reconciliation ${migStamp()}</h1>
+          <p class="sub">${esc(scopeCaption())} · Fiberkapp books vs journals vs HP reimbursement vs catalog vs UBA.</p>
+        </div>
+        ${dateFilterBtn(state.preset)}
+      </div>
+      ${reconBanner(m)}
+      <div class="fo-ol-kpis">
+        <article><span>Purchase journals</span><b>${m.journals.purchase}</b></article>
+        <article><span>Sales journals</span><b>${m.journals.sales}</b></article>
+        <article><span>Retail income</span><b>${cedi(m.sales.retail_amt)}</b></article>
+        <article><span>HP Fiberk sell</span><b>${cedi(m.hp.xfer)}</b></article>
+        <article><span>A/P due</span><b>${cedi(m.purchases.due)}</b></article>
+      </div>
+      <div class="acc-inner-tabs">
+        ${TABS.map((t) => `<button type="button" class="${t.id === tab ? 'on' : ''}" data-tx="${t.id}">${esc(t.label)}</button>`).join('')}
+      </div>
+      ${inner}`;
+    bindDateFilter(app, state, paint);
+    app.querySelectorAll('[data-tx]').forEach((b) => {
+      b.onclick = () => {
+        tab = b.dataset.tx;
+        history.pushState({ spa: `/accounting-reconciliation.html?tab=${tab}` }, '', `/accounting-reconciliation.html?tab=${tab}`);
+        paint();
+      };
+    });
+    const tbl = app.querySelector('.home-card');
+    if (tbl) bindTable(tbl, { title: 'Reconciliation', storageKey: 'acc-recon-' + tab });
+    app.querySelectorAll('[data-link]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        if (!sel.value) return;
+        linkTransaction(sel.dataset.link, sel.value, '', sel.options[sel.selectedIndex].text);
+        paint();
+      });
+    });
+  }
+
+  window.addEventListener(SCOPE_EVENT, paint);
+  await paint();
+} catch (err) {
+  const app = document.getElementById('app');
+  if (app && !document.getElementById('ult-root')) {
+    app.innerHTML = `<div class="ult-card" style="margin:28px auto;max-width:520px;padding:20px">
+      <h1>Reconciliation</h1>
+      <p>${String(err?.message || err || 'Could not open')}</p>
+      <p><a class="ult-btn ult-btn-primary" href="/login.html">Sign in</a></p>
+    </div>`;
+  }
+}
+</script>
+</body>
+</html>

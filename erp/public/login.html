@@ -1,0 +1,2538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#d7ecfb" />
+  <title>Login — Delkor-Fiberk Group</title>
+  <script>
+    (function () {
+      try {
+        var wantsReal = /[?&](real|switch)=1/.test(location.search) || location.hash === '#staff' || location.hash === '#register';
+        if (wantsReal) {
+          ['df_preview_demo', 'df_logged_in', 'df_auth', 'df_profile', 'df_last_path', 'df_next', 'df_auth_hops', 'df_login_hold'].forEach(function (k) {
+            try { localStorage.removeItem(k); } catch (e6) {}
+            try { sessionStorage.removeItem(k); } catch (e7) {}
+          });
+        }
+      } catch (e8) {}
+      try {
+        if (/[?&]switch=1/.test(location.search)) sessionStorage.setItem('df_login_hold', '1');
+      } catch (eH) {}
+      try {
+        if (/iPhone|iPod|Android.+Mobile|webOS|BlackBerry|IEMobile/i.test(navigator.userAgent || '') || (window.innerWidth && window.innerWidth <= 820)) {
+          document.documentElement.classList.add('ult-phone', 'ult-touch');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #6b7280;
+      --line: #d1d5db;
+      --card: #ffffff;
+      --navy: #0b1b3a;
+      --teal: #14b8a6;
+      --indigo: #6366f1;
+      --accent: #4f46e5;
+      --accent-2: #6366f1;
+      --focus: #eef2ff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; height: 100dvh; overflow: hidden; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      background: linear-gradient(165deg, #d7ecfb 0%, #cfe8ff 36%, #d8f6ea 72%, #c8f3dc 100%);
+      color: var(--ink);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    .site-nav {
+      position: relative;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 20px;
+      background: rgba(255,255,255,.96);
+      border-bottom: 1px solid #cfe0ef;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .home-ico {
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid #dbe7f2;
+      color: #0f766e;
+      text-decoration: none;
+      box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    }
+    .home-ico svg { width: 22px; height: 22px; fill: currentColor; }
+    .home-ico:hover, .home-ico.on { background: #0f766e; color: #fff; }
+    .site-nav .lockup {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      background: #fff;
+      border: 1px solid #dbe7f2;
+      border-radius: 12px;
+      padding: 10px 14px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 1px 2px rgba(15,23,42,.04);
+    }
+    .lockup-mark { width: 36px; height: 36px; flex: 0 0 36px; }
+    .lockup-word { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .lockup-word strong {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      line-height: 1.05;
+    }
+    .lockup-word .delkor { color: #14b8a6; }
+    .lockup-word .hyphen { color: #5b6b80; }
+    .lockup-word .fiberk { color: #6366f1; }
+    .lockup-word small {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #3d4f66;
+      line-height: 1.35;
+    }
+    .site-nav nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 0 0 auto;
+    }
+    .site-nav nav a, .site-nav nav button.nav-btn {
+      color: #334155;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 650;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      background: transparent;
+      border: 0;
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .site-nav nav a:hover, .site-nav nav button.nav-btn:hover { background: #e8f4ef; color: #0f766e; }
+    .site-nav nav a.on, .site-nav nav button.nav-btn.on {
+      background: #0f766e;
+      color: #fff;
+    }
+    .hdr-pop { position: relative; }
+    .contact-page {
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      width: min(1100px, 100%);
+      margin: 0 auto;
+      padding: 4px 8px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .contact-page[hidden], .field-page[hidden], .companies-view[hidden], .welcome[hidden] { display: none !important; }
+    .contact-page .hello { margin: 0 0 4px; }
+    .contact-page h2 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 3vw, 32px);
+      font-weight: 800;
+      color: #0f2744;
+      text-align: center;
+    }
+    .contact-lead {
+      margin: 0 auto 10px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+      max-width: 36em;
+    }
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 0;
+      flex: 0 1 auto;
+      min-height: 0;
+    }
+    .contact-card {
+      background: rgba(255,255,255,.92);
+      border: 1px solid #dbe7f2;
+      border-radius: 14px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 20px rgba(15,39,68,.06);
+    }
+    .contact-card.span2 { grid-column: 1 / -1; }
+    .contact-card.span3 { grid-column: 1 / -1; }
+    .contact-card h3 {
+      margin: 0 0 10px;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #3d4f66;
+      font-weight: 800;
+    }
+    .contact-card a {
+      color: #0f766e;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      font-weight: 800;
+    }
+    .contact-card a:hover { color: #115e59; text-decoration: underline; }
+    .contact-card .big {
+      display: block;
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f2744;
+      margin-top: 2px;
+    }
+    .contact-card a.big {
+      color: #0f766e;
+    }
+    .contact-card .hint { display: block; margin-top: 4px; font-size: 12px; color: #3d4f66; font-weight: 500; text-decoration: none; }
+    .site-list { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .site-list a {
+      display: inline-flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 0;
+      font-weight: 800;
+      color: #0f766e;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .site-list a:hover { color: #115e59; }
+    .site-list span { font-size: 12px; font-weight: 600; color: #3d4f66; }
+    .social-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .social-groups {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px 14px;
+    }
+    .social-group h4 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #3d4f66;
+    }
+    .social-row a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #ecfdf5;
+      color: #0f766e;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+      border: 1px solid #99f6e4;
+    }
+    .social-row a:hover { background: #0f766e; color: #fff; text-decoration: none; border-color: #0f766e; }
+    .social-row a[href^="#social"] {
+      background: #f1f5f9;
+      color: #3d4f66;
+      border-color: #e2e8f0;
+      font-weight: 600;
+    }
+    .social-row a[href^="#social"]:hover { background: #e2e8f0; color: #334155; }
+    .social-row svg { width: 16px; height: 16px; fill: currentColor; }
+    .field-page {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      text-align: center;
+    }
+    .field-page .fo-side { font-size: 22px; min-width: 140px; }
+    .field-page .fo-hand { width: 64px; height: 64px; font-size: 32px; }
+    .welcome {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 12px 16px;
+      gap: 10px;
+    }
+    .welcome .hello, .hello {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: #0f766e;
+    }
+    .welcome h2, .df-wordmark {
+      margin: 0;
+      font-size: clamp(28px, 6vw, 52px);
+      font-weight: 800;
+      letter-spacing: .04em;
+      line-height: 1.06;
+      text-transform: uppercase;
+      color: #0f2744;
+    }
+    .df-wordmark span, .org-group .company span {
+      display: inline-block;
+      transform: perspective(420px) rotateX(18deg);
+    }
+    .df-wordmark .delkor, .org-group .company .delkor {
+      color: #5eead4;
+      -webkit-text-stroke: 1px #0f766e;
+      text-shadow:
+        1px 1px 0 #2dd4bf,
+        2px 2px 0 #14b8a6,
+        3px 3px 0 #0d9488,
+        4px 4px 0 #0f766e,
+        5px 6px 10px rgba(15, 39, 68, .22);
+    }
+    .df-wordmark .hyphen, .org-group .company .hyphen {
+      color: #e2e8f0;
+      -webkit-text-stroke: 1px #3d4f66;
+      text-shadow:
+        2px 2px 0 #94a3b8,
+        4px 5px 8px rgba(15, 39, 68, .18);
+    }
+    .df-wordmark .fiberk, .org-group .company .fiberk {
+      color: #c7d2fe;
+      -webkit-text-stroke: 1px #4338ca;
+      text-shadow:
+        1px 1px 0 #a5b4fc,
+        2px 2px 0 #818cf8,
+        3px 3px 0 #6366f1,
+        4px 4px 0 #4f46e5,
+        5px 6px 10px rgba(15, 39, 68, .22);
+    }
+    .welcome p {
+      margin: 0 auto;
+      max-width: 28em;
+      font-size: clamp(15px, 2vw, 20px);
+      font-weight: 650;
+      line-height: 1.4;
+      color: #1e3a5f;
+    }
+    .companies-view {
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 10px;
+    }
+    .companies-view[hidden], .welcome[hidden] { display: none !important; }
+    .stage {
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 14px;
+      padding: 8px 20px;
+    }
+    .stage[data-view="field-ops"],
+    .stage[data-view="contact"] {
+      justify-content: flex-start;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 0;
+      align-items: stretch;
+    }
+    .mk-page[hidden] { display: none !important; }
+    .mk-page {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px 40px;
+      text-align: left;
+      color: #111;
+    }
+    .mk-hero {
+      background: linear-gradient(165deg, #fff7ed 0%, #ffedd5 42%, #f3e8ff 100%);
+      border: 1px solid #fed7aa;
+      border-radius: 20px;
+      padding: 28px 24px 24px;
+      margin: 12px 0 18px;
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 20px;
+      align-items: center;
+    }
+    .mk-kicker {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: #6d28d9;
+    }
+    .mk-word { font-size: clamp(22px, 3vw, 32px); margin-bottom: 8px; text-align: left; }
+    .mk-hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(26px, 4vw, 42px);
+      line-height: 1.12;
+      color: #111;
+    }
+    .mk-hero p { margin: 0 0 16px; font-size: 16px; line-height: 1.45; color: #374151; max-width: 36em; }
+    .mk-cta { display: flex; flex-wrap: wrap; gap: 10px; }
+    .mk-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      border-radius: 999px; padding: 11px 18px; font-weight: 800; font-size: 14px;
+      text-decoration: none; border: 0; cursor: pointer; font-family: inherit;
+    }
+    .mk-btn.orange { background: #f97316; color: #fff; }
+    .mk-btn.purple { background: #6d28d9; color: #fff; }
+    .mk-btn.ghost { background: #fff; color: #111; border: 1px solid #d1d5db; }
+    .mk-hero-side {
+      background: #111;
+      color: #fff;
+      border-radius: 16px;
+      padding: 18px 16px;
+      text-align: center;
+    }
+    .mk-hero-side .n { font-size: 22px; font-weight: 800; color: #f97316; line-height: 1.2; }
+    .mk-hero-side .l { font-size: 12px; color: #9ca3af; text-transform: uppercase; letter-spacing: .08em; }
+    .mk-hero-side + .mk-hero-side { margin-top: 10px; }
+    .mk-sec { padding: 8px 0 18px; }
+    .mk-sec h2 { margin: 0 0 6px; font-size: 22px; color: #111; }
+    .mk-sec .lead { margin: 0 0 14px; color: #4b5563; }
+    .mk-steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .mk-step {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 14px 12px;
+      min-height: 140px;
+    }
+    .mk-step .num { font-weight: 800; color: #f97316; font-size: 13px; letter-spacing: .08em; }
+    .mk-step h3 { margin: 6px 0 6px; font-size: 15px; }
+    .mk-step p { margin: 0; font-size: 13px; color: #4b5563; line-height: 1.4; }
+    .mk-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mk-card { border-radius: 16px; padding: 18px 16px; }
+    .mk-card.cust { background: #111; color: #fff; }
+    .mk-card.cust h3 { color: #f97316; margin: 0 0 8px; }
+    .mk-card.ag { background: #6d28d9; color: #fff; }
+    .mk-card.ag h3 { margin: 0 0 8px; }
+    .mk-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; }
+    .mk-card ul { margin: 0; padding-left: 18px; font-size: 14px; }
+    .mk-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .mk-stat {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .mk-stat b { display: block; font-size: 22px; color: #f97316; }
+    .mk-stat span { font-size: 12px; color: #6b7280; }
+    .mk-form {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .mk-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #374151; }
+    .mk-form input, .mk-form select, .mk-form textarea {
+      border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 10px; font: inherit; font-weight: 500;
+    }
+    .mk-form .span2 { grid-column: 1 / -1; }
+    .mk-ok { color: #047857; font-weight: 700; margin: 8px 0 0; }
+    .mk-areas {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .mk-area-block { margin-bottom: 14px; }
+    .mk-area-block h3 {
+      margin: 0 0 8px;
+      font-size: 13px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #6d28d9;
+    }
+    .mk-areas span {
+      background: #fff;
+      border: 1px solid #fed7aa;
+      color: #111;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .mk-quotes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .mk-quotes blockquote {
+      margin: 0;
+      background: #111;
+      color: #fff;
+      border-radius: 16px;
+      padding: 16px 16px 14px;
+    }
+    .mk-quotes p { margin: 0 0 12px; font-size: 14px; line-height: 1.45; font-weight: 500; }
+    .mk-quotes footer { color: #f97316; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    @media (max-width: 820px) {
+      .mk-quotes { grid-template-columns: 1fr; }
+    }
+    .mk-floor {
+      display: flex; align-items: stretch; justify-content: center; gap: 16px; flex-wrap: wrap;
+      background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 14px;
+    }
+    .mk-floor .fo-side { text-align: center !important; }
+    @media (max-width: 820px) {
+      .mk-hero { grid-template-columns: 1fr; padding: 18px 14px; }
+      .mk-steps, .mk-two, .mk-stats, .mk-form { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px) {
+      .mk-steps, .mk-two, .mk-stats { grid-template-columns: 1fr; }
+    }
+    .hero {
+      position: relative;
+      overflow: hidden;
+      flex: 0 1 auto;
+      min-height: 0;
+      color: #0f172a;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .hero-copy {
+      width: min(1100px, 100%);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .org-group .company {
+      margin: 0;
+      font-size: clamp(28px, 4.6vw, 44px);
+      font-weight: 800;
+      letter-spacing: .04em;
+      line-height: 1.06;
+      text-transform: uppercase;
+    }
+    .org-group .company span {
+      display: inline-block;
+      transform: perspective(420px) rotateX(18deg);
+    }
+    .org-group .company .delkor {
+      color: #5eead4;
+      -webkit-text-stroke: 1px #0f766e;
+      text-shadow:
+        1px 1px 0 #2dd4bf,
+        2px 2px 0 #14b8a6,
+        3px 3px 0 #0d9488,
+        4px 4px 0 #0f766e,
+        5px 6px 10px rgba(15, 39, 68, .22);
+    }
+    .org-group .company .hyphen {
+      color: #e2e8f0;
+      -webkit-text-stroke: 1px #3d4f66;
+      text-shadow:
+        2px 2px 0 #94a3b8,
+        4px 5px 8px rgba(15, 39, 68, .18);
+    }
+    .org-group .company .fiberk {
+      color: #c7d2fe;
+      -webkit-text-stroke: 1px #4338ca;
+      text-shadow:
+        1px 1px 0 #a5b4fc,
+        2px 2px 0 #818cf8,
+        3px 3px 0 #6366f1,
+        4px 4px 0 #4f46e5,
+        5px 6px 10px rgba(15, 39, 68, .22);
+    }
+    .hero-copy h2 {
+      margin: 0 auto 10px;
+      font-size: clamp(13px, 1.7vw, 18px);
+      font-weight: 700;
+      letter-spacing: -.02em;
+      line-height: 1.25;
+      color: #1e3a5f;
+      max-width: 34em;
+    }
+    .hero .org { margin: 0; }
+    .org-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+      position: relative;
+      padding: 16px 0;
+    }
+    .org-col::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 4px;
+      margin-left: -2px;
+      background: #334155;
+      border-radius: 2px;
+      z-index: 0;
+    }
+    .org-locs {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+      margin-top: 8px;
+      flex: 1;
+      position: relative;
+      z-index: 1;
+    }
+    .org-loc {
+      position: relative;
+      z-index: 1;
+      padding: 4px 6px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px dashed #cbd5e1;
+      font-size: 11px;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+    .org-loc span { display: block; font-weight: 500; font-size: 10px; color: #3d4f66; }
+    .org-col .org-down {
+      width: 4px;
+      min-height: 16px;
+      flex: 1 0 16px;
+      background: transparent;
+      margin-top: 0;
+    }
+    .org-role {
+      position: relative;
+      z-index: 1;
+      margin-top: 8px;
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: #0f172a;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 1.25;
+    }
+    .org-role + .org-role { margin-top: 4px; }
+    .org-join { position: relative; margin-top: 0; }
+    .org-vw {
+      background: #0f766e;
+      color: #fff;
+      min-width: 240px;
+      padding: 6px 16px;
+      font-size: 13px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 18px rgba(15,118,110,.25);
+    }
+    .org-vw small { font-size: 10px; letter-spacing: .04em; text-transform: none; }
+    .login-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(15, 39, 68, .42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 14px;
+    }
+    .login-modal[hidden] { display: none !important; }
+    .login-modal:not([hidden]) { display: flex !important; }
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 18px;
+      padding: 28px 28px 22px;
+      box-shadow: 0 24px 50px rgba(15, 39, 68, .28);
+      position: relative;
+    }
+    .card-close {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      background: transparent;
+      color: #3d4f66;
+      font-size: 22px;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .card-close:hover { background: #f1f5f9; color: #0f172a; }
+    .site-foot {
+      position: relative;
+      z-index: 30;
+      background: rgba(255,255,255,.96);
+      border-top: 1px solid #e5e7eb;
+      padding: 10px 20px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      font-size: 12.5px;
+      color: #475569;
+      text-align: center;
+    }
+    .site-foot .erp-ver { font-weight: 800; color: #0f2744; }
+    .site-foot .copy { color: #3d4f66; }
+    .field-ops {
+      padding: 6px 0 4px;
+      text-align: center;
+      flex: 0 0 auto;
+    }
+    .field-ops h2 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #0f2744;
+    }
+    .fo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .fo-side {
+      min-width: 110px;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #0f2744;
+    }
+    .fo-side:first-child { text-align: right; }
+    .fo-side:last-child { text-align: left; }
+    .fo-sync-note {
+      text-align: center;
+      font-size: 13px;
+      color: #334155;
+      margin: 0 0 10px;
+    }
+    .fo-pub-list {
+      margin-top: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
+      color: #0f172a;
+    }
+    .fo-pub-list div { padding: 2px 0; }
+    .fo-hand {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 20px rgba(15, 39, 68, .1);
+      font-size: 24px;
+      line-height: 1;
+    }
+    .wa-dock {
+      position: fixed;
+      left: 18px;
+      bottom: 72px;
+      z-index: 45;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .wa-panel {
+      width: 280px;
+      background: #f4fff7;
+      border-radius: 18px;
+      box-shadow: 0 16px 40px rgba(15, 39, 68, .2);
+      overflow: hidden;
+    }
+    .wa-panel[hidden] { display: none; }
+    .wa-head {
+      background: #25d366;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 14px;
+      font-weight: 800;
+      font-size: 16px;
+      gap: 8px;
+    }
+    .wa-head svg { width: 22px; height: 22px; fill: currentColor; }
+    .wa-head button {
+      width: 28px; height: 28px; border: 0; border-radius: 50%;
+      background: rgba(0,0,0,.12); color: #fff; cursor: pointer; font-size: 16px;
+    }
+    .wa-body { padding: 14px; }
+    .wa-bubble {
+      display: inline-block;
+      background: #fff;
+      border-radius: 16px 16px 16px 4px;
+      padding: 10px 14px;
+      box-shadow: 0 1px 3px rgba(15,39,68,.08);
+      font-size: 14px;
+      color: #0f172a;
+      margin-bottom: 14px;
+    }
+    .wa-open {
+      display: block;
+      text-align: center;
+      background: #25d366;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 12px 16px;
+      border-radius: 999px;
+    }
+    .wa-open:hover { filter: brightness(1.05); }
+    .wa-fab {
+      width: 56px;
+      height: 56px;
+      border: 0;
+      border-radius: 50%;
+      background: #25d366;
+      color: #fff;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(37, 211, 102, .4);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wa-fab svg { width: 28px; height: 28px; fill: currentColor; }
+    h1 {
+      margin: 0;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -.02em;
+      color: var(--ink);
+    }
+    .sub {
+      margin: 10px auto 0;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13.5px;
+      font-weight: 500;
+      line-height: 1.5;
+      max-width: 28em;
+    }
+    .card form { margin-top: 28px; }
+    .org {
+      margin: 12px 0 18px;
+      text-align: center;
+    }
+    .org-node {
+      display: inline-block;
+      min-width: 148px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-weight: 800;
+      font-size: 12px;
+      line-height: 1.25;
+      letter-spacing: .01em;
+    }
+    .org-node small {
+      display: block;
+      font-weight: 500;
+      font-size: 10px;
+      margin-top: 2px;
+      opacity: .85;
+    }
+    .org-group {
+      background: #d7ecfb;
+      color: #1e3a5f;
+      border: 1px solid #c5ddf0;
+      box-shadow: 0 4px 14px rgba(15, 39, 68, .08);
+      font-size: 18px;
+      letter-spacing: .04em;
+      text-transform: none;
+      padding: 12px 16px 10px;
+      min-width: 0;
+      width: 100%;
+      border-radius: 14px;
+    }
+    .org-group small {
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: none;
+      color: #1e3a5f;
+      opacity: 1;
+      margin-top: 4px;
+    }
+    .org-subs {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      text-transform: none;
+    }
+    .org-subs a {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+      color: #0f2744;
+      text-decoration: none;
+      padding: 5px 9px;
+      white-space: nowrap;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid #c5ddf0;
+    }
+    .org-subs a:hover, .org-subs a:focus {
+      border-color: #0f766e;
+      color: #0f766e;
+    }
+    .org-on, .org-col.org-on .org-co, .org-hub.org-on {
+      box-shadow: 0 0 0 3px #f97316, 0 8px 18px rgba(15, 23, 42, .12);
+    }
+    .org-hub {
+      background: #0f766e;
+      color: #ecfdf5;
+      min-width: min(320px, 42%);
+      width: auto;
+      min-height: 88px;
+      height: auto;
+      padding: 14px 28px;
+      font-size: 15px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(15, 118, 110, .28);
+    }
+    .org-hub small {
+      margin-top: 4px;
+      font-size: 11px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #ccfbf1;
+      opacity: 1;
+    }
+    .org-stem {
+      width: 4px;
+      height: 16px;
+      margin: 0 auto;
+      background: #334155;
+      border-radius: 2px;
+    }
+    .org-fork {
+      position: relative;
+      margin-top: 0;
+    }
+    .org-bar {
+      height: 4px;
+      width: calc(100% - 12.5%);
+      margin: 0 auto;
+      background: #334155;
+      border-radius: 2px;
+    }
+    .org-kids {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      padding-top: 0;
+      align-items: stretch;
+    }
+    .org-co {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 76px;
+      height: 76px;
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #dbe3ef;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 13.5px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      line-height: 1.15;
+      text-align: center;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .org-co .co-mark {
+      width: 28px;
+      height: 28px;
+      margin: 0 auto 4px;
+      display: block;
+    }
+    .org-co.brand-fiberk {
+      background: #0052ff;
+      border-color: #0040cc;
+      color: #fff;
+    }
+    .org-co.brand-fiberk span { color: rgba(255,255,255,.82); }
+    .org-co.brand-axi {
+      background: #eef2f6;
+      border-color: #fdba74;
+      color: #ea580c;
+    }
+    .org-co.brand-axi span { color: #c2410c; }
+    .org-co.brand-delkor {
+      background: linear-gradient(160deg, #2b9fd6 0%, #4dca7e 100%);
+      border: 0;
+      color: #fff;
+    }
+    .org-co.brand-delkor span { color: rgba(255,255,255,.88); }
+    .org-co.brand-bnpl {
+      background: #fff;
+      border-color: #d1d5db;
+      color: #111827;
+    }
+    .org-co.brand-bnpl span {
+      display: inline;
+      margin: 0;
+      font-size: inherit;
+      font-weight: inherit;
+      letter-spacing: inherit;
+      text-transform: uppercase;
+    }
+    .bnpl-name {
+      width: 100%;
+      font-size: 13.5px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .bn-buy, .org-co.brand-bnpl .bn-buy { color: #f97316 !important; }
+    .bn-now, .org-co.brand-bnpl .bn-now { color: #111111 !important; }
+    .bn-pays, .org-co.brand-bnpl .bn-pays { color: #6d28d9 !important; }
+    .bn-later, .org-co.brand-bnpl .bn-later { color: #9ca3af !important; }
+    .org-co.brand-bnpl .co-sub {
+      display: block;
+      margin-top: 3px;
+      font-weight: 600;
+      font-size: 10.5px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #5b6b80;
+    }
+    .lockup-word small .bnpl-inline {
+      letter-spacing: .08em;
+    }
+    .org-co::before { display: none; }
+    .org-co span {
+      display: block;
+      margin-top: 3px;
+      font-weight: 600;
+      font-size: 10.5px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #3d4f66;
+    }
+    .err {
+      display: none;
+      background: #fef2f2;
+      color: #b91c1c;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .err.show { display: block; }
+    label.fld {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      margin: 0 0 6px;
+      color: var(--ink);
+    }
+    .field { margin-bottom: 16px; position: relative; }
+    input[type="text"], input[type="password"], input[type="email"] {
+      width: 100%;
+      height: 46px;
+      padding: 10px 42px 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: inherit;
+      font-size: 14px;
+      color: var(--ink);
+      background: #fff;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--focus);
+    }
+    .eye {
+      position: absolute;
+      right: 8px;
+      top: 30px;
+      width: 36px;
+      height: 36px;
+      border: 0;
+      background: transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+    }
+    .eye:hover { color: #374151; }
+    .remember {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 500;
+      margin: 4px 0 18px;
+      color: var(--ink);
+      cursor: pointer;
+      user-select: none;
+    }
+    .remember input { width: 16px; height: 16px; accent-color: var(--accent); }
+    button.login {
+      width: 100%;
+      height: 48px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(79, 70, 229, .28);
+    }
+    button.login:hover { filter: brightness(1.05); }
+    button.login:disabled { opacity: .7; cursor: wait; }
+    button.register {
+      width: 100%;
+      height: 48px;
+      margin-top: 10px;
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      background: #eef2ff;
+      color: #3730a3;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button.register:hover { background: #e0e7ff; }
+    .card.reg-card {
+      max-width: min(760px, 100%);
+      max-height: min(92dvh, 900px);
+      overflow: auto;
+      padding: 22px 22px 18px;
+    }
+    .reg-card h1 { font-size: 22px; }
+    .reg-sec {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 14px 8px;
+      margin: 0 0 12px;
+      background: #f8fafc;
+    }
+    .reg-sec h3 {
+      margin: 0 0 12px;
+      font-size: 13px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #475569;
+    }
+    .reg-3, .reg-2, .reg-4 {
+      display: grid;
+      gap: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .reg-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .reg-2 { grid-template-columns: 1fr 1fr; }
+    .reg-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+    .reg-card .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: #111; }
+    .reg-card .fld input, .reg-card .fld select, .reg-card .fld textarea {
+      font-weight: 400;
+      padding: 8px 10px;
+      height: auto;
+      min-height: 42px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      color: #111;
+      background: #fff;
+      width: 100%;
+    }
+    .reg-card .fld textarea { min-height: 72px; resize: vertical; }
+    .reg-photo {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+    }
+    .reg-avatar {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: #e0e7ff; color: #3730a3;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 22px; overflow: hidden;
+    }
+    .reg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .reg-err { margin-bottom: 10px; }
+    .demo {
+      display: block;
+      width: 100%;
+      margin-top: 14px;
+      background: none;
+      border: 0;
+      color: var(--accent);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+    }
+    .demo[hidden], #gate-note[hidden] { display: none !important; }
+    .foot {
+      margin: 18px 0 0;
+      text-align: center;
+      font-size: 11px;
+      color: #3d4f66;
+    }
+    .gate-note {
+      margin: 14px 0 0;
+      padding: 10px 12px;
+      background: #eef2ff;
+      color: #312e81;
+      border-radius: 10px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    @media (max-width: 820px) {
+      .site-nav {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 8px 10px 8px;
+      }
+      .brand-row { width: 100%; }
+      .site-nav .lockup { padding: 6px 10px; flex: 1; min-width: 0; }
+      .lockup-word small { display: none; }
+      .lockup-word strong { font-size: 16px; }
+      .home-ico { width: 40px; height: 40px; }
+      .site-nav nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 4px;
+        flex-wrap: nowrap;
+      }
+      .site-nav nav a, .site-nav nav button.nav-btn {
+        min-height: 44px;
+        padding: 8px 4px;
+        font-size: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        width: 100%;
+      }
+      .contact-grid { grid-template-columns: 1fr; }
+      .contact-grid { grid-template-columns: 1fr; }
+      .contact-card .big { font-size: 16px; }
+      .social-groups { grid-template-columns: 1fr 1fr; }
+      .contact-page { padding: 4px 10px 80px; }
+      .stage { padding: 4px 8px; gap: 6px; }
+      .welcome h2 { font-size: 28px; }
+      .welcome p { font-size: 14px; }
+      .hero-copy h2 { font-size: 12px; margin: 0 auto 6px; max-width: none; }
+      .org-group {
+        width: 100%;
+        min-width: 0;
+        padding: 6px 10px 6px;
+      }
+      .org-group .company { font-size: 22px; }
+      .org-group small { font-size: 10px; }
+      .org-subs { flex-wrap: wrap; }
+      .org-subs a { font-size: 9px; padding: 4px 7px; }
+      .org-hub { font-size: 12px; padding: 10px 14px; min-width: 0; min-height: 64px; }
+      .org-stem, .org-col .org-down { height: 8px; min-height: 8px; }
+      .org-col { padding: 8px 0; }
+      .org-kids { grid-template-columns: 1fr 1fr; gap: 6px; }
+      .org-bar { width: calc(100% - 25%); height: 3px; }
+      .org-co { min-height: 58px; height: 58px; font-size: 10px; padding: 4px 4px; }
+      .org-co .co-mark { width: 20px; height: 20px; margin-bottom: 2px; }
+      .bnpl-name { font-size: 10px; }
+      .org-loc { font-size: 10px; padding: 3px 4px; }
+      .org-loc span { font-size: 9px; }
+      .org-role { font-size: 9px; padding: 4px 4px; margin-top: 6px; }
+      .org-vw { min-width: 0; font-size: 11px; padding: 5px 12px; }
+      .field-ops { padding: 8px 0; }
+      .field-page .fo-side { font-size: 16px; min-width: 0; }
+      .field-page .fo-hand { width: 48px; height: 48px; font-size: 22px; }
+      .fo-row { gap: 10px; flex-wrap: nowrap; }
+      .site-foot { padding: 8px 10px 10px; }
+      .card { padding: 20px 16px 16px; max-height: 85dvh; overflow: auto; }
+      .card.reg-card { padding: 16px 12px 14px; max-height: 92dvh; }
+      .reg-3, .reg-4 { grid-template-columns: 1fr 1fr; }
+      .reg-2 { grid-template-columns: 1fr; }
+      h1 { font-size: 20px; }
+      input, button.login { font-size: 16px; min-height: 48px; }
+      .login-modal { padding: 12px; align-items: flex-start; padding-top: max(12px, env(safe-area-inset-top)); }
+      .wa-dock { left: auto; right: 10px; bottom: 64px; }
+      .wa-fab { width: 48px; height: 48px; }
+      .wa-panel { width: min(280px, calc(100vw - 24px)); }
+    }
+
+    .tour-start {
+      height: 44px;
+      padding: 0 20px;
+      border: 0;
+      border-radius: 999px;
+      background: #0f766e;
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .tour-start:hover { background: #0d9488; }
+    #tour[hidden] { display: none !important; }
+    #tour { position: fixed; inset: 0; z-index: 90; }
+    .tour-spot {
+      position: absolute;
+      border-radius: 12px;
+      box-shadow: 0 0 0 4px #14b8a6, 0 0 0 9999px rgba(15, 39, 68, .48);
+      pointer-events: none;
+    }
+    .tour-card {
+      position: absolute;
+      pointer-events: auto;
+      width: min(340px, calc(100vw - 24px));
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px 16px 12px;
+      box-shadow: 0 18px 40px rgba(15, 39, 68, .28);
+      color: #0f172a;
+    }
+    .tour-card .kicker { margin: 0 0 4px; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #0f766e; }
+    .tour-card h3 { margin: 0 0 6px; font-size: 16px; }
+    .tour-card p { margin: 0; font-size: 13px; line-height: 1.45; color: #334155; }
+    .tour-card a { color: #0f766e; font-weight: 800; }
+    .tour-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+    .tour-actions button {
+      height: 38px; padding: 0 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-family: inherit;
+    }
+    #tour-skip, #tour-back { background: #fff; border: 1px solid #d1d5db; color: #334155; }
+    #tour-next { background: #0f766e; border: 0; color: #fff; }
+    @media (max-width: 820px) {
+      .tour-card { left: 12px !important; right: 12px; width: auto; bottom: 16px !important; top: auto !important; }
+    }
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <header class="site-nav">
+    <div class="brand-row">
+      <a href="#home" id="nav-home" class="home-ico on" title="Home" aria-label="Home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 3 11h2.2v9h5.2v-6h3.2v6h5.2v-9H21z"/></svg>
+      </a>
+      <a class="lockup" href="#home" id="nav-logo" aria-label="Delkor-Fiberk home">
+      <svg class="lockup-mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path fill="#2dd4bf" d="M10 8h24c13.5 0 24 9.2 24 24S47.5 56 34 56H10V8z"/>
+        <path fill="#fff" d="M22 18h12.5c7.5 0 13 5.4 13 14s-5.5 14-13 14H22V18z"/>
+        <path fill="#818cf8" d="M10 28h42v8H10z"/>
+      </svg>
+      <div class="lockup-word">
+        <strong><span class="delkor">DELKOR</span><span class="hyphen">-</span><span class="fiberk">FIBERK</span></strong>
+        <small>Axidigetek · <span class="bnpl-inline"><span class="bn-buy">Buy</span><span class="bn-now">Now</span><span class="bn-pays">Pays</span><span class="bn-later">Later</span></span> · Delkor Logistics · Fiberk</small>
+      </div>
+      </a>
+    </div>
+    <nav>
+      <a href="#companies" id="nav-companies">Companies</a>
+      <a href="#field-ops" id="nav-field">Field Ops</a>
+      <a href="#contact" id="nav-contact">Contact US</a>
+      <button type="button" class="nav-btn" id="nav-staff">Access</button>
+    </nav>
+  </header>
+  <div class="stage" data-view="home">
+  <section class="welcome" id="home">
+    <p class="hello">Welcome</p>
+    <h2 class="df-wordmark"><span class="delkor">DELKOR</span><span class="hyphen">-</span><span class="fiberk">FIBERK</span></h2>
+    <p>The Growing Company behind Ghana's Retail, Logistics, and Hire Purchase Business.</p>
+    <button type="button" class="tour-start" id="start-tour">Take a tour</button>
+  </section>
+  <div class="companies-view" id="companies" hidden>
+  <section class="hero">
+    <div class="hero-copy">
+      <div class="org" aria-label="Delkor-Fiberk Group organogram">
+        <div class="org-node org-group">
+          <p class="company"><span class="delkor">DELKOR</span><span class="hyphen">-</span><span class="fiberk">FIBERK</span></p>
+          <small>The Growing Company</small>
+          <nav class="org-subs" aria-label="Companies">
+            <a href="#org-ops" data-org="org-ops">Operations Hub</a>
+            <a href="https://www.facebook.com/fiberkgh/" target="_blank" rel="noopener" data-org="org-fiberk">Fiberk</a>
+            <a href="https://axidigetek.com/" target="_blank" rel="noopener" data-org="org-axi">Axidigetek</a>
+            <a href="https://www.instagram.com/delkor_logistics/" target="_blank" rel="noopener" data-org="org-delkor">Delkor Logistics</a>
+            <a href="https://www.buynowpayslater.com/" target="_blank" rel="noopener" data-org="org-bnpl"><span class="bn-buy">Buy</span><span class="bn-now">Now</span><span class="bn-pays">Pays</span><span class="bn-later">Later</span></a>
+          </nav>
+        </div>
+        <div class="org-stem"></div>
+        <div class="org-node org-hub" id="org-ops">Operations Hub<small>Operations Specialists</small></div>
+        <div class="org-stem"></div>
+        <div class="org-fork">
+          <div class="org-bar"></div>
+          <div class="org-kids">
+            <div class="org-col" id="org-fiberk">
+              <div class="org-co brand-fiberk">
+                <svg class="co-mark" viewBox="0 0 64 64" aria-hidden="true">
+                  <g fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" transform="translate(32 32) rotate(45)">
+                    <rect x="-18" y="-18" width="36" height="36"/>
+                    <path d="M-9 12V-9H12"/>
+                    <path d="M-3 12V-3H12"/>
+                  </g>
+                </svg>
+                Fiberk<span>Electronics</span>
+              </div>
+              <div class="org-locs">
+                <div class="org-loc">Fiberk Shop<span>FIB-SHOP</span></div>
+              </div>
+              <div class="org-role">Sales Reps</div>
+            </div>
+            <div class="org-col" id="org-axi">
+              <div class="org-co brand-axi">
+                <svg class="co-mark" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#ea580c" d="M3 3h1.8l.5 2.2h13.4l-1.8 7.2H8.1L7.4 9H6.1l1.4 6.2h10.3v1.6H7.1A1.8 1.8 0 0 1 5.3 15L3 3zm5.2 16.2a1.5 1.5 0 1 1-1.5 1.5 1.5 1.5 0 0 1 1.5-1.5zm9.2 0a1.5 1.5 0 1 1-1.5 1.5 1.5 1.5 0 0 1 1.5-1.5z"/>
+                </svg>
+                Axidigetek<span>eCommerce</span>
+              </div>
+              <div class="org-locs">
+                <div class="org-loc">Online Store<span>AXI-ONLINE</span></div>
+              </div>
+              <div class="org-role">Digital Marketers</div>
+            </div>
+            <div class="org-col" id="org-delkor">
+              <div class="org-co brand-delkor">
+                <svg class="co-mark" viewBox="0 0 64 56" aria-hidden="true">
+                  <g transform="translate(32 6)">
+                    <rect width="16" height="16" fill="#d4e05c" transform="rotate(45)"/>
+                    <g fill="#0f172a" transform="translate(0 2) scale(.7)"><circle cx="-3" cy="2" r="2"/><circle cx="4" cy="2" r="2"/><rect x="-5" y="-4" width="10" height="5" rx="1"/></g>
+                  </g>
+                  <g transform="translate(12 26)">
+                    <rect width="16" height="16" fill="#e8d44a" transform="rotate(45)"/>
+                    <rect x="-3" y="-1" width="6" height="7" rx="1" fill="#0f172a"/>
+                  </g>
+                  <g transform="translate(52 26)">
+                    <rect width="16" height="16" fill="#c9de4a" transform="rotate(45)"/>
+                    <rect x="-3" y="-2" width="6" height="8" rx=".5" fill="#7c3aed"/>
+                  </g>
+                  <g transform="translate(32 42)">
+                    <rect width="16" height="16" fill="#d4e05c" transform="rotate(45)"/>
+                    <rect x="-6" y="-1" width="12" height="5" rx="1" fill="#fff"/>
+                  </g>
+                </svg>
+                Delkor Logistics<span>Logistics</span>
+              </div>
+              <div class="org-locs">
+                <div class="org-loc">Furniture Market<span>DEL-FURN</span></div>
+              </div>
+              <div class="org-role">Riders & Drivers</div>
+            </div>
+            <div class="org-col" id="org-bnpl">
+              <div class="org-co brand-bnpl">
+                <svg class="co-mark" viewBox="0 0 32 28" aria-hidden="true">
+                  <text x="0" y="22" font-size="20" font-weight="800" font-family="Arial,sans-serif" fill="#2f62d9">B</text>
+                  <text x="12" y="22" font-size="20" font-weight="800" font-family="Arial,sans-serif" fill="#e0a00e">N</text>
+                </svg>
+                <div class="bnpl-name"><span class="bn-buy">Buy</span><span class="bn-now">Now</span><span class="bn-pays">Pays</span><span class="bn-later">Later</span></div>
+                <span class="co-sub">Hire Purchase</span>
+              </div>
+              <div class="org-locs">
+                <div class="org-loc">BNPL Field Sales<span>BNPL-FIELD</span></div>
+                <div class="org-loc">Field Stock Hub<span>BNPL-FSH</span></div>
+                <div class="org-loc">BNPL Online Shop<span>BNPL-ONLINE</span></div>
+              </div>
+              <div class="org-role">Field Agents</div>
+              <div class="org-role">Digital Agents</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  </div>
+  <section class="mk-page" id="field-ops" hidden>
+    <div class="mk-hero">
+      <div>
+        <p class="mk-kicker">Hire purchase · Ghana</p>
+        <div class="bnpl-name mk-word"><span class="bn-buy">Buy</span><span class="bn-now">Now</span><span class="bn-pays">Pays</span><span class="bn-later">Later</span></div>
+        <h1>Take it home today.<br>Pay at your pace.</h1>
+        <p>Phones, TVs, fridges and more. A small deposit, then daily or weekly MoMo until the device is yours. Our field agents meet you at home and at work — Mon to Sat, 8am to 6pm.</p>
+        <div class="mk-cta">
+          <a class="mk-btn orange" href="https://www.buynowpayslater.com/" target="_blank" rel="noopener">Shop hire purchase</a>
+          <a class="mk-btn purple" href="#mk-join">Become an agent</a>
+          <a class="mk-btn ghost" href="https://wa.me/233546443323" target="_blank" rel="noopener">WhatsApp 054 644 3323</a>
+        </div>
+      </div>
+      <div>
+        <div class="mk-hero-side">
+          <div class="n">Accra · Eastern · Volta</div>
+          <div class="l">Where our agents work</div>
+        </div>
+        <div class="mk-hero-side">
+          <div class="n">Home & work</div>
+          <div class="l">Visits Mon–Sat · 8am–6pm</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mk-sec">
+      <h2>How it works</h2>
+      <p class="lead">Four steps from deposit to ownership. Same idea you know from hire purchase — built for Ghana, paid on MoMo.</p>
+      <div class="mk-steps">
+        <article class="mk-step"><div class="num">01</div><h3>Pick & deposit</h3><p>Choose the device with an agent or on buynowpayslater.com. Pay a deposit and take it home the same day.</p></article>
+        <article class="mk-step"><div class="num">02</div><h3>Pay easy</h3><p>Daily, weekly or monthly collections on Mobile Money. Your agent reminds you — no bank queue.</p></article>
+        <article class="mk-step"><div class="num">03</div><h3>Own it</h3><p>Finish the plan and the device is yours. Your payment history stays with BuyNowPaysLater.</p></article>
+        <article class="mk-step"><div class="num">04</div><h3>Step up</h3><p>Good payers get the next phone, TV or fridge. Agents help you upgrade without starting from zero.</p></article>
+      </div>
+    </div>
+
+    <div class="mk-sec">
+      <div class="mk-two">
+        <article class="mk-card cust">
+          <h3>For customers</h3>
+          <p>Own genuine phones, TVs and fridges without paying the full price today.</p>
+          <ul>
+            <li>Interest-free plans up to 6 months</li>
+            <li>Agent visits at home or work</li>
+            <li>Cash on delivery and MoMo</li>
+          </ul>
+        </article>
+        <article class="mk-card ag">
+          <h3>For agents</h3>
+          <p>Join the field team. You introduce customers, collect, and pick stock from the Field Stock Hub.</p>
+          <ul>
+            <li>Commission on every plan you close</li>
+            <li>Your own customer book</li>
+            <li>Training from Operations Hub</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+
+    <div class="mk-sec">
+      <h2>Where our agents operate</h2>
+      <p class="lead">Field agents work Greater Accra, Eastern Region and Volta Region — they come to your house, stall or shop. We are adding towns as the team grows.</p>
+      <div class="mk-area-block">
+        <h3>Greater Accra</h3>
+        <div class="mk-areas">
+          <span>Ashale Botwe</span>
+          <span>Adenta</span>
+          <span>Madina</span>
+          <span>East Legon</span>
+          <span>Spintex</span>
+          <span>Teshie</span>
+          <span>Nungua</span>
+          <span>Tema</span>
+          <span>Ashaiman</span>
+          <span>Dodowa</span>
+          <span>Ada</span>
+          <span>Asutsuare</span>
+          <span>Accra Central</span>
+          <span>Kasoa</span>
+        </div>
+      </div>
+      <div class="mk-area-block">
+        <h3>Eastern Region</h3>
+        <div class="mk-areas">
+          <span>Koforidua</span>
+          <span>Nsawam</span>
+          <span>Suhum</span>
+          <span>Somanya</span>
+          <span>Agormenya</span>
+          <span>Kpong</span>
+          <span>Atimpoku</span>
+          <span>Akim Oda</span>
+          <span>Asamankese</span>
+          <span>Akwatia</span>
+        </div>
+      </div>
+      <div class="mk-area-block">
+        <h3>Volta Region</h3>
+        <div class="mk-areas">
+          <span>Ho</span>
+          <span>Hohoe</span>
+          <span>Kpando</span>
+          <span>Juapong</span>
+          <span>Sogakope</span>
+          <span>Aflao</span>
+          <span>Akatsi</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mk-sec" id="mk-join">
+      <h2>Join the team — or start a plan</h2>
+      <p class="lead">Tell us your name, number and the area you cover or live in. A coordinator will call you. This is not staff login.</p>
+      <form class="mk-form" id="mk-join-form">
+        <label>Full name *
+          <input name="name" required placeholder="Ama Mensah" />
+        </label>
+        <label>Phone *
+          <input name="phone" required placeholder="054 000 0000" />
+        </label>
+        <label>Area / suburb *
+          <input name="area" required placeholder="Ashale Botwe, Accra" />
+        </label>
+        <label>I want to
+          <select name="interest">
+            <option value="agent">Become a field agent</option>
+            <option value="customer">Start a hire-purchase plan</option>
+          </select>
+        </label>
+        <label class="span2">A little more
+          <textarea name="note" rows="3" placeholder="Where you work, what you sell, or the device you want"></textarea>
+        </label>
+        <div class="span2">
+          <button type="submit" class="mk-btn orange">Send application</button>
+          <p class="mk-ok" id="mk-join-ok" hidden>Received. We will call you on the number you gave.</p>
+        </div>
+      </form>
+    </div>
+
+    <div class="mk-sec" id="mk-stories">
+      <h2>What customers say</h2>
+      <p class="lead">Hire purchase is about the person who comes to your door, not a form on a screen.</p>
+      <div class="mk-quotes">
+        <blockquote>
+          <p>“The fridge came the same day I paid the deposit. I pay weekly on MoMo and nobody chases me at the market.”</p>
+          <footer>Akosua · trader · Madina</footer>
+        </blockquote>
+        <blockquote>
+          <p>“My agent comes to the workshop every Friday. I finished the phone and took a TV on the next plan.”</p>
+          <footer>Kwame · mechanic · Ashaiman</footer>
+        </blockquote>
+        <blockquote>
+          <p>“I started as an agent in Adenta. The commission is clear and I pick stock when a customer is ready.”</p>
+          <footer>Ama · field agent · Adenta</footer>
+        </blockquote>
+      </div>
+    </div>
+  </section>
+  <section class="contact-page" id="contact" hidden>
+    <p class="hello">Contact</p>
+    <h2>Contact US</h2>
+    <p class="contact-lead">Numbers and addresses taken from the live shops: axidigetek.com and buynowpayslater.com.</p>
+    <div class="contact-grid">
+      <article class="contact-card">
+        <h3>Telephone</h3>
+        <a class="big" href="tel:+233546443323">054 644 3323</a>
+        <span class="hint">BuyNowPaysLater · Mon–Sat 8am–6pm</span>
+        <a class="big" href="tel:+233541260210" style="margin-top:8px;display:block">054 126 0210</a>
+        <span class="hint">Axidigetek shop · Ashale Botwe</span>
+      </article>
+      <article class="contact-card">
+        <h3>Email</h3>
+        <a class="big" href="mailto:management@delkorfiberk.com">management@delkorfiberk.com</a>
+        <span class="hint">Axidigetek</span>
+        <a class="big" href="mailto:buynowpayslater@gmail.com" style="margin-top:8px;display:block;font-size:16px">buynowpayslater@gmail.com</a>
+        <span class="hint">Hire purchase · replies within 24 hours</span>
+      </article>
+      <article class="contact-card">
+        <h3>Address</h3>
+        <p class="big" style="font-size:16px;margin:0">Eben Nikoi Kotei Ave, Ashale Botwe, Accra</p>
+        <span class="hint">Axidigetek headquarters</span>
+      </article>
+      <article class="contact-card span3">
+        <h3>Websites</h3>
+        <div class="site-list">
+          <a href="https://axidigetek.com/" target="_blank" rel="noopener">axidigetek.com <span>Live shop</span></a>
+          <a href="https://www.buynowpayslater.com/" target="_blank" rel="noopener">buynowpayslater.com <span>Hire purchase</span></a>
+          <a href="https://delkorfiberk.com" target="_blank" rel="noopener">delkorfiberk.com <span>Coming soon</span></a>
+        </div>
+      </article>
+      <article class="contact-card span3">
+        <h3>Social</h3>
+        <div class="social-groups" aria-label="Social media">
+          <div class="social-group">
+            <h4>Fiberk</h4>
+            <div class="social-row">
+              <a href="https://www.facebook.com/fiberkgh/" target="_blank" rel="noopener">Facebook</a>
+              <a href="https://www.instagram.com/fiberkgh/" target="_blank" rel="noopener">Instagram</a>
+              <a href="https://www.tiktok.com/@fiberkgh" target="_blank" rel="noopener">TikTok</a>
+            </div>
+          </div>
+          <div class="social-group">
+            <h4>Axidigetek</h4>
+            <div class="social-row">
+              <a href="https://www.instagram.com/axidigetek" target="_blank" rel="noopener">Instagram</a>
+              <a href="https://www.tiktok.com/@axidigetek" target="_blank" rel="noopener">TikTok</a>
+            </div>
+          </div>
+          <div class="social-group">
+            <h4>Delkor Logistics</h4>
+            <div class="social-row">
+              <a href="https://www.instagram.com/delkor_logistics/" target="_blank" rel="noopener">Instagram</a>
+              <a href="https://www.tiktok.com/@delkor_logistics" target="_blank" rel="noopener">TikTok</a>
+            </div>
+          </div>
+          <div class="social-group">
+            <h4>BuyNowPaysLater</h4>
+            <div class="social-row">
+              <a href="https://www.instagram.com/buynowpayslater/" target="_blank" rel="noopener">Instagram</a>
+              <a href="https://www.tiktok.com/@buynowpayslater" target="_blank" rel="noopener">TikTok</a>
+            </div>
+          </div>
+          <div class="social-group">
+            <h4>Group</h4>
+            <div class="social-row">
+              <a href="#wa" id="page-wa">WhatsApp</a>
+              <a href="#social-x" title="Coming soon">X</a>
+              <a href="#social-linkedin" title="Coming soon">LinkedIn</a>
+              <a href="#social-youtube" title="Coming soon">YouTube</a>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+  </div>
+  <footer class="site-foot">
+    <div class="erp-ver">Delkor-Fiberk ERP V1.0</div>
+    <div class="copy">© 2026 Delkor-Fiberk Group. All rights reserved.</div>
+  </footer>
+  <div class="login-modal" id="staff-modal" hidden>
+    <div class="card" id="staff" role="dialog" aria-modal="true" aria-labelledby="staff-title">
+    <button type="button" class="card-close" id="staff-close" aria-label="Close login">×</button>
+    <h1 id="staff-title">Online Portal</h1>
+    <p class="sub" id="subline">Sign in to your Business Operations, Subsidiary or Client Account</p>
+    <p class="gate-note" id="gate-note" hidden>
+      Inviting someone on Grok only opens this website. They must <strong>Continue with Grok</strong> using that same email, then sign in here with an ERP user (Users → that email and password). The Grok invite is not an ERP password.
+    </p>
+    <div class="err" id="err"></div>
+    <form id="f" autocomplete="on" onsubmit="event.preventDefault(); return false;">
+      <div class="field">
+        <label class="fld" for="email">Username</label>
+        <input id="email" type="text" required autocomplete="username" placeholder="you@company.com" />
+      </div>
+      <div class="field">
+        <label class="fld" for="password">Password</label>
+        <input id="password" type="password" required autocomplete="current-password" placeholder="Password" />
+        <button type="button" class="eye" id="eye" aria-label="Show password" title="Show password">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <label class="remember"><input type="checkbox" id="remember" /> Remember Me</label>
+      <button type="submit" class="login" id="go">Login</button>
+    </form>
+    <button type="button" class="register" id="open-reg">Account Registration</button>
+    <button type="button" class="demo" id="demo" hidden>Builder preview</button>
+    <p class="foot">Delkor-Fiberk ERP · Ghana</p>
+    </div>
+  </div>
+  <div class="login-modal" id="reg-modal" hidden>
+    <div class="card reg-card" id="reg" role="dialog" aria-modal="true" aria-labelledby="reg-title">
+      <button type="button" class="card-close" id="reg-close" aria-label="Close registration">×</button>
+      <h1 id="reg-title">Account Registration</h1>
+      <p class="sub">Create your sign-in. An administrator will review your details, assign a role, and issue an access key before you get the rest of the ERP.</p>
+      <div class="err reg-err" id="reg-err"></div>
+      <form id="reg-form" autocomplete="on" onsubmit="event.preventDefault(); return false;">
+        <div class="reg-sec">
+          <h3>Sign-in details</h3>
+          <div class="reg-2">
+            <div class="fld"><label for="reg_email">Email</label><input id="reg_email" type="email" required autocomplete="email" placeholder="you@company.com" /></div>
+            <div class="fld"><label for="reg_user">Username</label><input id="reg_user" type="text" autocomplete="username" placeholder="Optional display name" /></div>
+            <div class="fld"><label for="reg_pw">Password</label><input id="reg_pw" type="password" required autocomplete="new-password" placeholder="At least 6 characters" /></div>
+            <div class="fld"><label for="reg_pw2">Confirm password</label><input id="reg_pw2" type="password" required autocomplete="new-password" placeholder="Repeat password" /></div>
+          </div>
+        </div>
+        <div class="reg-sec">
+          <h3>Edit Profile</h3>
+          <div class="reg-3">
+            <div class="fld"><label for="reg_prefix">Prefix</label>
+              <select id="reg_prefix"><option value="">Please Select</option><option>Mr.</option><option>Mrs.</option><option>Miss</option><option>Ms.</option><option>Dr.</option></select>
+            </div>
+            <div class="fld"><label for="reg_first">First Name</label><input id="reg_first" type="text" required autocomplete="given-name" /></div>
+            <div class="fld"><label for="reg_last">Last Name</label><input id="reg_last" type="text" required autocomplete="family-name" /></div>
+          </div>
+          <div class="reg-2">
+            <div class="fld"><label for="reg_lang">Language</label>
+              <select id="reg_lang"><option>English</option><option>Twi</option><option>Ga</option><option>Ewe</option><option>French</option></select>
+            </div>
+            <div class="fld"><label>Profile Photo</label>
+              <div class="reg-photo">
+                <div class="reg-avatar" id="reg-avatar"><span>DF</span></div>
+                <input id="reg_photo" type="file" accept="image/*" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="foot" style="margin:0 0 14px;text-align:left">More information and bank details are completed after you sign in, on My Profile.</p>
+        <button type="button" class="login" id="reg-go">Create account</button>
+      </form>
+      <p class="foot">After registration, sign in. You will see orientation until an admin issues your access key.</p>
+    </div>
+  </div>
+  <div id="tour" hidden>
+    <div class="tour-spot" id="tour-spot"></div>
+    <div class="tour-card" id="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <p class="kicker" id="tour-kicker">1 / 6</p>
+      <h3 id="tour-title">Welcome</h3>
+      <p id="tour-copy"></p>
+      <div class="tour-actions">
+        <button type="button" id="tour-skip">Skip</button>
+        <button type="button" id="tour-back">Back</button>
+        <button type="button" id="tour-next">Next</button>
+      </div>
+    </div>
+  </div>
+  <div class="wa-dock" id="wa">
+    <div class="wa-panel" id="wa-panel" hidden>
+      <div class="wa-head">
+        <span style="display:inline-flex;align-items:center;gap:8px">
+          <svg viewBox="0 0 24 24"><path d="M12.1 2.1A9.9 9.9 0 0 0 3.4 17L2 22l5.2-1.3A9.9 9.9 0 1 0 12.1 2.1z"/></svg>
+          WhatsApp
+        </span>
+        <button type="button" id="wa-close" aria-label="Close chat">×</button>
+      </div>
+      <div class="wa-body">
+        <div class="wa-bubble">Hello 👋 Can we help you?</div>
+        <a class="wa-open" href="https://wa.me/233546443323" target="_blank" rel="noopener">Open chat</a>
+      </div>
+    </div>
+    <button type="button" class="wa-fab" id="wa-fab" aria-label="Open WhatsApp chat">
+      <svg viewBox="0 0 24 24"><path d="M12.1 2.1A9.9 9.9 0 0 0 3.4 17L2 22l5.2-1.3A9.9 9.9 0 1 0 12.1 2.1zm5.7 14.2c-.2.7-1.3 1.3-2.1 1.4-.6.1-1.3.2-3.8-.8-3.2-1.3-5.2-4.6-5.4-4.8s-1.6-2.1-1.6-4 1-2.8 1.4-3.2a1.5 1.5 0 0 1 1.1-.5h.8c.3 0 .6 0 .8.6l1.1 2.7c.1.3 0 .5-.1.7l-.5.6c-.2.2-.4.4-.2.8a8 8 0 0 0 1.2 1.5 7.3 7.3 0 0 0 1.7 1.2c.4.2.6.1.8-.1l.7-.8c.2-.2.5-.2.8-.1l2.5 1.2c.4.2.6.3.7.5a2 2 0 0 1-.1 1.3z"/></svg>
+    </button>
+  </div>
+  <script>
+    window.dfOpenAccess = function (e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      var m = document.getElementById('staff-modal');
+      var r = document.getElementById('reg-modal');
+      if (r) r.hidden = true;
+      if (m) m.hidden = false;
+      try { history.replaceState(null, '', '#staff'); } catch (_) {}
+      return false;
+    };
+    window.dfOpenReg = function (e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      var m = document.getElementById('staff-modal');
+      var r = document.getElementById('reg-modal');
+      if (m) m.hidden = true;
+      if (r) r.hidden = false;
+      try { history.replaceState(null, '', '#register'); } catch (_) {}
+      return false;
+    };
+    window.dfCloseAccess = function () {
+      var m = document.getElementById('staff-modal');
+      var r = document.getElementById('reg-modal');
+      if (m) m.hidden = true;
+      if (r) r.hidden = true;
+    };
+    window.dfShowView = function (name) {
+      if (window.dfCloseAccess) window.dfCloseAccess();
+      ['home', 'companies', 'field-ops', 'contact'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.hidden = id !== name;
+      });
+      var stage = document.querySelector('.stage');
+      if (stage) stage.dataset.view = name;
+      var map = { home: 'nav-home', companies: 'nav-companies', 'field-ops': 'nav-field', contact: 'nav-contact' };
+      ['nav-home', 'nav-companies', 'nav-field', 'nav-contact', 'nav-staff'].forEach(function (k) {
+        var n = document.getElementById(k);
+        if (n) n.classList.toggle('on', k === map[name]);
+      });
+      try { history.replaceState(null, '', '#' + name); } catch (_) {}
+      return false;
+    };
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('.org-subs a[data-org]');
+      if (!a) return;
+      var id = a.getAttribute('data-org');
+      document.querySelectorAll('.org-on').forEach(function (n) { n.classList.remove('org-on'); });
+      var t = document.getElementById(id);
+      if (t) t.classList.add('org-on');
+      if ((a.getAttribute('href') || '').charAt(0) === '#') e.preventDefault();
+    });
+    var TOUR_STEPS = [
+      { view: 'home', sel: '#home h2', title: 'Welcome', copy: 'DELKOR-FIBERK is the group behind two live shops: Axidigetek (cash e-commerce) and BuyNowPaysLater (hire purchase). Both serve Ghana from Accra.' },
+      { view: 'companies', sel: '.org-co.brand-fiberk', title: 'FIBERK', copy: 'Electronics shop. Follow the live page on Facebook @fiberkgh.', href: 'https://www.facebook.com/fiberkgh/', hrefLabel: 'Open Facebook' },
+      { view: 'companies', sel: '.org-co.brand-axi', title: 'AXIDIGETEK', copy: 'axidigetek.com — Premier digital marketplace for smart living, headquartered at Ashale Botwe, Accra. Appliances, Samsung / Tecno / Infinix / Itel phones, electronics and furniture, with delivery and after-sales.', href: 'https://axidigetek.com/', hrefLabel: 'Open axidigetek.com' },
+      { view: 'companies', sel: '.org-co.brand-bnpl', title: 'BUYNOWPAYSLATER', copy: 'buynowpayslater.com — Ghana’s #1 hire purchase store for phones, TVs and fridges. Interest-free plans up to 6 months, cash-on-delivery, genuine brands. Call 054 644 3323.', href: 'https://www.buynowpayslater.com/', hrefLabel: 'Open buynowpayslater.com' },
+      { view: 'companies', sel: '.org-co.brand-delkor', title: 'DELKOR LOGISTICS', copy: 'Riders and drivers for the group. Follow the live page on Instagram @delkor_logistics.', href: 'https://www.instagram.com/delkor_logistics/', hrefLabel: 'Open Instagram' },
+      { view: 'companies', sel: '.org-group', title: 'The Growing Company', copy: 'The group office is not a shop. Live fronts: Axidigetek, BuyNowPaysLater, Fiberk on Facebook, and Delkor Logistics on Instagram.' },
+      { view: 'field-ops', sel: '#field-ops', title: 'Field Ops', copy: 'BuyNowPaysLater hire purchase across Greater Accra, Eastern Region and Volta Region. Shop, become an agent, or start a plan. Agent books stay inside the ERP — this page is for the public.' },
+      { view: 'contact', sel: '#contact', title: 'Contact US', copy: 'From the live sites: Axidigetek — Eben Nikoi Kotei Ave, Ashale Botwe, Accra · 054 126 0210 · management@delkorfiberk.com. BuyNowPaysLater — 054 644 3323 · buynowpayslater@gmail.com.' },
+      { view: 'home', sel: '#nav-staff', title: 'Access', copy: 'Staff, operations, subsidiary or client accounts use this portal. Shoppers keep using axidigetek.com and buynowpayslater.com.', nav: 'nav-staff' },
+    ];
+    var tourI = 0;
+    function tourPlace() {
+      var step = TOUR_STEPS[tourI];
+      if (!step) return;
+      window.dfShowView(step.view);
+      if (step.nav) {
+        ['nav-home', 'nav-companies', 'nav-field', 'nav-contact', 'nav-staff'].forEach(function (k) {
+          var n = document.getElementById(k);
+          if (n) n.classList.toggle('on', k === step.nav);
+        });
+      }
+      var el = document.querySelector(step.sel) || document.getElementById(step.view);
+      var spot = document.getElementById('tour-spot');
+      var card = document.getElementById('tour-card');
+      document.getElementById('tour-kicker').textContent = (tourI + 1) + ' / ' + TOUR_STEPS.length;
+      document.getElementById('tour-title').textContent = step.title;
+      var copyEl = document.getElementById('tour-copy');
+      copyEl.textContent = step.copy;
+      if (step.href) {
+        copyEl.appendChild(document.createTextNode(' '));
+        var a = document.createElement('a');
+        a.href = step.href;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = step.hrefLabel || step.href;
+        copyEl.appendChild(a);
+      }
+      document.getElementById('tour-next').textContent = tourI === TOUR_STEPS.length - 1 ? 'Finish' : 'Next';
+      document.getElementById('tour-back').disabled = tourI === 0;
+      var r = el ? el.getBoundingClientRect() : { top: 80, left: 24, width: 200, height: 48, bottom: 128, right: 224 };
+      var pad = 8;
+      spot.style.top = Math.max(8, r.top - pad) + 'px';
+      spot.style.left = Math.max(8, r.left - pad) + 'px';
+      spot.style.width = Math.max(40, r.width + pad * 2) + 'px';
+      spot.style.height = Math.max(36, r.height + pad * 2) + 'px';
+      var cw = Math.min(340, window.innerWidth - 24);
+      var left = Math.min(Math.max(12, r.left), window.innerWidth - cw - 12);
+      var top = r.bottom + 14;
+      if (top + 160 > window.innerHeight) top = Math.max(12, r.top - 170);
+      if (window.innerWidth > 820) {
+        card.style.left = left + 'px';
+        card.style.top = top + 'px';
+        card.style.bottom = 'auto';
+      }
+    }
+    window.dfStartTour = function () {
+      tourI = 0;
+      document.getElementById('tour').hidden = false;
+      tourPlace();
+    };
+    window.dfStopTour = function () {
+      document.getElementById('tour').hidden = true;
+      window.dfShowView('home');
+    };
+    document.addEventListener('click', function (e) {
+      var t = e.target && e.target.closest ? e.target.closest('#nav-staff, #open-reg, #staff-close, #reg-close, #nav-home, #nav-logo, #nav-companies, #nav-field, #nav-contact, #start-tour, #tour-next, #tour-back, #tour-skip') : null;
+      if (!t) return;
+      if (t.id === 'start-tour') { e.preventDefault(); window.dfStartTour(); }
+      else if (t.id === 'tour-skip') { e.preventDefault(); window.dfStopTour(); }
+      else if (t.id === 'tour-back') { e.preventDefault(); if (tourI > 0) { tourI -= 1; tourPlace(); } }
+      else if (t.id === 'tour-next') {
+        e.preventDefault();
+        if (tourI >= TOUR_STEPS.length - 1) window.dfStopTour();
+        else { tourI += 1; tourPlace(); }
+      }
+      else if (t.id === 'nav-staff') window.dfOpenAccess(e);
+      else if (t.id === 'open-reg') window.dfOpenReg(e);
+      else if (t.id === 'staff-close') window.dfCloseAccess();
+      else if (t.id === 'reg-close') window.dfOpenAccess(e);
+      else if (t.id === 'nav-home' || t.id === 'nav-logo') { e.preventDefault(); window.dfShowView('home'); }
+      else if (t.id === 'nav-companies') { e.preventDefault(); window.dfShowView('companies'); }
+      else if (t.id === 'nav-field') { e.preventDefault(); window.dfShowView('field-ops'); }
+      else if (t.id === 'nav-contact') { e.preventDefault(); window.dfShowView('contact'); }
+    });
+    if (location.hash === '#staff') window.dfOpenAccess();
+    else if (location.hash === '#register') window.dfOpenReg();
+    else if (location.hash === '#companies') window.dfShowView('companies');
+    else if (location.hash === '#field-ops') window.dfShowView('field-ops');
+    else if (location.hash === '#contact') window.dfShowView('contact');
+    else if (location.hash === '#tour') window.dfStartTour();
+  </script>
+  <script type="module">
+    import { supabase, snapshotSession, lastPath, getAuthSession, persistDemoSession, ensureAuthProfile, isPreviewEmbedHost, isLoopbackHost, purgeStoredSession } from '/js/supabaseClient.js';
+    import { ackResult, showLoginModal, prettyRole } from '/js/confirm-action.js';
+    import { publicJobLabel } from '/js/staff-jobs.js';
+    import { formatError, logError, classifyLoginError, classifyRegisterError } from '/js/error-codes.js';
+    import { upsertUser, destinationForSession } from '/js/access-gate.js';
+
+    const ALIAS = {
+      axidadigitek: 'social.delkorfiberk@gmail.com',
+      axidigetek: 'social.delkorfiberk@gmail.com',
+      hq: 'social.delkorfiberk@gmail.com',
+      'social.delkorfiberk': 'social.delkorfiberk@gmail.com',
+      founder: 'social.delkorfiberk@gmail.com',
+      bernardfbk: 'bernardfbk@gmail.com',
+      bennykay: 'bernardfbk@gmail.com',
+      dkormla: 'dkormla@gmail.com',
+      colemanharry600: 'colemanharry600@gmail.com',
+      harry: 'colemanharry600@gmail.com',
+    };
+
+    function resumePath() {
+      function safeNext(raw) {
+        var p = String(raw || '');
+        if (!p || p.charAt(0) !== '/' || p.charAt(1) === '/') return '';
+        if (/login\.html|javascript:/i.test(p)) return '';
+        return p;
+      }
+      var q = '';
+      try { q = new URLSearchParams(location.search).get('next') || ''; } catch (_) {}
+      var stored = '';
+      try { stored = sessionStorage.getItem('df_next') || ''; } catch (_) {}
+      var pick = safeNext(q) || safeNext(stored);
+      if (pick) {
+        try { sessionStorage.removeItem('df_next'); } catch (_) {}
+        return pick;
+      }
+      const p = lastPath();
+      if (p && !/\/login\.html/i.test(p)) return p;
+      return '/dashboard.html';
+    }
+
+    function showFail(msg) {
+      const err = document.getElementById('err');
+      err.textContent = msg;
+      err.classList.add('show');
+      try { ackResult(false, msg); } catch (_) {
+        alert(msg);
+      }
+    }
+    function fail(key, extra, detail) {
+      const email = document.getElementById('email')?.value?.trim() || '';
+      logError(key, { email, summary: extra, detail });
+      showFail(formatError(key, extra || ''));
+    }
+
+    function atCount(s) { return (String(s).match(/@/g) || []).length; }
+
+    function emailsToTry(raw) {
+      const v = String(raw || '').trim().toLowerCase();
+      if (!v) return [];
+      if (atCount(v) > 1) return [];
+      if (ALIAS[v]) return [ALIAS[v]];
+      if (v.includes('@')) return [v];
+      const out = [
+        ALIAS[v.split('@')[0]],
+        v + '@gmail.com',
+      ];
+      return [...new Set(out.filter(Boolean))];
+    }
+
+    function markNav(id) {
+      ['nav-home', 'nav-companies', 'nav-field', 'nav-contact', 'nav-staff'].forEach((k) => {
+        document.getElementById(k)?.classList.toggle('on', k === id);
+      });
+    }
+    const staffModal = document.getElementById('staff-modal');
+    const regModal = document.getElementById('reg-modal');
+    const VIEWS = [
+      ['home', 'nav-home'],
+      ['companies', 'nav-companies'],
+      ['field-ops', 'nav-field'],
+      ['contact', 'nav-contact'],
+    ];
+    function playEnter(el) {
+      if (!el) return;
+      el.classList.remove('in');
+      void el.offsetWidth;
+      el.classList.add('in');
+    }
+    function showView(name) {
+      if (window.dfShowView) {
+        window.dfShowView(name);
+        return;
+      }
+      closeStaff(true);
+      VIEWS.forEach(([id]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.hidden = id !== name;
+        if (id === name) playEnter(el);
+      });
+      document.querySelector('.stage').dataset.view = name;
+      const pair = VIEWS.find(([id]) => id === name);
+      markNav(pair ? pair[1] : 'nav-home');
+      history.replaceState(null, '', '#' + name);
+    }
+    function showHome() { showView('home'); }
+    function showCompanies() { showView('companies'); }
+    function openStaff(e) {
+      e?.preventDefault();
+      if (window.dfOpenAccess) window.dfOpenAccess(e);
+      else {
+        if (regModal) regModal.hidden = true;
+        staffModal.hidden = false;
+        history.replaceState(null, '', '#staff');
+      }
+      markNav('nav-staff');
+      setTimeout(() => document.getElementById('email')?.focus(), 50);
+    }
+    function closeStaff(keepView) {
+      if (window.dfCloseAccess) window.dfCloseAccess();
+      else {
+        staffModal.hidden = true;
+        if (regModal) regModal.hidden = true;
+      }
+      if (!keepView) {
+        const open = VIEWS.find(([id]) => document.getElementById(id) && !document.getElementById(id).hidden);
+        markNav(open ? open[1] : 'nav-home');
+        if (location.hash === '#staff' || location.hash === '#register') history.replaceState(null, '', '#' + (open ? open[0] : 'home'));
+      }
+    }
+    function openReg(e) {
+      e?.preventDefault();
+      if (window.dfOpenReg) window.dfOpenReg(e);
+      else {
+        staffModal.hidden = true;
+        regModal.hidden = false;
+        history.replaceState(null, '', '#register');
+      }
+      setTimeout(() => document.getElementById('reg_email')?.focus(), 50);
+    }
+    function closeRegToLogin() {
+      if (window.dfOpenAccess) window.dfOpenAccess();
+      else {
+        if (regModal) regModal.hidden = true;
+        staffModal.hidden = false;
+        history.replaceState(null, '', '#staff');
+      }
+      markNav('nav-staff');
+    }
+    document.getElementById('nav-staff')?.addEventListener('click', openStaff);
+    document.getElementById('staff-close')?.addEventListener('click', closeStaff);
+    document.getElementById('open-reg')?.addEventListener('click', openReg);
+    document.getElementById('reg-close')?.addEventListener('click', closeRegToLogin);
+    staffModal?.addEventListener('click', (ev) => { if (ev.target === staffModal) closeStaff(); });
+    regModal?.addEventListener('click', (ev) => { if (ev.target === regModal) closeRegToLogin(); });
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Escape') return;
+      if (regModal && !regModal.hidden) closeRegToLogin();
+      else if (!staffModal.hidden) closeStaff();
+    });
+    document.getElementById('nav-home')?.addEventListener('click', (e) => { e.preventDefault(); showHome(); });
+    document.getElementById('nav-logo')?.addEventListener('click', (e) => { e.preventDefault(); showHome(); });
+    document.getElementById('nav-companies')?.addEventListener('click', (e) => { e.preventDefault(); showCompanies(); });
+    document.getElementById('nav-field')?.addEventListener('click', (e) => { e.preventDefault(); showView('field-ops'); });
+    document.getElementById('nav-contact')?.addEventListener('click', (e) => { e.preventDefault(); showView('contact'); });
+    document.querySelectorAll('#contact .social-row a:not(#page-wa)').forEach((a) => {
+      a.addEventListener('click', (e) => { e.preventDefault(); });
+    });
+
+    const waPanel = document.getElementById('wa-panel');
+    function openWa(e) {
+      e?.preventDefault();
+      if (waPanel) waPanel.hidden = false;
+    }
+    function closeWa() { if (waPanel) waPanel.hidden = true; }
+    document.getElementById('wa-fab')?.addEventListener('click', openWa);
+    document.getElementById('wa-close')?.addEventListener('click', closeWa);
+    document.getElementById('page-wa')?.addEventListener('click', openWa);
+    if (location.hash === '#staff') openStaff();
+    else if (location.hash === '#register') { openStaff(); openReg(); }
+    else if (location.hash === '#companies') showView('companies');
+    else if (location.hash === '#field-ops') showView('field-ops');
+    else if (location.hash === '#contact') showView('contact');
+    else playEnter(document.getElementById('home'));
+
+    try {
+      const saved = localStorage.getItem('df_login_user');
+      if (saved) {
+        document.getElementById('email').value = saved;
+        document.getElementById('remember').checked = true;
+      }
+    } catch (_) {}
+
+    document.getElementById('eye').onclick = () => {
+      const p = document.getElementById('password');
+      const show = p.type === 'password';
+      p.type = show ? 'text' : 'password';
+      document.getElementById('eye').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    };
+
+    const demoBtn = document.getElementById('demo');
+    if (demoBtn) {
+      if (isLoopbackHost() || isPreviewEmbedHost()) {
+        demoBtn.hidden = false;
+        demoBtn.onclick = () => {
+          persistDemoSession();
+          location.replace(resumePath());
+        };
+      } else {
+        demoBtn.hidden = true;
+        demoBtn.remove();
+      }
+    }
+    const note = document.getElementById('gate-note');
+    if (note) {
+      if (/\.grok\.me$/i.test(location.hostname || '')) note.hidden = false;
+      else { note.hidden = true; note.remove(); }
+    }
+
+    let regPhoto = '';
+    document.getElementById('reg_photo')?.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      if (f.size > 5 * 1024 * 1024) {
+        logError('AUTH_REGISTER', { summary: 'Photo too large' });
+        ackResult(false, formatError('AUTH_REGISTER', 'Max file size is 5MB.'));
+        return;
+      }
+      const r = new FileReader();
+      r.onload = () => {
+        regPhoto = String(r.result || '');
+        const box = document.getElementById('reg-avatar');
+        if (box) box.innerHTML = `<img src="${regPhoto}" alt="Photo" />`;
+      };
+      r.readAsDataURL(f);
+    });
+    const rv = (id) => document.getElementById(id)?.value?.trim() || '';
+    function showRegFail(msg) {
+      const err = document.getElementById('reg-err');
+      if (err) { err.textContent = msg; err.classList.add('show'); }
+      try { ackResult(false, msg); } catch (_) { alert(msg); }
+    }
+    function gatherReg() {
+      return {
+        prefix: rv('reg_prefix'),
+        first_name: rv('reg_first'),
+        last_name: rv('reg_last'),
+        email: rv('reg_email').toLowerCase(),
+        language: rv('reg_lang') || 'English',
+        photo: regPhoto,
+      };
+    }
+    async function onReg(e) {
+      e?.preventDefault();
+      const err = document.getElementById('reg-err');
+      const go = document.getElementById('reg-go');
+      err?.classList.remove('show');
+      if (err) err.textContent = '';
+      const extra = gatherReg();
+      const pw = document.getElementById('reg_pw')?.value || '';
+      const pw2 = document.getElementById('reg_pw2')?.value || '';
+      const email = extra.email;
+      if (!email || !extra.first_name || !extra.last_name) {
+        logError('AUTH_MISSING', { email });
+        showRegFail(formatError('AUTH_MISSING', 'First name, last name and email are required.'));
+        return;
+      }
+      if (atCount(email) !== 1) {
+        logError('AUTH_EMAIL', { email });
+        showRegFail(formatError('AUTH_EMAIL'));
+        return;
+      }
+      if (pw.length < 6 || pw !== pw2) {
+        logError('AUTH_REGISTER_WEAK', { email });
+        showRegFail(formatError('AUTH_REGISTER_WEAK'));
+        return;
+      }
+      go.disabled = true;
+      go.textContent = 'Creating account…';
+      try {
+        const fullName = `${extra.prefix ? extra.prefix + ' ' : ''}${extra.first_name} ${extra.last_name}`.trim();
+        const r = await Promise.race([
+          supabase.auth.signUp({
+            email,
+            password: pw,
+            options: { data: { full_name: fullName, role: 'Pending' } },
+          }),
+          new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'Registration timed out after 8 seconds.' } }), 8000)),
+        ]);
+        if (r?.error || !r?.data?.user) {
+          const localId = 'pending-' + Date.now();
+          upsertUser({
+            id: localId,
+            email,
+            username: rv('reg_user') || email.split('@')[0],
+            full_name: fullName,
+            first_name: extra.first_name,
+            last_name: extra.last_name,
+            prefix: extra.prefix,
+            language: extra.language,
+            photo: extra.photo,
+            role: 'Pending',
+            role_name: 'Pending',
+            role_id: 'r-pending',
+            status: 'pending',
+            access_unlocked: false,
+            allow_login: true,
+            is_active: true,
+            extra,
+            created_at: new Date().toISOString(),
+          });
+          snapshotSession({
+            access_token: 'local',
+            token_type: 'bearer',
+            user: { id: localId, email, user_metadata: { full_name: fullName, role: 'Pending' } },
+          });
+          try { localStorage.setItem('df_logged_in', '1'); sessionStorage.setItem('df_logged_in', '1'); sessionStorage.removeItem('df_auth_hops'); } catch { /* ignore */ }
+          try { ackResult(true, 'Account created for ' + email + '. Opening orientation. An admin must assign your role and access key before full ERP access.'); } catch { /* ignore */ }
+          location.replace('/orientation.html');
+          return;
+        }
+        try { localStorage.setItem('df_my_profile', JSON.stringify(extra)); } catch { /* ignore */ }
+        try {
+          upsertUser({
+            id: r.data.user.id,
+            email,
+            username: rv('reg_user') || email.split('@')[0],
+            full_name: fullName,
+            first_name: extra.first_name,
+            last_name: extra.last_name,
+            prefix: extra.prefix,
+            language: extra.language,
+            photo: extra.photo,
+            role: 'Pending',
+            role_name: 'Pending',
+            role_id: 'r-pending',
+            status: 'pending',
+            access_unlocked: false,
+            allow_login: true,
+            is_active: true,
+            extra,
+            created_at: new Date().toISOString(),
+          });
+        } catch { /* ignore */ }
+        if (r.data.session) {
+          snapshotSession(r.data.session);
+          try {
+            await supabase.from('profiles').upsert({
+              id: r.data.user.id,
+              full_name: fullName,
+              email,
+              role: 'Pending',
+              role_name: 'Pending',
+            });
+          } catch { /* columns may differ */ }
+        }
+        try {
+          ackResult(true, 'Account created for ' + email + '. Sign in to complete My Profile and read orientation. An admin must assign your role and access key before full ERP access.');
+        } catch { /* ignore */ }
+        document.getElementById('email').value = email;
+        if (r.data.session) {
+          location.replace('/orientation.html');
+          return;
+        }
+        closeRegToLogin();
+      } catch (ex) {
+        const detail = String(ex?.message || ex);
+        logError('AUTH_REGISTER', { email, detail });
+        showRegFail(formatError('AUTH_REGISTER', detail));
+      } finally {
+        go.disabled = false;
+        go.textContent = 'Create account';
+      }
+    }
+    document.getElementById('reg-form')?.addEventListener('submit', onReg);
+    document.getElementById('reg-go')?.addEventListener('click', onReg);
+    window.onReg = onReg;
+
+    async function signInOnce(email, password) {
+      return Promise.race([
+        supabase.auth.signInWithPassword({ email, password }),
+        new Promise((resolve) => setTimeout(() => resolve({ data: null, error: { message: 'Login timed out after 8 seconds. Check the network and try again.' } }), 8000)),
+      ]);
+    }
+
+    document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const go = document.getElementById('go');
+      err.classList.remove('show');
+      err.textContent = '';
+      const user = document.getElementById('email').value.trim();
+      const pass = document.getElementById('password').value;
+      go.disabled = true;
+      go.textContent = 'Signing in…';
+      try {
+        if (document.getElementById('remember').checked) localStorage.setItem('df_login_user', user);
+        else localStorage.removeItem('df_login_user');
+      } catch (_) {}
+      try {
+        if (!user || !pass) {
+          fail('AUTH_MISSING');
+          return;
+        }
+        if (atCount(user) > 1) {
+          fail('AUTH_EMAIL');
+          return;
+        }
+        const emails = emailsToTry(user);
+        if (!emails.length) {
+          fail('AUTH_UNKNOWN_USER');
+          return;
+        }
+        try { purgeStoredSession(); } catch (_) {}
+        let error = null;
+        let data = null;
+        const tried = [];
+        for (const email of emails) {
+          tried.push(email);
+          const r = await signInOnce(email, pass);
+          if (r?.data?.session) { data = r.data; error = null; break; }
+          error = r?.error || { message: 'No session returned.' };
+        }
+        if (error || !data?.session) {
+          const detail = String(error?.message || 'Invalid login credentials');
+          const key = classifyLoginError(detail);
+          fail(key, detail, detail);
+          return;
+        }
+        snapshotSession(data.session);
+        try {
+          localStorage.setItem('df_logged_in', '1');
+          sessionStorage.setItem('df_logged_in', '1');
+          sessionStorage.removeItem('df_auth_hops');
+          sessionStorage.removeItem('df_login_hold');
+        } catch (_) {}
+        let linked = null;
+        try { linked = await ensureAuthProfile(data.session); } catch (_) {}
+        const who = data.session.user?.email || tried[0];
+        const roleLabel = publicJobLabel({
+          ...(linked?.row || linked?.data || {}),
+          email: who,
+          designation: linked?.row?.designation || linked?.data?.designation || data.session.user?.user_metadata?.designation,
+          role: linked?.row?.role || linked?.data?.role || linked?.row?.role_name,
+        }, who);
+        const gatedTo = destinationForSession(data.session, '/dashboard.html');
+        await showLoginModal(who, gatedTo ? 'Pending access' : prettyRole(roleLabel));
+        try {
+          const { noteStaffLogin } = await import('/js/staff-hours.js');
+          const row = linked?.row || linked?.data || {};
+          let cashier = false;
+          try {
+            const rbac = await import('/js/rbac.js');
+            const rules = await import('/js/access-rules.js');
+            await rbac.loadAccess();
+            const rn = rbac.getAccess()?.roleName || row.role_name || row.role;
+            cashier = rbac.isTillCashier() || (
+              rbac.can('cashier.role')
+              && !rules.isHqRole(rn)
+              && !rules.isOwnerRole(rn)
+            );
+          } catch (_) {}
+          await noteStaffLogin(data.session, {
+            email: who,
+            role: row.role_name || row.role || data.session.user?.user_metadata?.role,
+            name: row.full_name || roleLabel,
+            cashier,
+          });
+        } catch (_) {}
+        const next = gatedTo || (resumePath() === '/dashboard.html' ? '/go-home.html' : resumePath());
+        location.replace(next);
+      } catch (ex) {
+        fail('AUTH_FAIL', String(ex?.message || ex), String(ex?.message || ex));
+      } finally {
+        go.disabled = false;
+        go.textContent = 'Login';
+      }
+    };
+
+    window.addEventListener('unhandledrejection', (ev) => {
+      fail('AUTH_FAIL', String(ev.reason?.message || ev.reason || 'unknown'));
+    });
+
+    try {
+      const switching = /[?&]switch=1/.test(location.search) || location.hash === '#staff' || location.hash === '#register';
+      if (!switching) {
+        const sess = await getAuthSession();
+        const tok = String(sess?.access_token || '');
+        if (sess?.user && tok && tok !== 'local' && tok !== 'preview-demo') {
+          location.replace(resumePath());
+        }
+      } else {
+        try { purgeStoredSession(); } catch (_) {}
+      }
+    } catch (_) {}
+  </script>
+  <script type="module">
+    import { saveJoinLead } from './js/field-ops-sync.js';
+
+    document.querySelectorAll('a[href="#mk-join"]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (window.dfShowView) window.dfShowView('field-ops');
+        setTimeout(() => document.getElementById('mk-join')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      });
+    });
+
+    document.getElementById('mk-join-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = String(fd.get('name') || '').trim();
+      const phone = String(fd.get('phone') || '').trim();
+      const area = String(fd.get('area') || '').trim();
+      if (!name || !phone || !area) return;
+      saveJoinLead({
+        name, phone, area,
+        interest: fd.get('interest'),
+        note: fd.get('note'),
+      });
+      const ok = document.getElementById('mk-join-ok');
+      if (ok) ok.hidden = false;
+      e.target.reset();
+    });
+  </script>
+</body>
+</html>

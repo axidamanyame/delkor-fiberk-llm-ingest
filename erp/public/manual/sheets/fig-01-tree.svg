@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420">
+  <rect width="920" height="420" fill="#eef4fb"/>
+  <rect x="24" y="18" width="872" height="384" rx="16" fill="#fff" stroke="#dbe7f2"/>
+  <rect x="40" y="36" width="140" height="32" rx="16" fill="#059669"/>
+  <text x="110" y="57" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="12" font-weight="800">Spreadsheet</text>
+  <rect x="188" y="36" width="100" height="32" rx="16" fill="#f1f5f9"/>
+  <text x="238" y="57" text-anchor="middle" fill="#334155" font-family="Inter,Arial" font-size="12" font-weight="700">Sheets</text>
+  <text x="40" y="100" fill="#0f172a" font-family="Inter,Arial" font-size="20" font-weight="800">Folders</text>
+  <rect x="700" y="80" width="80" height="28" rx="8" fill="#fff" stroke="#e2e8f0"/>
+  <text x="740" y="99" text-anchor="middle" fill="#334155" font-family="Inter,Arial" font-size="11">Folder</text>
+  <rect x="790" y="80" width="80" height="28" rx="8" fill="#059669"/>
+  <text x="830" y="99" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="11" font-weight="700">Sheet</text>
+  <g font-family="Inter,Arial">
+    <text x="56" y="148" font-size="14" font-weight="800" fill="#0f172a">▾ HQ Finance</text>
+    <rect x="80" y="164" width="520" height="36" rx="8" fill="#ecfdf5"/>
+    <text x="96" y="187" font-size="13" fill="#065f46">📄 VAT Working Aug 2026</text>
+    <rect x="80" y="208" width="520" height="36" rx="8" fill="#fff" stroke="#e2e8f0"/>
+    <text x="96" y="231" font-size="13" fill="#0f172a">📄 Q3 Cash Plan</text>
+    <text x="56" y="272" font-size="14" font-weight="800" fill="#0f172a">▸ Fiberk Shop</text>
+    <text x="56" y="304" font-size="14" font-weight="800" fill="#0f172a">▸ Axidigetek</text>
+    <text x="56" y="336" font-size="14" font-weight="800" fill="#0f172a">▸ Hire purchase workbooks</text>
+  </g>
+  <rect x="640" y="148" width="232" height="200" rx="12" fill="#0f172a"/>
+  <text x="756" y="180" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="12" font-weight="800">Open sheet</text>
+  <text x="668" y="214" fill="#a7f3d0" font-family="Inter,Arial" font-size="12">View — read cells</text>
+  <text x="668" y="240" fill="#fff" font-family="Inter,Arial" font-size="12">Edit — type, formulas</text>
+  <text x="668" y="266" fill="#fff" font-family="Inter,Arial" font-size="12">Add — new sheet / folder</text>
+  <text x="668" y="292" fill="#fecaca" font-family="Inter,Arial" font-size="12">Delete — trash with care</text>
+  <text x="668" y="324" fill="#94a3b8" font-family="Inter,Arial" font-size="11">This is a workbook, not the</text>
+  <text x="668" y="340" fill="#94a3b8" font-family="Inter,Arial" font-size="11">ledger. Reports stay in Reports.</text>
+  <text x="24" y="414" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 1 · Spreadsheets — folders on the left, open a sheet to edit</text>
+</svg>

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add new product</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    h1{font-size:22px}
+    label{display:block;font-weight:700;margin:10px 0 6px;color:var(--ult-text)}
+    input,select,textarea{width:100%;border:1px solid var(--ult-border);border-radius:8px;padding:10px;box-sizing:border-box;color:var(--ult-text);background:var(--ult-card)}
+    .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:900px){.grid3,.grid2{grid-template-columns:1fr}}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:18px;margin-bottom:14px}
+    .tip{display:inline-flex;width:16px;height:16px;border-radius:50%;background:#0ea5e9;color:#fff;font-size:11px;align-items:center;justify-content:center;margin-left:4px;cursor:help}
+    .plus{display:inline-flex;width:28px;height:28px;border-radius:6px;background:#2563eb;color:#fff;align-items:center;justify-content:center;text-decoration:none;font-weight:800;margin-left:6px}
+    .row-flex{display:flex;align-items:end;gap:6px}
+    .row-flex > :first-child{flex:1}
+    .price-bar{display:grid;grid-template-columns:2fr 1fr 1.2fr 1.2fr;gap:0;margin-top:12px}
+    .price-bar .col{border:1px solid #bbf7d0;padding:10px}
+    .price-bar h4{margin:0 0 8px;background:#16a34a;color:#fff;padding:8px;font-size:13px}
+    .actions{display:flex;justify-content:center;gap:12px;margin:18px 0 40px;flex-wrap:wrap}
+    .btn-os{background:#312e81;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-weight:700;cursor:pointer}
+    .btn-another{background:#db2777;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-weight:700;cursor:pointer}
+    .btn-save{background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:12px 22px;font-weight:700;cursor:pointer}
+    .hint{font-size:12px;color:#3d4f66;font-weight:400}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect, locationSelect } from './js/entity-scope.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { SUB_PREFIX, locationsFor, getActiveLocation, findLocation } from './js/scope.js';
+  import { draftProductDescription } from './js/ai-assist.js';
+  import { saveRow, readLs, loadFormRow, fillForm } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_UNITS, SEED_WARRANTIES, SEED_SUPPLIERS } from './js/catalog-seed.js';
+  import { TAXONOMY, TAXONOMY_CATEGORIES } from './js/catalog-taxonomy.js';
+  import { placeOf, extractSpecs, stampMerch, alignStoreFields } from './js/catalog-merch.js';
+  import { parseTaxRate, taxOptionsHtml, withTax, fromInclusive, applyMargin, marginFromPrices } from './js/tax-math.js';
+  import { loadBizSettings } from './js/settings-store.js';
+  import {
+    classLayerOn, optionHtml, PRODUCT_CLASSES, ITEM_KINDS, ITEM_GROUPS,
+    PRODUCT_FAMILIES, PRICING_CLASSES, TAX_CLASSES, COSTING_METHODS,
+    INVENTORY_CLASSES, PRODUCT_STATUSES, SELL_TYPES,
+  } from './js/product-class.js';
+  await mountUltimateShell();
+  const biz = await loadBizSettings();
+  const on = (flag) => classLayerOn(biz, flag);
+  const id = new URLSearchParams(location.search).get('id');
+  const app = document.getElementById('app');
+  const units = (readLs(CAT_KEYS.units, SEED_UNITS) || SEED_UNITS);
+  const wars = (readLs(CAT_KEYS.warranties, SEED_WARRANTIES) || SEED_WARRANTIES);
+  const brands = (readLs(CAT_KEYS.brands, []) || []).filter((b) => b && b.name);
+  const suppliers = (readLs(CAT_KEYS.suppliers, SEED_SUPPLIERS) || []).filter((s) => s && (s.name || s.company));
+  const cats = TAXONOMY_CATEGORIES;
+  let row = { product_type: 'simple', unit: 'pcs', tax_type: 'exclusive', manage_stock: true, margin: 25 };
+  if (id) {
+    try {
+      const found = await loadFormRow('products', CAT_KEYS.products, id);
+      if (found) row = { ...row, ...found };
+    } catch { /* paint anyway */ }
+  }
+  const parentCats = TAXONOMY.map((t) => t.name);
+  function subOpts(parent, selected) {
+    const node = TAXONOMY.find((t) => t.name === parent);
+    const list = node ? node.children.map((c) => c.name) : [];
+    return ['<option value="">Please Select</option>']
+      .concat(list.map((n) => `<option ${n === selected ? 'selected' : ''}>${n}</option>`))
+      .join('');
+  }
+  function merchBox(r) {
+    const place = placeOf(r.category, r.subcategory || r.sub_category);
+    const specs = { ...extractSpecs(r), ...(r.attributes || {}) };
+    const attrInputs = (place.attributes || []).map((a) => {
+      const v = specs[a.name] ?? '';
+      if (a.type === 'boolean') {
+        return `<div><label class="hint"><input type="checkbox" name="attr_${escAttr(a.name)}" ${v ? 'checked' : ''}/> ${a.name}${a.required ? ' *' : ''}</label></div>`;
+      }
+      return `<div><label>${a.name}${a.required ? ' *' : ''}</label><input name="attr_${escAttr(a.name)}" type="${a.type === 'number' ? 'number' : 'text'}" value="${v === true || v === false ? '' : String(v ?? '').replace(/"/g, '"')}" /></div>`;
+    }).join('');
+    return `<div id="merch-box">
+      <div class="grid3">
+        <div><label>Division</label><input readonly value="${place.division || ''}" /></div>
+        <div><label>Department</label><input readonly value="${place.department || ''}" /></div>
+        <div><label>Class</label><input readonly value="${place.name || ''}" /></div>
+        <div><label>Model number</label><input name="model_number" value="${(r.model_number || r.model || specs.model_number || '').replace(/"/g, '"')}" placeholder="Factory / supplier model" /></div>
+        <div><label>Color</label><input name="color" value="${(r.color || r.colour || specs.Color || '').replace(/"/g, '"')}" placeholder="Black, Gold, Blue…" list="color-list" /><datalist id="color-list"><option value="Black"><option value="White"><option value="Silver"><option value="Gold"><option value="Blue"><option value="Green"><option value="Red"><option value="Grey"><option value="Purple"><option value="Pink"></datalist></div>
+        <div><label>Size / storage</label><input name="size" value="${(r.size || specs['Storage Capacity'] || '').replace(/"/g, '"')}" placeholder="64GB, 128GB, 43"…" /></div>
+        <div><label>Lifecycle</label>
+          <select name="lifecycle_status">${['draft','active','phase_out','discontinued'].map((s) => `<option ${s === (r.lifecycle_status || 'active') ? 'selected' : ''}>${s}</option>`).join('')}</select>
+        </div>
+        <div><label>Class code</label><input readonly name="class_code" value="${place.code || ''}" /></div>
+      </div>
+      <div class="grid3" style="margin-top:12px">${attrInputs}</div>
+    </div>`;
+  }
+  function escAttr(s) { return String(s || '').replace(/"/g, ''); }
+  const tip = (t) => `<span class="tip" title="${t}">i</span>`;
+  const shops = locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true });
+  const defaultLoc = row.location_code || getActiveLocation() || (shops[0]?.code || '');
+  const locChips = shops.map((l) => `<option value="${l.code}" ${defaultLoc===l.code?'selected':''}>${l.name}</option>`).join('');
+  try {
+  app.innerHTML = `
+    <h1>${id ? 'Edit product' : 'Add new product'}</h1>
+    <form id="f">
+      <div class="card">
+        ${subsidiarySelect(row.subsidiary_code || '')}
+        <div class="grid3">
+          <div><label>Product Name:*</label><input name="name" required value="${row.name||''}" placeholder="Product Name" /></div>
+          ${on('enable_sku') ? `<div><label>SKU: ${tip('Leave blank to auto-generate with the company prefix (AXI / FIB / DEL / BNP).')}</label><input name="sku" value="${row.sku||''}" placeholder="SKU" /></div>` : '<input type="hidden" name="sku" value="' + (row.sku||'') + '" />'}
+          ${on('enable_barcode') ? `<div><label>Barcode:</label><input name="barcode" value="${row.barcode||row.vendor_sku||''}" placeholder="Barcode" />
+            <label>Barcode Type:</label>
+            <select name="barcode_type">
+              <option>Code 128 (C128)</option><option>Code 39</option><option>EAN-13</option>
+            </select></div>` : ''}
+          ${on('enable_unit') ? `<div><label>Unit:*</label>
+            <div class="row-flex">
+              <select name="unit">${(units||[]).map((u)=>`<option value="${u.short_name||u.name}" ${(u.short_name||u.name)===(row.unit|| biz.default_unit || 'pcs')?'selected':''}>${u.name} (${u.short_name||u.name})</option>`).join('') || '<option value="pcs">Units (pcs)</option>'}</select>
+              <a class="plus" href="/unit-edit.html" title="Add unit">+</a>
+            </div></div>` : `<input type="hidden" name="unit" value="${row.unit||biz.default_unit||'pcs'}" />`}
+          ${on('enable_brands') ? `<div><label>Brand:</label>
+            <div class="row-flex">
+              <select name="brand"><option value="">Please Select</option>${(brands||[]).map((b)=>`<option ${b.name===row.brand?'selected':''}>${b.name}</option>`).join('')}</select>
+              <a class="plus" href="/brand-edit.html" title="Add brand">+</a>
+            </div></div>` : ''}
+          ${on('enable_categories') ? `<div>
+            <label>Category:</label>
+            <select name="category" id="f-cat"><option value="">Please Select</option>${parentCats.map((n)=>`<option ${n===(row.category||'')?'selected':''}>${n}</option>`).join('')}</select>
+            ${on('enable_sub_categories') ? `<label>Sub category:</label>
+            <select name="sub_category" id="f-sub">${subOpts(row.category || '', row.subcategory || row.sub_category || '')}</select>` : ''}
+          </div>` : ''}
+        </div>
+        <div class="card" style="margin-top:12px;padding:12px;border:1px dashed #cbd5e1">
+          <p class="hint" style="margin:0 0 8px">Classification — one set of layers. Tick them on or off in Business Settings → Product.</p>
+          <div class="grid3">
+            ${on('enable_product_class') ? `<div><label>Product class</label><select name="product_class"><option value="">Please Select</option>${optionHtml(PRODUCT_CLASSES, row.product_class)}</select></div>` : ''}
+            ${on('enable_item_kind') ? `<div><label>Item kind</label><select name="item_kind"><option value="">Please Select</option>${optionHtml(ITEM_KINDS, row.item_kind || (row.manage_stock===false?'service':'stockable'))}</select></div>` : ''}
+            ${on('enable_item_group') ? `<div><label>Item group</label><select name="item_group"><option value="">Please Select</option>${optionHtml(ITEM_GROUPS, row.item_group)}</select></div>` : ''}
+            ${on('enable_product_family') ? `<div><label>Product family</label><input name="product_family" list="family-list" value="${row.product_family||''}" placeholder="Galaxy, Oraimo, Hisense…" /><datalist id="family-list">${PRODUCT_FAMILIES.map((n)=>`<option value="${n}">`).join('')}</datalist></div>` : ''}
+            ${on('enable_status') ? `<div><label>Status</label><select name="status">${optionHtml(PRODUCT_STATUSES, row.status || (row.is_active===false?'inactive':'active'))}</select></div>` : ''}
+            ${on('enable_supplier') ? `<div><label>Supplier</label>
+              <div class="row-flex">
+                <select name="supplier_id"><option value="">Please Select</option>${suppliers.map((s)=>`<option value="${s.id||s.name}" ${String(row.supplier_id||row.supplier||'')===String(s.id||s.name)?'selected':''}>${s.name||s.company||s.id}</option>`).join('')}</select>
+                <a class="plus" href="/supplier-form.html" title="Add supplier">+</a>
+              </div></div>` : ''}
+            ${on('enable_price_group') ? `<div><label>Pricing class</label><select name="pricing_class"><option value="">Please Select</option>${optionHtml(PRICING_CLASSES, row.pricing_class)}</select></div>` : ''}
+            ${on('enable_price_tax') ? `<div><label>Tax class</label><select name="tax_class"><option value="">Please Select</option>${optionHtml(TAX_CLASSES, row.tax_class)}</select></div>` : ''}
+            ${on('enable_cost') ? `<div><label>Costing method</label><select name="costing_method">${optionHtml(COSTING_METHODS, row.costing_method || biz.accounting_method || 'fifo')}</select></div>` : ''}
+            ${on('enable_stock_tracking') ? `<div><label>Inventory class</label><select name="inventory_class">${optionHtml(INVENTORY_CLASSES, row.inventory_class || 'plain')}</select></div>` : ''}
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px;padding:12px;border:1px dashed #cbd5e1">
+          <p class="hint" style="margin:0 0 8px">Merchandise class — specs are taken from the product name, model, and description.</p>
+          ${merchBox(row)}
+        </div>
+        <label>Business Locations:* ${tip('This SKU is stored on this shop. The left-menu location must match for it to appear in the list.')}</label>
+        <select name="location_code" id="loc-sel" required>${locChips || '<option value="">Please Select</option>'}</select>
+        <div class="grid3" style="margin-top:12px">
+          ${on('enable_stock_tracking') ? `<div>
+            <label><input type="checkbox" name="manage_stock" ${row.manage_stock!==false?'checked':''}/> Manage Stock? ${tip('Enable stock management at product level')}</label>
+            <p class="hint">Enable stock management at product level</p>
+          </div>
+          <div><label>Alert quantity: ${tip('Notify when stock falls to this quantity.')}</label><input name="alert_quantity" type="number" value="${row.alert_quantity ?? row.low_stock_alert ?? ''}" placeholder="Alert quantity" /></div>` : '<input type="hidden" name="manage_stock" value="">'}
+          ${on('enable_warranty') ? `<div><label>Warranty:</label><select name="warranty"><option value="">Please Select</option>${(wars||[]).map((w)=>`<option ${w.name===(row.warranty||'')?'selected':''}>${w.name}</option>`).join('')}</select></div>` : ''}
+        </div>
+        <div class="grid2">
+          <div>
+            <label>Product Description: <button type="button" class="ai-btn" id="ai-desc" style="margin-left:8px">✦ Use AI</button></label>
+            <textarea name="description" rows="8">${row.description||''}</textarea>
+          </div>
+          <div>
+            <label>Product image: <button type="button" class="ai-btn" id="ai-img" style="margin-left:8px">✦ Use AI</button></label>
+            <input name="image_url" placeholder="Image URL" value="${row.image_url||''}" />
+            <input type="file" id="img-file" accept="image/*" />
+            <p class="hint">Max File size: 5MB. Aspect ratio should be 1:1</p>
+            <label>Product brochure:</label>
+            <input type="file" name="brochure" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" />
+            <p class="hint">Max File size: 5MB</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="grid2">
+          <label><input type="checkbox" name="enable_imei" ${row.enable_imei?'checked':''}/> Enable Product description, IMEI or Serial Number ${tip('Ask for IMEI / serial on the till when this SKU is sold.')}</label>
+          <label><input type="checkbox" name="not_for_selling" ${row.not_for_selling?'checked':''}/> Not for selling ${tip('Hide from the register catalog. Still appears in stock.')}</label>
+          <label><input type="checkbox" name="woocommerce_enabled" ${row.woocommerce_enabled?'checked':''}/> WooCommerce ${tip('Offer this SKU on the online store. Brand, model, size and color must be filled.')}</label>
+        </div>
+        <div class="grid2">
+          <div><label>Weight:</label><input name="weight" value="${row.weight||''}" placeholder="Weight" /></div>
+          <div><label>Preparation time (minutes):</label><input name="prep_minutes" type="number" value="${row.prep_minutes||''}" /></div>
+        </div>
+      </div>
+      ${(on('enable_price_tax') || on('enable_cost') || on('enable_variants') || on('enable_price_group')) ? `<div class="card">
+        <div class="grid3">
+          ${on('enable_price_tax') ? `<div><label>Applicable Tax:</label><select name="tax">${taxOptionsHtml(row.tax || '')}</select></div>
+          <div><label>Selling Price Tax Type:*</label>
+            <select name="tax_type"><option value="exclusive" ${row.tax_type!=='inclusive'?'selected':''}>Exclusive</option>
+            <option value="inclusive" ${row.tax_type==='inclusive'?'selected':''}>Inclusive</option></select></div>` : ''}
+          ${on('enable_variants') ? `<div><label>Product Type:* ${tip('Single = one price. Variable = sizes/colours. Combo = bundle.')}</label>
+            <select name="product_type">
+              ${SELL_TYPES.map(([v,l]) => `<option value="${v}" ${(row.product_type||'simple')===v?'selected':''}>${l}</option>`).join('')}
+            </select></div>` : '<input type="hidden" name="product_type" value="' + (row.product_type||'simple') + '" />'}
+        </div>
+        ${on('enable_price_group') ? `<div class="grid3" style="margin-top:12px">
+          <div><label>Retail price</label><input name="retail_price" type="number" step="0.01" value="${row.retail_price ?? row.selling_price ?? ''}" /></div>
+          <div><label>Wholesale price</label><input name="wholesale_price" type="number" step="0.01" value="${row.wholesale_price||''}" /></div>
+          <div><label>Distributor price</label><input name="distributor_price" type="number" step="0.01" value="${row.distributor_price||''}" /></div>
+          <div><label>Agent price</label><input name="agent_price" type="number" step="0.01" value="${row.agent_price||''}" /></div>
+        </div>` : ''}
+        ${(on('enable_cost') || on('enable_price_tax')) ? `<div class="price-bar">
+          ${on('enable_cost') ? `<div class="col">
+            <h4>Default Purchase Price</h4>
+            <div class="grid2">
+              <div><label>Exc. tax:*</label><input id="cost" name="cost_price" type="number" step="0.01" value="${row.cost_price||''}" /></div>
+              <div><label>Inc. tax:*</label><input id="cost_inc" type="number" step="0.01" /></div>
+            </div>
+          </div>
+          <div class="col"><h4>x Margin(%)</h4><input id="margin" name="margin" type="number" step="0.01" value="${row.margin ?? row.profit_margin ?? 0}" /></div>` : ''}
+          ${on('enable_price_tax') ? `<div class="col"><h4>Default Selling Price</h4><label>Exc. Tax</label><input id="sell" name="selling_price" type="number" step="0.01" value="${row.selling_price||''}" /></div>` : ''}
+          <div class="col"><h4>Product image</h4><input type="file" accept="image/*" /></div>
+        </div>` : ''}
+      </div>` : ''}
+      <div class="actions">
+        <button type="submit" class="btn-os" data-next="stock">${id?'Update &amp; Edit Opening Stock':'Save &amp; Add Opening Stock'}</button>
+        <button type="submit" class="btn-another" data-next="another">${id?'Update And Add Another':'Save And Add Another'}</button>
+        <button type="submit" class="btn-save" data-next="list">${id?'Update':'Save'}</button>
+      </div>
+    </form>`;
+
+  const cost = document.getElementById('cost');
+  const margin = document.getElementById('margin');
+  const sell = document.getElementById('sell');
+  const costInc = document.getElementById('cost_inc');
+  const taxSel = app.querySelector('[name="tax"]');
+  const taxTypeSel = app.querySelector('[name="tax_type"]');
+  let lock = false;
+  const rateOf = () => parseTaxRate(taxSel?.value);
+  const recalcFromCost = () => {
+    if (lock || !cost || !sell) return;
+    lock = true;
+    const c = Number(cost.value) || 0;
+    const m = Number(margin?.value);
+    const rate = rateOf();
+    const split = withTax(c, rate);
+    if (costInc) costInc.value = c ? split.inc.toFixed(2) : '';
+    if (cost.value !== '') sell.value = applyMargin(c, Number.isFinite(m) ? m : 0).toFixed(2);
+    lock = false;
+  };
+  const recalcFromInc = () => {
+    if (lock || !costInc || !cost) return;
+    lock = true;
+    const split = fromInclusive(Number(costInc.value) || 0, rateOf());
+    cost.value = split.exc.toFixed(2);
+    const m = Number(margin?.value);
+    if (sell) sell.value = applyMargin(split.exc, Number.isFinite(m) ? m : 0).toFixed(2);
+    lock = false;
+  };
+  const recalcFromSell = () => {
+    if (lock || !cost || !margin || !sell) return;
+    lock = true;
+    const c = Number(cost.value) || 0;
+    if (c) margin.value = marginFromPrices(c, Number(sell.value) || 0).toFixed(2);
+    lock = false;
+  };
+  cost?.addEventListener('input', recalcFromCost);
+  margin?.addEventListener('input', recalcFromCost);
+  taxSel?.addEventListener('change', recalcFromCost);
+  taxTypeSel?.addEventListener('change', recalcFromCost);
+  costInc?.addEventListener('input', recalcFromInc);
+  sell?.addEventListener('input', recalcFromSell);
+  if (cost) recalcFromCost();
+  const catSel = document.getElementById('f-cat');
+  const subCatSel = document.getElementById('f-sub');
+  catSel?.addEventListener('change', () => {
+    if (!subCatSel) return;
+    subCatSel.innerHTML = subOpts(catSel.value, '');
+    paintMerch();
+  });
+  subCatSel?.addEventListener('change', paintMerch);
+  function paintMerch() {
+    const box = document.getElementById('merch-box');
+    if (!box) return;
+    const f = document.getElementById('f');
+    const next = merchBox({
+      ...row,
+      name: f.name?.value || row.name,
+      description: f.description?.value || row.description,
+      category: catSel?.value || '',
+      subcategory: subCatSel?.value || '',
+      model_number: f.model_number?.value || row.model_number,
+      lifecycle_status: f.lifecycle_status?.value || row.lifecycle_status,
+    });
+    box.outerHTML = next;
+  }
+
+  const locSel = document.getElementById('loc-sel');
+  const subSel = app.querySelector('[name="subsidiary_code"]');
+  const paintLocs = () => {
+    if (!locSel || !subSel) return;
+    const sub = subSel.value || 'group';
+    const cur = locSel.value;
+    const list = locationsFor(sub, { forSale: true });
+    locSel.innerHTML = list.map((l) =>
+      `<option value="${l.code}" ${cur === l.code ? 'selected' : ''}>${l.name}</option>`
+    ).join('') || '<option value="">Please Select</option>';
+  };
+  subSel?.addEventListener('change', paintLocs);
+  paintLocs();
+
+  let next = 'list';
+  app.querySelectorAll('[data-next]').forEach((b) => b.addEventListener('click', () => { next = b.dataset.next; }));
+
+  document.getElementById('ai-desc')?.addEventListener('click', () => {
+    const f = document.getElementById('f');
+    const name = f.name.value.trim();
+    const brand = f.brand?.value || '';
+    const unit = f.unit?.value || '';
+    const category = f.category?.selectedOptions?.[0]?.text || f.category?.value || '';
+    const subCategory = f.sub_category?.selectedOptions?.[0]?.text || f.sub_category?.value || '';
+    if (!name || !brand || !unit) {
+      alert('Fill product name, brand and unit first.');
+      return;
+    }
+    f.description.value = draftProductDescription({ name, brand, unit, category, subCategory });
+  });
+  document.getElementById('ai-img')?.addEventListener('click', () => {
+    const f = document.getElementById('f');
+    const name = f.name.value.trim();
+    const brand = f.brand?.value || '';
+    if (!name || !brand) {
+      alert('Fill product name and brand first.');
+      return;
+    }
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect fill="#eef2ff" width="600" height="600"/><text x="300" y="290" text-anchor="middle" font-family="Inter,Arial" font-size="28" fill="#1e3a8a">${name.replace(/[<>]/g,'')}</text><text x="300" y="330" text-anchor="middle" font-family="Inter,Arial" font-size="18" fill="#3d4f66">${brand.replace(/[<>]/g,'')}</text></svg>`;
+    f.image_url.value = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    alert('A labelled placeholder image was added. Upload your own photo before save for the catalogue.');
+  });
+
+  fillForm(document.getElementById('f'), row);
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Save this product?', 'Writes the SKU to the selected subsidiary.'))) return;
+    const fd = new FormData(e.target);
+    const body = {
+      name: fd.get('name').trim(),
+      sku: (fd.get('sku') || '').trim() || null,
+      barcode: fd.get('barcode') || null,
+      barcode_type: fd.get('barcode_type'),
+      unit: fd.get('unit') || biz.default_unit || 'pcs',
+      brand: fd.get('brand') || null,
+      category: fd.get('category') || null,
+      subcategory: fd.get('sub_category') || null,
+      sub_category: fd.get('sub_category') || null,
+      product_class: fd.get('product_class') || null,
+      class_description: fd.get('product_class') || null,
+      item_kind: fd.get('item_kind') || null,
+      item_group: fd.get('item_group') || null,
+      product_family: fd.get('product_family') || null,
+      status: fd.get('status') || 'active',
+      is_active: (fd.get('status') || 'active') === 'active',
+      supplier_id: fd.get('supplier_id') || null,
+      supplier: (suppliers.find((s) => String(s.id || s.name) === String(fd.get('supplier_id') || '')) || {}).name || null,
+      pricing_class: fd.get('pricing_class') || null,
+      tax_class: fd.get('tax_class') || null,
+      costing_method: fd.get('costing_method') || null,
+      inventory_class: fd.get('inventory_class') || null,
+      retail_price: fd.get('retail_price') === '' || fd.get('retail_price') == null ? null : Number(fd.get('retail_price')),
+      wholesale_price: fd.get('wholesale_price') === '' || fd.get('wholesale_price') == null ? null : Number(fd.get('wholesale_price')),
+      distributor_price: fd.get('distributor_price') === '' || fd.get('distributor_price') == null ? null : Number(fd.get('distributor_price')),
+      agent_price: fd.get('agent_price') === '' || fd.get('agent_price') == null ? null : Number(fd.get('agent_price')),
+      has_variants: (fd.get('product_type') || row.product_type) === 'variable',
+      model_number: fd.get('model_number') || '',
+      model: fd.get('model_number') || '',
+      color: fd.get('color') || '',
+      colour: fd.get('color') || '',
+      size: fd.get('size') || '',
+      woocommerce_enabled: !!(e.target.woocommerce_enabled && e.target.woocommerce_enabled.checked),
+      lifecycle_status: fd.get('lifecycle_status') || 'active',
+      class_code: fd.get('class_code') || '',
+      location_code: fd.get('location_code') || null,
+      manage_stock: !!(e.target.manage_stock && e.target.manage_stock.type === 'checkbox' ? e.target.manage_stock.checked : row.manage_stock !== false),
+      alert_quantity: fd.get('alert_quantity') === '' ? null : Number(fd.get('alert_quantity')),
+      warranty: fd.get('warranty') || null,
+      description: fd.get('description') || null,
+      image_url: fd.get('image_url') || null,
+      enable_imei: !!e.target.enable_imei.checked,
+      not_for_selling: !!e.target.not_for_selling.checked,
+      weight: fd.get('weight') || null,
+      prep_minutes: fd.get('prep_minutes') === '' ? null : Number(fd.get('prep_minutes')),
+      tax: fd.get('tax') || '',
+      tax_type: fd.get('tax_type'),
+      product_type: fd.get('product_type'),
+      cost_price: Number(fd.get('cost_price') || 0),
+      selling_price: Number(fd.get('selling_price') || 0),
+      margin: Number(fd.get('margin') || 0),
+    };
+    const attributes = {};
+    e.target.querySelectorAll('[name^="attr_"]').forEach((el) => {
+      const key = el.name.slice(5);
+      attributes[key] = el.type === 'checkbox' ? el.checked : (el.type === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value);
+    });
+    body.attributes = attributes;
+    Object.assign(body, stampMerch(body));
+    Object.assign(body, alignStoreFields(body));
+    try { stampScope(body, e.target); } catch (ex) { return alert(ex.message); }
+    if (!body.sku) body.sku = (SUB_PREFIX[body.subsidiary_code] || 'SKU') + String(Date.now()).slice(-6);
+    body.stock = body.current_stock = body.current_stock_value = 0;
+    body.is_active = body.status === 'active';
+    body.purchase_price = body.cost_price;
+    let saved = { id: id || ('p-' + Date.now()) };
+    try {
+      saved = await saveRow('products', CAT_KEYS.products, id ? { ...body, id } : body);
+      if (saved?._localOnly) {
+        ackResult(false, (body.name || 'Product') + ' is on this device only. Log in with an ERP user (not HQ demo) so testers on the live site can see it.');
+      } else {
+        ackResult(true, (body.name || 'Product') + ' saved to ' + (findLocation(body.location_code)?.name || body.location_code || 'the company catalogue') + '. Testers will see it after they refresh.');
+      }
+    } catch (ex) {
+      ackResult(false, String(ex?.message || ex || 'Could not save product.'));
+      return;
+    }
+    const newId = id || saved?.id || body.sku;
+    if (next === 'stock') location.href = '/opening-stock.html?product=' + encodeURIComponent(newId);
+    else if (next === 'another') location.href = '/product-form.html';
+    else location.href = '/products.html';
+  };
+  } catch (err) {
+    console.warn('product-form', err);
+    app.innerHTML = `<div class="card"><h1>Add new product</h1><p>Could not open the full form (${String(err?.message || err)}). <a href="/product-form.html">Retry</a></p></div>`;
+  }
+</script>
+</body>
+</html>

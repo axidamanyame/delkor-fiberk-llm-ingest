@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Home — Axidigetek ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <script type="module">
+    import { getCurrentUserWithRole } from "/js/auth.js";
+    import { mountShell } from "/js/shell.js";
+    import { supabase } from "/js/supabaseClient.js";
+
+    const ctx = await getCurrentUserWithRole();
+    if (!ctx) throw new Error("no session");
+
+    const name = (ctx.fullName || "Admin").split("@")[0];
+    const { contentEl } = await mountShell({
+      title: `Welcome ${name}, 👋`,
+      active: "home",
+      role: ctx.role,
+      userName: name
+    });
+
+    contentEl.innerHTML = `
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-icon blue">🛒</div><div class="kpi-body"><div class="label">Total Sales</div><div class="value" id="kpiSales">$ 0.00</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon green">💵</div><div class="kpi-body"><div class="label">Net</div><div class="value" id="kpiNet">$ 0.00</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon yellow">📄</div><div class="kpi-body"><div class="label">Invoice due</div><div class="value" id="kpiInvoiceDue">$ 0.00</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon pink">↩️</div><div class="kpi-body"><div class="label">Sell returns</div><div class="value">$ 0.00</div></div></div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-icon cyan">⬇️</div><div class="kpi-body"><div class="label">Total purchase</div><div class="value" id="kpiPurchase">$ 0.00</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon orange">⚠️</div><div class="kpi-body"><div class="label">Purchase due</div><div class="value" id="kpiPurchaseDue">$ 0.00</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon purple">👥</div><div class="kpi-body"><div class="label">Customers</div><div class="value" id="kpiCustomers">0</div></div></div>
+        <div class="kpi-card"><div class="kpi-icon red">📦</div><div class="kpi-body"><div class="label">Products · Low stock</div><div class="value"><span id="kpiProducts">0</span> · <span id="kpiLowStock">0</span></div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>⚡ Quick actions</h3></div>
+        <div class="card-body">
+          <div class="quick-actions">
+            <a class="btn btn-primary" href="/sales-orders.html">+ New Sale</a>
+            <a class="btn btn-secondary" href="/purchase-orders.html">+ Purchase</a>
+            <a class="btn btn-secondary" href="/products.html">+ Product</a>
+            <a class="btn btn-secondary" href="/customers.html">+ Customer</a>
+            <a class="btn btn-secondary" href="/stock.html">View Stock</a>
+            <a class="btn btn-secondary" href="/accounting.html">Invoices</a>
+            <a class="btn btn-secondary" href="/crm.html">Leads</a>
+            <a class="btn btn-secondary" href="/payroll.html">Payroll</a>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Business overview</h3></div>
+        <div class="card-body">
+          <p class="muted" style="margin:0;">
+            <strong>BuyNowPaysLater</strong> (BNPL) · <strong>Fiberk</strong> (cash electronics) · <strong>Delkor</strong> (furniture wholesale).
+            Purchases receive stock · Sell books by subsidiary · Stock shows levels & history.
+          </p>
+        </div>
+      </div>`;
+
+    async function sumField(table, field) {
+      const { data } = await supabase.from(table).select(field);
+      return (data || []).reduce((s, r) => s + Number(r[field] || 0), 0);
+    }
+    async function count(table) {
+      const { count } = await supabase.from(table).select("*", { count: "exact", head: true });
+      return count ?? 0;
+    }
+
+    try {
+      const [salesTotal, purchaseTotal, customers, products] = await Promise.all([
+        sumField("sales_orders", "total_amount"),
+        sumField("purchase_orders", "total_amount"),
+        count("customers"),
+        count("products")
+      ]);
+      const fmt = (n) => "$ " + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById("kpiSales").textContent = fmt(salesTotal);
+      document.getElementById("kpiNet").textContent = fmt(salesTotal);
+      document.getElementById("kpiPurchase").textContent = fmt(purchaseTotal);
+      document.getElementById("kpiPurchaseDue").textContent = fmt(purchaseTotal);
+      document.getElementById("kpiCustomers").textContent = customers;
+      document.getElementById("kpiProducts").textContent = products;
+      const { data: inv } = await supabase.from("invoices").select("total_amount");
+      const invDue = (inv || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+      document.getElementById("kpiInvoiceDue").textContent = fmt(invDue);
+      const { data: levels } = await supabase.from("stock_levels").select("quantity");
+      document.getElementById("kpiLowStock").textContent = (levels || []).filter(r => Number(r.quantity) <= 0).length;
+    } catch (e) {
+      console.warn(e);
+    }
+  </script>
+</body>
+</html>

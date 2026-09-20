@@ -1,0 +1,39 @@
+    import { supabase, fmt, getActiveSubsidiary, operatingCode } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { bindTable } from './js/home-tables.js';
+    import { loadRows, actMenu, esc } from './js/ls-rows.js';
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    const app = document.getElementById('app');
+
+    const [{ data: rets }, local] = await Promise.all([
+      supabase.from('sales_returns').select('*').order('created_at', { ascending: false }).limit(400).then((r) => r).catch(() => ({ data: [] })),
+      loadRows('sales_returns', 'df_sales_returns', []),
+    ]);
+    const seen = new Map();
+    [...(rets || []), ...(local || [])].forEach((r) => {
+      if (!r) return;
+      const id = String(r.id || r.reference || '');
+      if (id && !seen.has(id)) seen.set(id, r);
+    });
+    const rows = [...seen.values()];
+
+    app.innerHTML = pageChrome('List Sell Return') + `
+      <div class="ult-card" data-tbl="sell-returns">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Date</th><th>Ref</th><th>Sale</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}">
+            <td>${actMenu(r.id, [
+              { href: `/sell-return-form.html?id=${encodeURIComponent(r.id)}&view=1`, label: 'View' },
+              { href: `/sell-return-form.html?id=${encodeURIComponent(r.id)}`, label: 'Edit' },
+              { href: `/sales-form.html?id=${encodeURIComponent(r.sales_order_id || r.sale_id || '')}&view=1`, label: 'Parent sale' },
+            ])}</td>
+            <td>${esc(String(r.created_at || r.date || '').slice(0, 10))}</td>
+            <td>${esc(r.reference || '')}</td>
+            <td>${esc(r.parent_sale || r.sales_order_id || '')}</td>
+            <td>${fmt(r.total_amount)}</td>
+            <td>${esc(r.status || '')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="6">No returns yet</td></tr>'}</tbody>
+        </table></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="sell-returns"]'), { title: 'Sell returns', storageKey: 'sell-returns' });

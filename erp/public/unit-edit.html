@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unit — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect } from './js/entity-scope.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadFormRow, fillForm } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const id = new URLSearchParams(location.search).get('id');
+  const app = document.getElementById('app');
+  let row = { name: '', short_name: '', allow_decimal: false };
+  if (id) row = (await loadFormRow('units', 'df_units', id)) || row;
+  app.innerHTML = `
+    <h1>${id ? 'Edit' : 'Add'} Unit</h1>
+    <form id="f" class="ult-card" style="max-width:640px">
+      ${subsidiarySelect(row.subsidiary_code || '')}
+      <label class="fld">Name:* <input name="name" required value="${row.name || ''}" /></label>
+      <label class="fld">Short name: <input name="short_name" value="${row.short_name || row.short || ''}" /></label>
+      <label class="fld" style="flex-direction:row;align-items:center;gap:8px;margin:12px 0">
+        <input type="checkbox" name="allow_decimal" ${row.allow_decimal ? 'checked' : ''} /> Allow decimal
+      </label>
+      <p>
+        <button class="ult-btn ult-btn-primary" type="submit">Save</button>
+        <a class="ult-btn ult-btn-outline" href="/units.html">Cancel</a>
+      </p>
+    </form>`;
+  fillForm(document.getElementById('f'), row);
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction(id ? 'Update this unit?' : 'Save this unit?'))) return;
+    const fd = new FormData(e.target);
+    const body = {
+      name: fd.get('name').trim(),
+      short_name: (fd.get('short_name') || '').trim() || null,
+      allow_decimal: e.target.allow_decimal.checked,
+    };
+    try { stampScope(body, e.target); } catch (ex) { return toast(ex.message, 'error'); }
+    const q = id
+      ? await supabase.from('units').update(body).eq('id', id)
+      : await supabase.from('units').insert(body);
+    if (q.error) return toast(q.error.message, 'error');
+    toast('Unit saved');
+    location.assign('/units.html');
+  };
+</script>
+</body>
+</html>

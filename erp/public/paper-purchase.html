@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paper supplier invoice — Pinaro → WMS → BNPL</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Special+Elite&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .pp-grid { display:grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.1fr); gap:18px; align-items:start; }
+    @media (max-width: 900px) { .pp-grid { grid-template-columns: 1fr; } }
+    .pp-slip {
+      background:#f7f4ea; color:#1a1a1a; border:1px solid #c4b89a; border-radius:4px;
+      padding:18px 16px 22px; font-family:"Special Elite", ui-monospace, serif;
+      box-shadow: 0 10px 28px rgba(15,23,42,.12);
+    }
+    .pp-slip h2 { margin:0; text-align:center; letter-spacing:.04em; font-size:20px; }
+    .pp-slip .addr { text-align:center; font-size:12px; margin:6px 0 10px; line-height:1.45; }
+    .pp-slip .no { text-align:right; font-size:13px; }
+    .pp-slip table { width:100%; border-collapse:collapse; font-size:13px; }
+    .pp-slip th, .pp-slip td { border:1px solid #333; padding:6px 8px; }
+    .pp-slip th { background:#222; color:#fff; font-size:11px; letter-spacing:.04em; }
+    .pp-slip td.hand { font-size:15px; }
+    .pp-slip .tot { text-align:right; margin-top:8px; font-weight:700; }
+    .pp-photo { margin-top:12px; }
+    .pp-photo img {
+      width:100%; max-height:360px; object-fit:contain; background:#111; border-radius:8px;
+      border:1px solid #c4b89a; cursor:zoom-in;
+    }
+    .pp-photo a { display:block; font-size:12px; margin-top:6px; font-weight:700; }
+    .pp-steps { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 16px; }
+    .pp-steps span {
+      padding:8px 12px; border-radius:999px; font-size:12px; font-weight:800;
+      background:#e2e8f0; color:#334155;
+    }
+    .pp-steps span.on { background:#0f766e; color:#fff; }
+    .pp-steps span.done { background:#dcfce7; color:#166534; }
+    .pp-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:12px 0; }
+    .pp-kpis article { background:#ecfdf5; border:1px solid #99f6e4; border-radius:12px; padding:12px; }
+    .pp-kpis span { display:block; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#0f766e; }
+    .pp-kpis b { display:block; margin-top:4px; font-size:18px; color:#0f172a; }
+    .pp-flow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:13px; font-weight:700; margin:8px 0 14px; }
+    .pp-flow i { font-style:normal; background:#0f172a; color:#fff; border-radius:999px; padding:6px 10px; }
+    .pp-flow em { font-style:normal; color:#64748b; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading paper invoice…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { can } from './js/rbac.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { infoIcon } from './js/info-tip.js';
+  import {
+    PINARO_BILL, cedi, esc, loadJob, bookPinaroInvoice, receivePinaroAtHub, transferPinaroToBnpl,
+    ensurePinaroPostedToBnpl,
+  } from './js/paper-purchase.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const hq = can('purchase.add') || can('purchase.edit');
+  const actor = session.user?.email || 'HQ';
+  const bill = PINARO_BILL;
+
+  function steps(job) {
+    const order = ['review', 'receive', 'transfer', 'done'];
+    const labels = { review: '1. Book invoice', receive: '2. Receive at WMS', transfer: '3. Transfer to BNPL', done: 'Done' };
+    const here = job.transferred ? 'done' : job.received ? 'transfer' : job.purchase_id ? 'receive' : 'review';
+    return `<div class="pp-steps">${order.map((k) => {
+      const i = order.indexOf(k);
+      const j = order.indexOf(here);
+      const cls = k === here ? 'on' : i < j ? 'done' : '';
+      return `<span class="${cls}">${labels[k]}</span>`;
+    }).join('')}</div>`;
+  }
+
+  function slip() {
+    return `<aside class="pp-slip">
+      <h2>PINARO GENERAL VENTURES</h2>
+      <p class="addr">Mr Jeremiah Odjeawo<br>
+        P.O. BOX 21, Odumase, Madina and Circle<br>
+        Tel: 0203964954 / 0545325648<br>
+        Email: philipodjeawon@gmail.com</p>
+      <p class="no">No. <b>00475</b></p>
+      <table>
+        <thead><tr><th>QTY</th><th>DESCRIPTION OF GOODS</th><th>UNIT PRICE<br>GH₵</th><th>AMOUNT<br>GH₵</th></tr></thead>
+        <tbody>
+          ${bill.lines.map((l) => `<tr>
+            <td class="hand">${l.qty}</td>
+            <td class="hand">${esc(l.hint)}</td>
+            <td class="hand">${l.unit_cost.toLocaleString('en-GH')}</td>
+            <td class="hand">${l.amount.toLocaleString('en-GH')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <p class="tot">TOTAL GH₵ ${bill.grand_total.toLocaleString('en-GH')}</p>
+      <p class="fine">${esc(bill.terms)}</p>
+      <div class="pp-photo">
+        <a href="${esc(bill.slip_url)}" target="_blank" rel="noopener">
+          <img src="${esc(bill.slip_url)}" alt="Pinaro paper invoice 00475" />
+        </a>
+        <a href="${esc(bill.slip_url)}" target="_blank" rel="noopener">Open attached slip</a>
+      </div>
+    </aside>`;
+  }
+
+  function paint() {
+    const job = loadJob();
+    const hqOff = hq ? '' : 'disabled';
+    app.innerHTML = `
+      ${pageChrome('Paper supplier invoice', '')}
+      ${steps(job)}
+      <div class="pp-flow">
+        <i>Pinaro</i><em>→</em><i>Purchase PIN-00475</i><em>→</em><i>WMS Hub</i><em>→</em><i>BNPL Field Sales</i>
+      </div>
+      <div class="pp-grid">
+        ${slip()}
+        <section class="ult-card">
+          <div class="pp-kpis">
+            <article><span>Units</span><b>${bill.lines.reduce((a, l) => a + l.qty, 0)}</b></article>
+            <article><span>Bill total</span><b>${cedi(bill.grand_total)}</b></article>
+            <article><span>Vendor #</span><b>00475</b></article>
+          </div>
+          <table class="ult-table">
+            <thead><tr><th>ERP name</th><th>Qty</th><th>Cost</th><th>Amount</th></tr></thead>
+            <tbody>${bill.lines.map((l) => `<tr>
+              <td><b>${esc(l.name)}</b><div class="ult-muted">${esc(l.brand)} · paper “${esc(l.hint)}”</div></td>
+              <td>${l.qty}</td>
+              <td>${cedi(l.unit_cost)}</td>
+              <td>${cedi(l.amount)}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+          <p style="margin:12px 0 8px">${infoIcon({
+            title: 'This bill',
+            body: 'Pinaro slip books as a live purchase. Receive is Operations Hub. Transfer is BNPL Field for hire-purchase pick. Not Fiberkapp.',
+            href: '/manual.html#ops',
+            short: 'About this bill',
+          })}</p>
+          <p>
+            ${job.purchase_id
+              ? `<span class="pill paid">Booked ${esc(bill.reference)}</span>`
+              : `<button type="button" class="ult-btn ult-btn-primary" id="pp-book" ${hqOff}>Book live invoice</button>`}
+          </p>
+          <p>
+            ${job.received
+              ? `<span class="pill paid">Received · Operations Hub</span>`
+              : `<button type="button" class="ult-btn" id="pp-recv" ${job.purchase_id && hq ? '' : 'disabled'}>Receive at WMS Hub</button>`}
+          </p>
+          <p>
+            ${job.transferred
+              ? `<span class="pill paid">Transferred · BNPL Field ${esc(job.transfer_ref || '')}</span>`
+              : `<button type="button" class="ult-btn ult-btn-primary" id="pp-xfer" ${job.received && hq ? '' : 'disabled'}>Transfer to BNPL Field</button>`}
+          </p>
+          ${job.transferred ? `<p>
+            <a class="ult-btn ult-btn-primary" href="/field-ops.html">Field Ops</a>
+            <a class="ult-btn ult-btn-outline" href="/purchase-invoices.html">Vendor invoices</a>
+          </p>` : ''}
+          <p id="pp-err" style="color:#b91c1c"></p>
+        </section>
+      </div>`;
+
+    document.getElementById('pp-book')?.addEventListener('click', async () => {
+      if (!(await confirmAction('Book PINARO invoice 00475 as a live purchase?', 'GH₵ 21,934 · 15 phones · not written to Fiberkapp silo.'))) return;
+      try {
+        const r = await bookPinaroInvoice(actor);
+        ackResult(true, 'Invoice ' + r.purchase.reference + ' saved for ' + r.supplier.name);
+        paint();
+      } catch (e) {
+        document.getElementById('pp-err').textContent = String(e.message || e);
+      }
+    });
+    document.getElementById('pp-recv')?.addEventListener('click', async () => {
+      if (!(await confirmAction('Receive these 15 phones at Operations Hub?', 'WMS receiving. Next step is transfer to BNPL Field.'))) return;
+      try {
+        await receivePinaroAtHub();
+        ackResult(true, 'Received at Operations Hub.');
+        paint();
+      } catch (e) {
+        document.getElementById('pp-err').textContent = String(e.message || e);
+      }
+    });
+    document.getElementById('pp-xfer')?.addEventListener('click', async () => {
+      if (!(await confirmAction('Transfer Hub stock to BNPL Field Sales?', 'Hire-purchase field can then pick the Spark 50, Hot 70, Smart 20 and A200 units.'))) return;
+      try {
+        const j = await transferPinaroToBnpl(actor);
+        ackResult(true, 'Posted to BNPL Field · ' + (j.transfer_ref || ''));
+        paint();
+      } catch (e) {
+        document.getElementById('pp-err').textContent = String(e.message || e);
+      }
+    });
+  }
+
+  try {
+    await ensurePinaroPostedToBnpl(actor);
+  } catch (e) {
+    console.warn('pinaro post', e);
+  }
+  paint();
+</script>
+</body>
+</html>

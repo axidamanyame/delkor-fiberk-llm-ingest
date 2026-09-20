@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calendar — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS } from './js/scope.js';
+  import {
+    EVENT_TYPES, STAFF, loadEvents, filterEvents, renderMonth, renderWeek, renderDay, renderList,
+    titleFor, openTodoModal, openEventPop, ymd,
+  } from './js/calendar.js';
+
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const app = document.getElementById('app');
+
+  const state = {
+    anchor: new Date(2026, 8, 3),
+    view: 'month',
+    userId: '',
+    loc: '',
+    types: new Set(EVENT_TYPES.map((t) => t.id)),
+  };
+
+  function filtered() {
+    return filterEvents(loadEvents(), { userId: state.userId, loc: state.loc, types: state.types });
+  }
+
+  function bodyHtml() {
+    const evs = filtered();
+    if (state.view === 'week') return renderWeek(state.anchor, evs);
+    if (state.view === 'day') return renderDay(state.anchor, evs);
+    if (state.view === 'list') return renderList(state.anchor, evs, 'month');
+    return renderMonth(state.anchor, evs);
+  }
+
+  function paint() {
+    app.innerHTML = `
+      ${pageChrome('Calendar')}
+      <div class="cal-layout">
+        <aside class="cal-filters">
+          <div class="fld"><label>User:</label>
+            <select id="cal-user">
+              <option value="">All Users</option>
+              ${STAFF.map((s) => `<option value="${s.id}" ${s.id === state.userId ? 'selected' : ''}>${s.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fld"><label>Location:</label>
+            <select id="cal-loc">
+              <option value="">Please Select</option>
+              ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${l.code === state.loc ? 'selected' : ''}>${l.name}</option>`).join('')}
+            </select>
+          </div>
+          ${EVENT_TYPES.map((t) => `
+            <label class="cal-check" style="color:${t.color}">
+              <input type="checkbox" data-type="${t.id}" ${state.types.has(t.id) ? 'checked' : ''} />
+              ${t.label}
+            </label>`).join('')}
+          <button type="button" class="cal-add-todo" id="cal-add">+ Add To Do</button>
+        </aside>
+        <section class="cal-board">
+          <div class="cal-toolbar">
+            <div class="cal-navbtns">
+              <button type="button" data-nav="-1">‹</button>
+              <button type="button" data-nav="1">›</button>
+              <button type="button" data-nav="today">today</button>
+            </div>
+            <h2>${titleFor(state.anchor)}</h2>
+            <div class="cal-views">
+              ${['month', 'week', 'day', 'list'].map((v) =>
+                `<button type="button" data-view="${v}" class="${state.view === v ? 'on' : ''}">${v}</button>`
+              ).join('')}
+            </div>
+          </div>
+          <div id="cal-body">${bodyHtml()}</div>
+        </section>
+      </div>`;
+
+    app.querySelector('#cal-user').onchange = (e) => { state.userId = e.target.value; paint(); };
+    app.querySelector('#cal-loc').onchange = (e) => { state.loc = e.target.value; paint(); };
+    app.querySelectorAll('[data-type]').forEach((c) => {
+      c.onchange = () => {
+        if (c.checked) state.types.add(c.dataset.type);
+        else state.types.delete(c.dataset.type);
+        paint();
+      };
+    });
+    app.querySelector('#cal-add').onclick = () => openTodoModal({ userId: state.userId, location: state.loc, onSaved: paint });
+    app.querySelectorAll('[data-nav]').forEach((b) => {
+      b.onclick = () => {
+        const n = b.dataset.nav;
+        if (n === 'today') state.anchor = new Date();
+        else {
+          const dir = Number(n);
+          if (state.view === 'week') state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth(), state.anchor.getDate() + dir * 7);
+          else if (state.view === 'day') state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth(), state.anchor.getDate() + dir);
+          else state.anchor = new Date(state.anchor.getFullYear(), state.anchor.getMonth() + dir, 1);
+        }
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-view]').forEach((b) => {
+      b.onclick = () => { state.view = b.dataset.view; paint(); };
+    });
+    app.querySelector('#cal-body').onclick = (e) => {
+      const chip = e.target.closest('[data-id]');
+      if (chip) {
+        const evn = loadEvents().find((x) => String(x.id) === String(chip.dataset.id));
+        if (evn) openEventPop(evn, chip);
+        return;
+      }
+      const cell = e.target.closest('[data-day]');
+      if (cell?.dataset.day) {
+        openTodoModal({ start: cell.dataset.day + 'T09:00', userId: state.userId, location: state.loc, onSaved: paint });
+      }
+    };
+  }
+
+  paint();
+  window.addEventListener('df-cal-change', paint);
+</script>
+</body>
+</html>

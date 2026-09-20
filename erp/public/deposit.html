@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cash deposit — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, fmt } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { esc, postTxn } from './js/account-rules.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    let accounts = [];
+    let err = '';
+
+    async function load() {
+      const a = await supabase.from('payment_accounts').select('*').eq('is_closed', false).order('name');
+      err = a.error?.message || '';
+      accounts = a.data || [];
+      render();
+    }
+
+    function render() {
+      app.innerHTML = pageChrome('Deposit / withdraw', 'Deposit cash into a payment account, or withdraw. Customer receipts and supplier payments also land here.') + `
+        ${err ? `<div class="ult-alert">${esc(err)} — run sql/97_payment_accounts_stock.sql</div>` : ''}
+        <div class="ult-card" style="max-width:560px">
+          <label>Account
+            <select id="acc">${accounts.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+          </label>
+          <label>Type
+            <select id="type">
+              <option value="deposit">Deposit (cash in)</option>
+              <option value="withdraw">Withdraw</option>
+              <option value="customer">Customer receipt</option>
+              <option value="supplier">Supplier payment</option>
+            </select>
+          </label>
+          <label>Amount <input id="amt" type="number" step="0.01" min="0" /></label>
+          <label>Method
+            <select id="method">
+              <option>cash</option><option>momo</option><option>bank</option><option>card</option><option>cheque</option>
+            </select>
+          </label>
+          <label>Paid on <input id="paid" type="date" value="${new Date().toISOString().slice(0,10)}" /></label>
+          <label>Ref <input id="ref" /></label>
+          <label>Note <input id="note" /></label>
+          <button type="button" class="ult-btn ult-btn-primary" id="go">Post</button>
+          <a class="ult-btn ult-btn-outline" href="/payment-accounts.html">Accounts</a>
+        </div>`;
+      document.getElementById('go').onclick = async () => {
+        try {
+          await postTxn({
+            account_id: document.getElementById('acc').value,
+            txn_type: document.getElementById('type').value,
+            amount: document.getElementById('amt').value,
+            method: document.getElementById('method').value,
+            paid_on: document.getElementById('paid').value,
+            ref: document.getElementById('ref').value,
+            note: document.getElementById('note').value,
+          });
+          alert('Posted');
+          document.getElementById('amt').value = '';
+        } catch (e) { alert(e.message || e); }
+      };
+    }
+    load();
+  </script>
+</body>
+</html>

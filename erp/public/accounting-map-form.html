@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map transaction — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, readLs } from './js/ls-rows.js';
+  import {
+    accNav, esc, loadAccounts, scopeAccounts, accountOpts, loadSettings, saveSettings, KEYS, ensureDemoBooks,
+  } from './js/accounting.js';
+  import { loadPayrolls, mapTxnToHrm, isSalaryExpense } from './js/hrm-payroll.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const type = q.get('type') || 'sell';
+  const id = q.get('id');
+
+  const labels = {
+    sell: 'Sale',
+    sell_payment: 'Sales payment',
+    purchase: 'Purchase',
+    purchase_payment: 'Purchase payment',
+    expense: 'Expense',
+    payroll: 'Payroll',
+  };
+
+  async function loadDoc() {
+    const srcId = String(id || '').replace(/^(pay-|ppay-)/, '');
+    if (type.startsWith('sell')) {
+      const local = readLs(KEYS.sales, []).find((r) => String(r.id) === srcId);
+      if (local) return local;
+      const { data } = await supabase.from('sales_orders').select('*').eq('id', srcId).maybeSingle();
+      return data;
+    }
+    if (type.startsWith('purchase')) {
+      return (await loadRows('purchases', KEYS.purchases, [])).find((r) => String(r.id) === srcId);
+    }
+    if (type === 'payroll') {
+      return (await loadPayrolls()).find((r) => String(r.id) === srcId);
+    }
+    return (await loadRows('expenses', KEYS.expenses, [])).find((r) => String(r.id) === srcId);
+  }
+
+  await ensureDemoBooks();
+  const [accounts, doc] = await Promise.all([scopeAccounts(await loadAccounts()), loadDoc()]);
+  const settings = loadSettings();
+  const srcId = String(id || '').replace(/^(pay-|ppay-)/, '');
+  const key = `${type}:${srcId}`;
+  const defGroup = type === 'sell' ? 'sale' : type;
+  const def = (settings.default_map || {})[doc?.subsidiary_code || '']?.[defGroup] || {};
+  const cur = (settings.maps || {})[key] || def;
+  const amt = doc?.total_amount || doc?.final_total || doc?.grand_total || doc?.net_pay || doc?.amount || 0;
+
+  if (!doc) {
+    app.innerHTML = `${accNav('tx')}<h1>Map transaction</h1><p>Document not found. <a href="/accounting-transactions.html?tab=${esc(type)}">Back</a></p>`;
+  } else {
+    app.innerHTML = `
+      ${accNav('tx')}
+      <h1>Map ${esc(labels[type] || type)}</h1>
+      <p class="sub">${esc(doc.reference || doc.ref_no || id)} · ${fmt(amt)}${type === 'payroll' ? ' · HRM payroll' : ''}</p>
+      <form id="map-form" class="st-card">
+        <div class="st-grid4">
+          <label class="fld">Payment account:*
+            <select id="pay">${accountOpts(accounts, cur.payment_account, 'Payment account')}</select>
+          </label>
+          <label class="fld">${type === 'payroll' ? 'Payroll Expenses:*' : 'Deposit to:*'}
+            <select id="dep">${accountOpts(accounts, cur.deposit_to, type === 'payroll' ? 'Payroll Expenses' : 'Deposit to')}</select>
+          </label>
+        </div>
+        <p class="sub">${type === 'payroll'
+          ? 'Payment account is credited (Bank / MoMo). Payroll Expenses is debited. Saving also writes this run on HRM → Payroll.'
+          : 'Payment account is credited or debited with the counterpart; Deposit to is the cash / bank / income / expense side.'}</p>
+        <div class="st-save">
+          <button type="submit">Save mapping</button>
+          <a class="ult-btn ult-btn-outline" href="/accounting-transactions.html?tab=${esc(type)}" style="margin-left:8px">Cancel</a>
+        </div>
+      </form>`;
+    document.getElementById('map-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const payment_account = document.getElementById('pay').value;
+      const deposit_to = document.getElementById('dep').value;
+      if (!payment_account || !deposit_to) { toast('Both accounts are required', 'error'); return; }
+      const ok = await confirmAction('Save mapping?', `${labels[type]} ${doc.reference || doc.ref_no || ''}`);
+      if (!ok) return;
+      settings.maps = settings.maps || {};
+      settings.maps[key] = {
+        payment_account,
+        deposit_to,
+        type,
+        doc_id: id,
+        amount: amt,
+        date: (doc.order_date || doc.transaction_date || doc.expense_date || doc.created_at || '').slice(0, 10),
+      };
+      saveSettings(settings);
+      if (type === 'payroll' || isSalaryExpense(doc)) {
+        await mapTxnToHrm(doc, type === 'payroll' ? 'payroll' : 'expense', payment_account, deposit_to);
+      }
+      toast(type === 'payroll' || isSalaryExpense(doc) ? 'Mapped to HRM payroll' : 'Mapping saved');
+      location.assign('/accounting-transactions.html?tab=' + type);
+    };
+  }
+</script>
+</body>
+</html>

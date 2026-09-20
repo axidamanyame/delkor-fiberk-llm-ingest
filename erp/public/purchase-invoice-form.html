@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purchase Invoice — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page { color: var(--ult-text); }
+    .sell-card { background: var(--ult-card); border: 1px solid var(--ult-border); border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; }
+    .sell-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 18px; }
+    @media (max-width: 900px) { .sell-grid { grid-template-columns: 1fr; } }
+    .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+    .fld input, .fld select, .fld textarea {
+      font-weight: 400; padding: 8px 10px; border: 1px solid var(--ult-border); border-radius: 6px;
+      width: 100%; box-sizing: border-box; color: var(--ult-text); background: var(--ult-card);
+    }
+    .dest-table input, .dest-table select { width: 100%; min-width: 0; padding: 4px 6px; border: 1px solid var(--ult-border); border-radius: 4px; color: inherit; background: inherit; }
+    #hits { margin-top: 8px; }
+    .tot-row { display: flex; justify-content: flex-end; gap: 24px; font-size: 14px; margin-top: 10px; }
+    .tot-row b { font-size: 16px; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect, locationSelect } from './js/entity-scope.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { uid, esc, readLs, writeLs, saveRow } from './js/ls-rows.js';
+  import { syncPinaroSupplier, PINARO_BILL, PINARO_PARTY } from './js/paper-purchase.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const INV_KEY = 'df_purchase_invoices';
+  const LINE_KEY = 'df_purchase_invoice_lines';
+  const today = () => new Date().toISOString().slice(0, 10);
+  const sub = getActiveSubsidiary();
+
+  const [{ data: suppliers }, { data: products }, { data: accounts }] = await Promise.all([
+    supabase.from('suppliers').select('id,name,phone,pay_term,subsidiary_code,location_code').order('name').limit(800),
+    supabase.from('products').select('id,name,sku,cost_price,tax_name,unit').order('name').limit(800),
+    supabase.from('payment_accounts').select('id,name,code').limit(80),
+  ]);
+  try { syncPinaroSupplier(); } catch { /* local */ }
+  const lsSups = readLs('df_suppliers', []) || [];
+  const lsProds = readLs('df_products', []) || [];
+  const bySid = new Map([...(suppliers || []), ...lsSups].map((s) => [String(s.id), s]));
+  if (!bySid.has(String(PINARO_PARTY.id))) bySid.set(PINARO_PARTY.id, PINARO_PARTY);
+  const sups = [...bySid.values()];
+  const byPid = new Map([...(products || []), ...lsProds].map((p) => [String(p.id), p]));
+  const cats = [...byPid.values()];
+
+  function bindLine(L) {
+    const qty = L.quantity ?? L.qty ?? 1;
+    const cost = L.unit_price ?? L.unit_cost ?? 0;
+    const idHit = cats.find((p) => String(p.id) === String(L.product_id));
+    const needle = String(L.product_name || L.name || L.hint || '').toLowerCase();
+    const nameHit = needle && cats.find((p) => String(p.name || '').toLowerCase().includes(needle) || needle.includes(String(p.name || '').toLowerCase().slice(0, 12)));
+    const hit = idHit || nameHit;
+    return {
+      ...L,
+      quantity: qty,
+      unit_price: cost,
+      product_id: hit?.id || L.product_id || '',
+      product_name: hit?.name || L.product_name || L.name || '',
+      sku: hit?.sku || L.sku || '',
+    };
+  }
+
+  let row = {
+    invoice_date: today(),
+    due_days: 30,
+    status: 'unpaid',
+    pay_method: 'cash',
+    amount_paid: 0,
+    lines: [{ product_id: '', product_name: '', sku: '', quantity: 1, unit_price: 0, tax_percent: 0 }],
+    subsidiary_code: sub?.code || '',
+    location_code: '',
+  };
+  if (id) {
+    const local = (readLs(INV_KEY, []) || []).find((r) => String(r.id) === String(id));
+    if (local) row = { ...row, ...local, lines: (local.lines || []).length ? local.lines.map(bindLine) : row.lines };
+    if ((!row.lines || !row.lines.length || row.lines.every((l) => !l.product_id)) && /PIN-00475|00475/.test(`${row.reference || ''} ${row.vendor_invoice_no || ''} ${id || ''}`)) {
+      row.supplier_id = row.supplier_id || PINARO_PARTY.id;
+      row.supplier_name = row.supplier_name || PINARO_PARTY.name;
+      row.lines = PINARO_BILL.lines.map(bindLine);
+      row.amount_paid = row.amount_paid || PINARO_BILL.grand_total;
+      row.status = Number(row.amount_paid) >= PINARO_BILL.grand_total ? 'paid' : row.status;
+    }
+    const { data } = await supabase.from('purchase_invoices').select('*').eq('id', id).maybeSingle();
+    if (data) {
+      row = { ...row, ...data };
+      const { data: lines } = await supabase.from('purchase_invoice_lines').select('*').eq('purchase_invoice_id', id);
+      if (lines?.length) row.lines = lines;
+      else if (local?.lines?.length) row.lines = local.lines;
+    }
+    row.lines = (row.lines || []).map(bindLine);
+    if (!row.supplier_id && /pinaro|00475|odjeaw/i.test(`${row.supplier_name || ''} ${row.reference || ''}`)) {
+      row.supplier_id = PINARO_PARTY.id;
+      row.supplier_name = PINARO_PARTY.display_name || PINARO_PARTY.name;
+    }
+    if (Number(row.amount_paid || 0) >= Number(row.total_amount || row.grand_total || 0) && Number(row.total_amount || row.grand_total || 0) > 0) {
+      row.status = 'paid';
+    }
+  }
+
+  function lineNet(L) {
+    const qn = Number(L.quantity) || 0;
+    const p = Number(L.unit_price) || 0;
+    const t = Number(L.tax_percent) || 0;
+    const net = qn * p;
+    const tax = net * (t / 100);
+    return { net, tax, total: net + tax };
+  }
+  function totals() {
+    const parts = (row.lines || []).map(lineNet);
+    const subtotal = parts.reduce((a, x) => a + x.net, 0);
+    const tax = parts.reduce((a, x) => a + x.tax, 0);
+    const paid = Number(row.amount_paid || 0);
+    return { subtotal, tax, total: subtotal + tax, paid, due: Math.max(0, subtotal + tax - paid) };
+  }
+
+  function paint() {
+    const t = totals();
+    const ro = view ? 'disabled' : '';
+    app.innerHTML = `
+      ${pageChrome(view ? 'View purchase invoice' : id ? 'Edit purchase invoice' : 'Add purchase invoice')}
+      <form id="f">
+        <div class="sell-card">
+          <div class="sell-grid">
+            ${subsidiarySelect(row.subsidiary_code || '')}
+            ${locationSelect(row.subsidiary_code || '', row.location_code || '')}
+            <label class="fld">Vendor:*
+              <span style="display:flex;gap:6px">
+                <select name="supplier_id" required ${ro} style="flex:1">
+                  <option value="">Please Select</option>
+                  ${sups.map((s) => `<option value="${esc(s.id)}" ${String(s.id) === String(row.supplier_id) ? 'selected' : ''}>${esc(s.name)}${s.phone ? ' / ' + esc(s.phone) : ''}</option>`).join('')}
+                </select>
+                <a class="ult-btn ult-btn-outline" href="/supplier-form.html" title="Add vendor">+</a>
+              </span>
+            </label>
+            <label class="fld">Our reference
+              <input name="reference" value="${esc(row.reference || '')}" placeholder="Leave blank to auto generate" ${ro} />
+            </label>
+            <label class="fld">Vendor invoice #
+              <input name="vendor_invoice_no" value="${esc(row.vendor_invoice_no || '')}" ${ro} />
+            </label>
+            <label class="fld">Invoice date:*
+              <input name="invoice_date" type="date" required value="${esc(String(row.invoice_date || today()).slice(0, 10))}" ${ro} />
+            </label>
+            <label class="fld">Due (days)
+              <input name="due_days" type="number" min="0" value="${esc(row.due_days ?? 30)}" ${ro} />
+            </label>
+            <label class="fld">Status
+              <select name="status" ${ro}>
+                ${['unpaid', 'partial', 'paid'].map((s) => `<option value="${s}" ${row.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="sell-card">
+          <div class="ult-table-wrap">
+            <table class="ult-table dest-table">
+              <thead><tr>
+                <th>#</th><th>Product</th><th>Qty</th><th>Unit cost</th><th>Tax %</th><th>Line total</th><th></th>
+              </tr></thead>
+              <tbody>${(row.lines || []).map((L, i) => `
+                <tr data-i="${i}">
+                  <td>${i + 1}</td>
+                  <td>
+                    <select data-k="product_id" data-i="${i}" ${ro}>
+                      <option value="">Select product</option>
+                      ${L.product_id && !cats.some((p) => String(p.id) === String(L.product_id)) ? `<option value="${esc(L.product_id)}" selected>${esc(L.product_name || L.name)}</option>` : ''}
+                      ${cats.map((p) => `<option value="${esc(p.id)}" ${String(p.id) === String(L.product_id) ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td><input data-k="quantity" data-i="${i}" type="number" min="0" step="0.01" value="${L.quantity || 1}" ${ro} /></td>
+                  <td><input data-k="unit_price" data-i="${i}" type="number" min="0" step="0.01" value="${L.unit_price || 0}" ${ro} /></td>
+                  <td><input data-k="tax_percent" data-i="${i}" type="number" min="0" step="0.01" value="${L.tax_percent || 0}" ${ro} /></td>
+                  <td>${fmt(lineNet(L).total)}</td>
+                  <td>${view ? '' : `<button type="button" class="ult-btn ult-btn-danger ult-btn-sm" data-rm="${i}">×</button>`}</td>
+                </tr>`).join('') || '<tr><td colspan="7" class="ult-muted">No lines — pick a product below.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          ${view ? '' : `<p style="margin:10px 0 0"><button type="button" class="ult-btn ult-btn-outline" id="add-line">+ Add line</button></p>`}
+          <div class="tot-row"><span>Subtotal ${fmt(t.subtotal)}</span><span>Tax ${fmt(t.tax)}</span><b>Total ${fmt(t.total)}</b></div>
+        </div>
+
+        <div class="sell-card">
+          <div class="sell-grid">
+            <label class="fld" style="grid-column:1/-1">Notes
+              <textarea name="notes" rows="3" ${ro}>${esc(row.notes || row.note || '')}</textarea>
+            </label>
+            ${(row.attachment_url || row.attachments?.[0]?.url) ? `<div class="fld" style="grid-column:1/-1">Attached paper slip
+              <a href="${esc(row.attachment_url || row.attachments[0].url)}" target="_blank" rel="noopener">
+                <img src="${esc(row.attachment_url || row.attachments[0].url)}" alt="Vendor slip" style="max-width:100%;max-height:280px;border-radius:10px;border:1px solid var(--ult-border);background:#111" />
+              </a>
+            </div>` : ''}
+            <label class="fld">Amount paid
+              <input name="amount_paid" type="number" min="0" step="0.01" value="${row.amount_paid || 0}" ${ro} />
+            </label>
+            <label class="fld">Payment method
+              <select name="pay_method" ${ro}>
+                ${['cash', 'momo', 'bank_transfer', 'cheque', 'card', 'other'].map((m) =>
+                  `<option value="${m}" ${row.pay_method === m ? 'selected' : ''}>${m.replace('_', ' ')}</option>`).join('')}
+              </select>
+            </label>
+            <label class="fld">Paid from
+              <select name="pay_account" ${ro}>
+                <option value="">None</option>
+                ${(accounts || []).map((a) => `<option value="${esc(a.id)}" ${row.pay_account === a.id ? 'selected' : ''}>${esc(a.name || a.code)}</option>`).join('')}
+              </select>
+            </label>
+          </div>
+          <p style="text-align:right"><b>Amount due:</b> ${fmt(t.due)}</p>
+        </div>
+
+        ${view ? `<p style="text-align:center;margin:20px 0"><a class="ult-btn" href="/purchase-invoices.html">Back to invoices</a></p>` : `
+        <p style="text-align:center;margin:20px 0">
+          <a class="ult-btn ult-btn-outline" href="/purchase-invoices.html">Cancel</a>
+          <button type="submit" class="ult-btn ult-btn-primary" style="padding:12px 28px;font-size:16px">Save invoice</button>
+        </p>`}
+        <p id="err" style="color:#b91c1c;text-align:center"></p>
+      </form>`;
+    bind();
+  }
+
+  function grab() {
+    const f = document.getElementById('f');
+    if (!f) return;
+    const fd = new FormData(f);
+    row.supplier_id = fd.get('supplier_id');
+    row.reference = fd.get('reference');
+    row.vendor_invoice_no = fd.get('vendor_invoice_no');
+    row.invoice_date = fd.get('invoice_date');
+    row.due_days = Number(fd.get('due_days') || 30);
+    row.status = fd.get('status');
+    row.notes = fd.get('notes');
+    row.amount_paid = Number(fd.get('amount_paid') || 0);
+    row.pay_method = fd.get('pay_method');
+    row.pay_account = fd.get('pay_account');
+    try { stampScope(row, f); } catch { /* keep current scope */ }
+  }
+
+  function bind() {
+    app.querySelectorAll('[data-k]').forEach((el) => {
+      el.onchange = () => {
+        const i = Number(el.dataset.i);
+        const k = el.dataset.k;
+        if (!row.lines[i]) return;
+        if (k === 'product_id') {
+          const p = cats.find((x) => String(x.id) === String(el.value));
+          row.lines[i].product_id = el.value;
+          row.lines[i].product_name = p?.name || '';
+          row.lines[i].sku = p?.sku || '';
+          if (p) row.lines[i].unit_price = Number(p.cost_price) || 0;
+        } else {
+          row.lines[i][k] = el.value;
+        }
+        grab();
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-rm]').forEach((b) => {
+      b.onclick = () => {
+        row.lines.splice(Number(b.dataset.rm), 1);
+        if (!row.lines.length) row.lines.push({ product_id: '', product_name: '', quantity: 1, unit_price: 0, tax_percent: 0 });
+        paint();
+      };
+    });
+    const add = document.getElementById('add-line');
+    if (add) add.onclick = () => {
+      grab();
+      row.lines.push({ product_id: '', product_name: '', quantity: 1, unit_price: 0, tax_percent: 0 });
+      paint();
+    };
+    const form = document.getElementById('f');
+    if (form) form.onsubmit = save;
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    grab();
+    const err = document.getElementById('err');
+    if (err) err.textContent = '';
+    const sup = sups.find((s) => String(s.id) === String(row.supplier_id));
+    if (!sup) {
+      if (err) err.textContent = 'Select a vendor.';
+      return;
+    }
+    const t = totals();
+    const paid = Number(row.amount_paid || 0);
+    const status = paid <= 0 ? 'unpaid' : paid >= t.total ? 'paid' : 'partial';
+    const body = {
+      id: row.id || uid(),
+      reference: String(row.reference || '').trim() || ('PB-' + Date.now().toString().slice(-6)),
+      vendor_invoice_no: String(row.vendor_invoice_no || '').trim() || null,
+      supplier_id: row.supplier_id,
+      supplier_name: sup.name,
+      invoice_date: row.invoice_date || today(),
+      due_days: Number(row.due_days) || 30,
+      status,
+      subtotal: t.subtotal,
+      tax_amount: t.tax,
+      total_amount: t.total,
+      amount_paid: paid,
+      pay_method: row.pay_method || null,
+      pay_account: row.pay_account || null,
+      notes: row.notes || null,
+      attachment_url: row.attachment_url || null,
+      attachments: row.attachments || null,
+      subsidiary_code: row.subsidiary_code || sub?.code || null,
+      location_code: row.location_code || null,
+      lines: (row.lines || []).filter((L) => L.product_id || L.product_name),
+    };
+    if (!(await confirmAction(id ? 'Save this purchase invoice?' : 'Create this purchase invoice?', 'The bill is written to the vendor book.'))) return;
+    const saved = await saveRow('purchase_invoices', INV_KEY, body);
+    const invId = saved?.id || body.id;
+    const localLines = readLs(LINE_KEY, []).filter((L) => String(L.purchase_invoice_id) !== String(invId));
+    for (const L of body.lines) {
+      const line = {
+        id: L.id || uid(),
+        purchase_invoice_id: invId,
+        product_id: L.product_id || null,
+        product_name: L.product_name || '',
+        sku: L.sku || '',
+        quantity: Number(L.quantity) || 1,
+        unit_price: Number(L.unit_price) || 0,
+        tax_percent: Number(L.tax_percent) || 0,
+      };
+      localLines.push(line);
+      try {
+        await supabase.from('purchase_invoice_lines').upsert(line);
+      } catch { /* local fallback */ }
+    }
+    writeLs(LINE_KEY, localLines);
+    ackResult(true, 'Invoice ' + body.reference + ' saved.');
+    location.replace('/purchase-invoices.html');
+  }
+
+  paint();
+</script>
+</body>
+</html>

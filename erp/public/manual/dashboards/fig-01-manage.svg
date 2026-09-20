@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420">
+  <rect width="920" height="420" fill="#eef4fb"/>
+  <rect x="24" y="18" width="872" height="384" rx="16" fill="#fff" stroke="#dbe7f2"/>
+  <rect x="40" y="36" width="120" height="32" rx="16" fill="#7c3aed"/>
+  <text x="100" y="57" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="12" font-weight="800">Manage</text>
+  <rect x="168" y="36" width="120" height="32" rx="16" fill="#f1f5f9"/>
+  <text x="228" y="57" text-anchor="middle" fill="#334155" font-family="Inter,Arial" font-size="12" font-weight="700">Create</text>
+  <text x="40" y="100" fill="#0f172a" font-family="Inter,Arial" font-size="20" font-weight="800">Manage</text>
+  <rect x="520" y="80" width="110" height="32" rx="8" fill="#fff" stroke="#c4b5fd"/>
+  <text x="575" y="101" text-anchor="middle" fill="#6d28d9" font-family="Inter,Arial" font-size="11" font-weight="700">✦ Use AI</text>
+  <rect x="640" y="80" width="130" height="32" rx="8" fill="#fff" stroke="#e2e8f0"/>
+  <text x="705" y="101" text-anchor="middle" fill="#334155" font-family="Inter,Arial" font-size="11" font-weight="700">▦ Template</text>
+  <rect x="780" y="80" width="96" height="32" rx="8" fill="#7c3aed"/>
+  <text x="828" y="101" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="11" font-weight="700">+ Create</text>
+  <rect x="40" y="128" width="836" height="36" rx="8" fill="#f8fafc"/>
+  <text x="56" y="151" fill="#64748b" font-family="Inter,Arial" font-size="12" font-weight="700">Dashboard Name</text>
+  <text x="340" y="151" fill="#64748b" font-family="Inter,Arial" font-size="12" font-weight="700">Created By</text>
+  <text x="560" y="151" fill="#64748b" font-family="Inter,Arial" font-size="12" font-weight="700">Created At</text>
+  <text x="760" y="151" fill="#64748b" font-family="Inter,Arial" font-size="12" font-weight="700">Action</text>
+  <text x="56" y="196" fill="#0f172a" font-family="Inter,Arial" font-size="14" font-weight="700">Shop morning board</text>
+  <text x="340" y="196" fill="#334155" font-family="Inter,Arial" font-size="13">Delkor-Fiberk</text>
+  <text x="560" y="196" fill="#334155" font-family="Inter,Arial" font-size="13">15-09-2026 05:12</text>
+  <rect x="748" y="176" width="110" height="28" rx="8" fill="#0f172a"/>
+  <text x="803" y="195" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="12">Actions ▾</text>
+  <rect x="700" y="212" width="176" height="132" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="720" y="240" fill="#0f172a" font-family="Inter,Arial" font-size="13">View</text>
+  <text x="720" y="264" fill="#0f172a" font-family="Inter,Arial" font-size="13">Edit</text>
+  <text x="720" y="288" fill="#0f172a" font-family="Inter,Arial" font-size="13">Clone</text>
+  <text x="720" y="312" fill="#b91c1c" font-family="Inter,Arial" font-size="13">Delete</text>
+  <text x="40" y="250" fill="#64748b" font-family="Inter,Arial" font-size="12">Fiberk till snapshot</text>
+  <text x="40" y="278" fill="#64748b" font-family="Inter,Arial" font-size="12">HQ collections week</text>
+  <text x="24" y="414" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 1 · Custom Dashboards — View / Edit / Clone / Delete</text>
+</svg>

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edit Role — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-main { max-width: none !important; width: 100%; }
+    .perm-block {
+      padding: 16px 8px 18px;
+      border-bottom: 1px solid var(--ult-border);
+    }
+    .perm-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .perm-block h3 { margin: 0; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+    .perm-block .selall { white-space: nowrap; display: flex; align-items: center; gap: 8px; font-size: 14px; position: relative; z-index: 2; cursor: pointer; }
+    .perm-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px 16px;
+    }
+    .perm-rule { border: 0; border-top: 1px solid var(--ult-border); margin: 10px 0 8px; }
+    .perm-list label { display: flex; align-items: flex-start; gap: 8px; padding: 3px 0; font-size: 13px; cursor: pointer; font-weight: 600; }
+    .perm-list input { accent-color: #2563eb; width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+    .info-dot { display:inline-flex;width:14px;height:14px;border-radius:50%;background:#38bdf8;color:#fff;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:4px; }
+    .role-bar { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-bottom:16px; }
+    .role-bar select {
+      min-width: min(320px, 100%);
+      height: 40px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0 12px;
+      font-size: 14px;
+      font-weight: 650;
+      background: #fff;
+      color: #0f172a;
+    }
+    #role-name { width: min(520px, 100%); }
+    .mod-strip { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin: 16px 0 8px; }
+    .mod-strip h3 { margin:0 0 6px; font-size:15px; }
+    .mod-strip .sub { margin:0 0 12px; color:#3d4f66; font-size:13px; }
+    .mod-strip .chk-row-3 { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px 16px; }
+    .mod-strip .chk { display:flex; align-items:flex-start; gap:8px; font-size:13px; font-weight:600; }
+    .mod-strip .chk.is-off { color:#5b6b80; }
+    @media (max-width: 800px) {
+      .mod-strip .chk-row-3, .perm-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome, refreshShellMenu, MENU } from './js/ultimate-shell.js';
+    import { PERM_GROUPS, emptyPerms, countOn, visiblePermGroups, materializePerms } from './js/perm-catalog.js';
+    import { loadRows, saveRow } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_ROLES } from './js/catalog-seed.js';
+    import { isOwnerRole, displayRole } from './js/access-rules.js';
+    import { uniqueByName, canMutateRole, sanitizePerms, deny } from './js/role-guard.js';
+    import { loadAccess, can, getAccess, writePermOverlay, patchLivePerms, applyDomPermissions, clearPermOverlay } from './js/rbac.js';
+    import { loadBizSettings } from './js/settings-store.js';
+    import {
+      hydrateGrantsFromRows, effectiveMap, grantChecksHtml, readGrantChecks,
+      flagsFromChecks, overridesFromChecks, setRoleGrants, writeRowFlags,
+    } from './js/module-grants.js';
+
+    await mountUltimateShell();
+    const access = await loadAccess();
+    const groups = () => visiblePermGroups(access?.roleName);
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    let roles = [];
+    let current = null;
+    let perms = emptyPerms();
+    let name = '';
+    let err = '';
+    let msg = '';
+    let biz = {};
+    let modMap = {};
+
+    async function load() {
+      biz = await loadBizSettings().catch(() => ({}));
+      roles = await loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES);
+      hydrateGrantsFromRows(roles, []);
+      err = '';
+      const qs = new URLSearchParams(location.search);
+      const want = qs.get('id');
+      if (qs.get('new') === '1') {
+        current = { id: null, name: '', permissions: emptyPerms() };
+        name = '';
+        perms = emptyPerms();
+        render();
+      } else if (want && roles.find((x) => String(x.id) === String(want))) select(roles.find((x) => String(x.id) === String(want)));
+      else if (!current && roles.length) select(roles[0]);
+      else render();
+    }
+
+    function select(role) {
+      current = role;
+      name = role.name || '';
+      perms = materializePerms({ ...emptyPerms(), ...(role.permissions || {}) }, role.name);
+      modMap = effectiveMap(biz, { roleName: role.name });
+      msg = '';
+      render();
+    }
+
+    function syncModMap() {
+      const checks = readGrantChecks(app);
+      if (Object.keys(checks).length) modMap = { ...modMap, ...checks };
+    }
+
+    function radioSetsOf(g) {
+      if (g.radioSets?.length) return g.radioSets;
+      const out = [];
+      if (g.radios?.length) out.push({ name: g.radio || g.code + '-r1', items: g.radios });
+      if (g.radios2?.length) out.push({ name: g.radio2 || g.code + '-r2', items: g.radios2 });
+      if (g.radios3?.length) out.push({ name: g.radio3 || g.code + '-r3', items: g.radios3 });
+      return out;
+    }
+
+    function groupOn(g) {
+      const keys = (g.perms || []).map((p) => p.key).filter(Boolean);
+      const boxesOn = !keys.length || keys.every((k) => !!perms[k]);
+      const sets = radioSetsOf(g);
+      const topOn = !sets.length || sets.every((s) => s.items[0] && !!perms[s.items[0].key]);
+      return boxesOn && topOn && (keys.length + sets.length) > 0;
+    }
+
+    function paintGroup(block, g, on) {
+      if (!block) return;
+      block.querySelectorAll('.perm-list input[type="checkbox"][data-key]').forEach((box) => {
+        box.checked = on;
+        perms[box.dataset.key] = on;
+      });
+      const radios = [...block.querySelectorAll('.perm-list input[type="radio"][data-key]')];
+      radioSetsOf(g || {}).forEach((s) => {
+        (s.items || []).forEach((p, i) => {
+          perms[p.key] = !!(on && i === 0);
+          const r = radios.find((el) => el.dataset.key === p.key);
+          if (r) r.checked = !!(on && i === 0);
+        });
+      });
+    }
+
+    function syncSelectAll(block) {
+      if (!block) return;
+      const sel = block.querySelector('input[data-group]');
+      if (!sel) return;
+      const boxes = [...block.querySelectorAll('.perm-list input[type="checkbox"][data-key]')];
+      const radios = [...block.querySelectorAll('.perm-list input[type="radio"][data-key]')];
+      const boxN = boxes.filter((b) => b.checked).length;
+      const radioN = radios.filter((r) => r.checked).length;
+      const g = groups().find((x) => x.label === sel.dataset.group || x.code === sel.dataset.group);
+      const sets = g ? radioSetsOf(g) : [];
+      const topOn = !sets.length || sets.every((s) => {
+        const el = radios.find((r) => r.dataset.key === s.items[0]?.key);
+        return !!(el && el.checked);
+      });
+      const allOn = (!boxes.length || boxN === boxes.length) && topOn && (boxes.length + radios.length) > 0;
+      sel.checked = allOn;
+      sel.indeterminate = !allOn && (boxN > 0 || radioN > 0);
+    }
+
+    function toggleGroup(g, on) {
+      radioSetsOf(g).forEach((s) => {
+        s.items.forEach((p, i) => { perms[p.key] = on && i === 0; });
+      });
+      (g.perms || []).forEach((p) => { perms[p.key] = on; });
+    }
+
+    function radiosHtml(list, groupName) {
+      if (!list) return '';
+      return list.map((p) => `
+        <label><input type="radio" name="${esc(groupName)}" data-key="${esc(p.key)}" ${perms[p.key] ? 'checked' : ''}/> ${esc(p.label)}</label>
+      `).join('');
+    }
+
+    function checksHtml(list) {
+      if (!list) return '';
+      return list.map((p) => `
+        <label><input type="checkbox" data-key="${esc(p.key)}" ${perms[p.key] ? 'checked' : ''}/> ${esc(p.label)}${p.info ? '<span class="info-dot">i</span>' : ''}</label>
+      `).join('');
+    }
+
+    function uniqueRoles(list) {
+      let out = uniqueByName(list);
+      if (!isOwnerRole(access?.roleName)) {
+        out = out.filter((r) => canMutateRole(access?.roleName, r.name) || String(current?.id) === String(r.id));
+      }
+      return out;
+    }
+
+    function render() {
+      const list = uniqueRoles(roles);
+      app.innerHTML = pageChrome('Edit Role', 'Cashier sits above Home. POS is its own group — not mixed into Sales. Tick Cashier for Sales Associates who work the till.') + `
+        ${err ? `<div class="ult-alert">${esc(err)}</div>` : ''}
+        ${msg ? `<div class="ult-alert" style="background:#ecfdf5;border-color:#6ee7b7;color:#065f46">${esc(msg)}</div>` : ''}
+        <div class="ult-card" style="width:100%">
+          <div class="role-bar">
+            <select id="role-pick" aria-label="Select role">
+              <option value="">Select a role</option>
+              ${list.map((r) => `<option value="${esc(r.id)}" ${String(current?.id) === String(r.id) ? 'selected' : ''}>${esc(displayRole(r.name))}</option>`).join('')}
+            </select>
+            <button type="button" class="ult-btn ult-btn-primary" id="new">+ Add</button>
+          </div>
+          ${!current ? '<div class="ult-muted">Select or add a role</div>' : `
+              <div class="ult-field" style="margin-bottom:16px">
+                <label>Role Name:*</label>
+                <input id="role-name" value="${esc(name)}" />
+              </div>
+              <div style="font-weight:700;margin-bottom:8px">Permissions:</div>
+              ${groups().map((g) => `
+                <div class="perm-block">
+                  <div class="perm-head">
+                    <h3>${esc(g.label)}${g.info ? '<span class="info-dot">i</span>' : ''}</h3>
+                    <label class="selall"><input type="checkbox" data-group="${esc(g.label)}" ${groupOn(g) ? 'checked' : ''}/> Select all</label>
+                  </div>
+                  ${radioSetsOf(g).map((s, i) => `
+                    ${i ? '<hr class="perm-rule"/>' : ''}
+                    <div class="perm-list perm-grid">${radiosHtml(s.items, s.name || g.code + '-r' + i)}</div>
+                  `).join('')}
+                  ${g.perms && g.perms.length && radioSetsOf(g).length ? '<hr class="perm-rule"/>' : ''}
+                  ${g.perms && g.perms.length ? `<div class="perm-list perm-grid">${checksHtml(g.perms)}</div>` : ''}
+                </div>
+              `).join('')}
+              <div class="mod-strip">
+                <h3>Modules this role can see</h3>
+                <p class="sub">Color-coded modules: untick = gone from their left menu. Tick = they can see the colour bar; View / Edit / Add / Delete on the groups above decide whether they can use it. Core menus (Home, Records, Operations, Purchases, Sales, Finance, Collections, Reports, System) stay as they are. Home is always on.</p>
+                <label class="selall"><input type="checkbox" id="mod-all"/> Select all</label>
+                <div class="chk-row-3">${grantChecksHtml(biz, modMap)}</div>
+              </div>
+              <div style="text-align:center;padding:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                <button type="button" class="ult-btn" id="apply" style="background:#fff;color:#4f46e5;border:2px solid #4f46e5">Apply</button>
+                <button type="button" class="ult-btn ult-btn-primary" id="save">Update</button>
+              </div>
+              <p class="ult-muted" id="apply-hint" style="text-align:center;margin:0 0 12px"></p>
+            `}
+        </div>
+      `;
+      bind();
+    }
+
+    function bind() {
+      app.querySelector('#new')?.addEventListener('click', () => {
+        current = { id: null, name: 'New role', permissions: emptyPerms() };
+        name = 'New role';
+        perms = emptyPerms();
+        modMap = effectiveMap(biz, { roleName: '' });
+        render();
+      });
+      app.querySelector('#role-pick')?.addEventListener('change', (e) => {
+        const id = e.target.value;
+        const row = uniqueRoles(roles).find((r) => String(r.id) === String(id));
+        if (row) select(row);
+      });
+      app.querySelector('#role-name')?.addEventListener('input', (e) => { name = e.target.value; });
+      app.querySelectorAll('.perm-block').forEach((block) => syncSelectAll(block));
+      app.querySelectorAll('[data-group]').forEach((el) => el.addEventListener('change', () => {
+        syncModMap();
+        const block = el.closest('.perm-block');
+        const on = el.checked;
+        const g = groups().find((x) => x.label === el.dataset.group || x.code === el.dataset.group);
+        if (g) paintGroup(block, g, on);
+        else {
+          block?.querySelectorAll('.perm-list input[data-key]').forEach((box) => {
+            box.checked = on;
+            perms[box.dataset.key] = on;
+          });
+        }
+        el.indeterminate = false;
+        syncSelectAll(block);
+      }));
+      app.querySelectorAll('[data-key]').forEach((el) => el.addEventListener('change', () => {
+        syncModMap();
+        const key = el.dataset.key;
+        if (el.type === 'radio') {
+          const block = el.closest('.perm-block');
+          block?.querySelectorAll(`input[type="radio"][name="${el.name}"]`).forEach((r) => {
+            perms[r.dataset.key] = r === el;
+          });
+        } else {
+          perms[key] = el.checked;
+        }
+        syncSelectAll(el.closest('.perm-block'));
+      }));
+      app.querySelector('#apply')?.addEventListener('click', applyLive);
+      app.querySelector('#save')?.addEventListener('click', save);
+      bindModAll();
+    }
+
+    function liveModBoxes() {
+      return [...app.querySelectorAll('.mod-strip [data-gmod]:not([disabled])')];
+    }
+
+    function syncModAll() {
+      const sel = app.querySelector('#mod-all');
+      const boxes = liveModBoxes();
+      if (!sel || !boxes.length) return;
+      const n = boxes.filter((b) => b.checked).length;
+      sel.checked = n === boxes.length;
+      sel.indeterminate = n > 0 && n < boxes.length;
+    }
+
+    function bindModAll() {
+      syncModAll();
+      app.querySelector('#mod-all')?.addEventListener('change', (e) => {
+        const on = e.target.checked;
+        liveModBoxes().forEach((box) => {
+          box.checked = on;
+          modMap[box.dataset.gmod] = on;
+        });
+        modMap.module_home = true;
+        e.target.indeterminate = false;
+        syncModMap();
+      });
+      app.querySelectorAll('.mod-strip [data-gmod]').forEach((el) => {
+        el.addEventListener('change', () => {
+          syncModMap();
+          syncModAll();
+        });
+      });
+    }
+
+    function roleWouldSee(p) {
+      const has = (need) => {
+        if (!need) return true;
+        if (String(need).includes('|')) return String(need).split('|').some((x) => has(x.trim()));
+        if (p['*']) return true;
+        return p[need] === true;
+      };
+      return (MENU || []).filter((it) => has(it.perm)).map((it) => it.label);
+    }
+
+    async function applyLive() {
+      if (!current) return;
+      const { toast } = await import('./js/confirm-action.js');
+      const clean = sanitizePerms(access?.roleName, perms);
+      writePermOverlay(current.id, name.trim() || current.name, clean);
+      syncModMap();
+      const flags = flagsFromChecks(biz, modMap);
+      setRoleGrants(name.trim() || current.name, flags);
+      const me = getAccess();
+      const mine = me && (
+        String(me.roleName || '').toLowerCase() === String(current.name || name || '').toLowerCase()
+        || String(me.roleName || '').toLowerCase() === String(name || '').toLowerCase()
+      );
+      if (mine) {
+        patchLivePerms(clean, name.trim() || current.name);
+        await refreshShellMenu();
+        applyDomPermissions(document);
+        toast('Your session menu updated. Click Update to save this role.');
+      } else {
+        const see = roleWouldSee(clean);
+        const hint = document.getElementById('apply-hint');
+        if (hint) hint.textContent = 'This role would open: ' + (see.join(', ') || 'Home only') + '. Click Update to save.';
+        toast('Ticks applied for this role. Click Update to save.');
+      }
+    }
+
+    async function save() {
+      const go = await (await import('./js/confirm-action.js')).confirmAction('Save this role?', 'Permissions will apply the next time this role signs in.');
+      if (!go) return;
+      if (!name.trim()) { msg = 'Role name is required'; render(); return; }
+      if (!can('role.edit') && current?.id) { msg = 'No permission to edit roles'; render(); return; }
+      if (!can('role.add') && !current?.id) { msg = 'No permission to add roles'; render(); return; }
+      if (current?.name && !canMutateRole(access?.roleName, current.name) && current.id) {
+        deny('You cannot change a role at the same rank or above yours.');
+        return;
+      }
+      const clean = sanitizePerms(access?.roleName, perms);
+      syncModMap();
+      const flags = flagsFromChecks(biz, modMap);
+      const payload = { ...(current || {}), name: name.trim(), permissions: clean, module_flags: flags };
+      const saved = await saveRow('app_roles', CAT_KEYS.roles, current?.id ? payload : { ...payload, id: undefined });
+      setRoleGrants(saved?.name || name.trim(), flags);
+      await writeRowFlags('role', saved, flags);
+      current = saved || payload;
+      writePermOverlay(current.id, name.trim(), clean);
+      const me = getAccess();
+      const mine = me && String(me.roleName || '').toLowerCase() === String(name.trim() || '').toLowerCase();
+      if (mine) {
+        patchLivePerms(clean, name.trim());
+        await refreshShellMenu();
+        applyDomPermissions(document);
+      }
+      if (saved?._localOnly && !saved?._shared) {
+        msg = 'Could not share this role to the company book. Signed in as HQ Admin? ' + (saved._error || '');
+        render();
+        return;
+      }
+      msg = 'Role saved — sign out and back in on that user’s browser to load the ticks.';
+    }
+
+    load();
+  </script>
+</body>
+</html>

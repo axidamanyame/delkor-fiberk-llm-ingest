@@ -1,0 +1,12 @@
+Delkor-Fiberk ERP — 13 Sep 2026 (Home + Suppliers freeze fix)
+
+EXTRACT INTO A NEW EMPTY FOLDER. Do not overlay the corrupted copy.
+
+1. Double-click start-local.bat
+2. Sign in with your HQ account
+3. Home must show the left menu and Welcome with KPI cards
+4. Records → Suppliers must open without a "Page Unresponsive" dialog
+5. When that looks right, upload THIS SAME FOLDER as the Vercel project root
+   (login.html, index.html, js/, css/, api/, vercel.json at the top — not inside public/)
+
+Do not click Publish catalog until after this folder is on Vercel.

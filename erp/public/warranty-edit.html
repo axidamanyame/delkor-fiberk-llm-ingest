@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Warranty</title><link rel="stylesheet" href="/css/ultimate-pos.css"/></head>
+<body><main class="ult-main" id="app"></main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect } from './js/entity-scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { loadFormRow, fillForm } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const id = new URLSearchParams(location.search).get('id');
+  let row = { name: '' };
+  if (id) row = (await loadFormRow('warranties', 'df_warranties', id)) || row;
+  document.getElementById('app').innerHTML = `<h1>${id?'Edit':'Add'} Warranty</h1>
+    <form id="f" class="ult-card" style="max-width:560px">
+      ${subsidiarySelect(row.subsidiary_code||'')}
+      <label>Name*</label><input name="name" required value="${row.name||''}" />
+      <label>Duration</label><input name="duration" value="${row.duration||''}" />
+      <p><button class="ult-btn ult-btn-primary">Save</button></p>
+    </form>`;
+  fillForm(document.getElementById('f'), row);
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Save this Warranty?'))) return;
+    const fd = new FormData(e.target);
+    const body = { name: fd.get('name').trim(), duration: fd.get('duration') || null };
+    try { stampScope(body, e.target); } catch (ex) { return alert(ex.message); }
+    const q = id ? await supabase.from('warranties').update(body).eq('id', id) : await supabase.from('warranties').insert(body);
+    if (q.error) return alert(q.error.message);
+    history.back();
+  };
+</script></body></html>

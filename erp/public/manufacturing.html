@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manufacturing</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { readLs, writeLs, uid } from './js/ls-rows.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const KEY = 'df_mfg_recipes';
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const recipes = () => readLs(KEY, []) || [];
+  const products = await loadRows('products', KEYS.products, []).catch(() => []);
+  function paint() {
+    const rows = recipes();
+    app.innerHTML = `
+      <h1 style="margin:0 0 12px">Manufacturing</h1>
+      <div class="ult-card" style="margin-bottom:12px">
+        <form id="add" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end">
+          <label>Finished SKU <input name="sku" required list="skus" /></label>
+          <label>Name <input name="name" required /></label>
+          <label>Qty <input name="qty" type="number" min="1" value="1" style="width:80px" /></label>
+          <button class="ult-btn ult-btn-primary" type="submit">Add recipe</button>
+        </form>
+        <datalist id="skus">${(products||[]).slice(0,400).map((p)=>`<option value="${esc(p.sku||p.name)}">`).join('')}</datalist>
+      </div>
+      <div class="ult-table-wrap"><table class="ult-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>Qty</th><th>Updated</th></tr></thead>
+        <tbody>${rows.map((r)=>`<tr><td>${esc(r.sku)}</td><td>${esc(r.name)}</td><td>${esc(r.qty)}</td><td>${esc(String(r.updated_at||'').slice(0,16))}</td></tr>`).join('') || '<tr><td colspan="4">No recipes yet</td></tr>'}</tbody>
+      </table></div>`;
+    document.getElementById('add').onsubmit = (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const next = recipes();
+      next.unshift({
+        id: uid(),
+        sku: fd.get('sku'),
+        name: fd.get('name'),
+        qty: Number(fd.get('qty') || 1),
+        updated_at: new Date().toISOString(),
+      });
+      writeLs(KEY, next);
+      paint();
+    };
+  }
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  paint();
+</script>
+</body>
+</html>

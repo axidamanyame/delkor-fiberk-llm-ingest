@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales Commission Agents — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    /* Page-specific only — shared list-page primitives now live in css/ultimate-pos.css */
+    .act { white-space:nowrap; display:flex; gap:6px; }
+  </style>
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { SCOPE_EVENT, filterBySidebar, scopeCaption } from './js/scope.js';
+    import { bindTable } from './js/home-tables.js';
+    import { subsidiaryLabel, ghanaGps, ghanaRegion } from './js/entity-scope.js';
+    import { loadRows } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_AGENTS } from './js/catalog-seed.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    async function load() {
+      const data = await loadRows('sales_commission_agents', CAT_KEYS.agents, SEED_AGENTS);
+      const rows = filterBySidebar(data.length ? data : SEED_AGENTS);
+
+      app.innerHTML = `
+        <h1>Sales Commission Agents</h1>
+        <p class="sub">${esc(scopeCaption())}</p>
+        <div class="card" data-tbl="agents">
+          <div class="head">
+            <div></div>
+            <a class="add" href="/commission-agent-edit.html">+ Add</a>
+          </div>
+          <div class="bar">
+            <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>200</option><option>500</option><option>1000</option><option>All</option></select> entries</label>
+            <div class="grow"></div>
+            <button type="button" data-exp="csv">Export CSV</button>
+            <button type="button" data-exp="xls">Export Excel</button>
+            <button type="button" data-exp="print">Print</button>
+            <button type="button" data-exp="cols">Column visibility</button>
+            <button type="button" data-exp="pdf">Export PDF</button>
+            <input data-tbl-search placeholder="Search …" />
+          </div>
+          ${''}
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th>Name</th><th>Email</th><th>Contact Number</th>
+              <th>City</th><th>Region</th><th>Digital Address</th>
+              <th>Sales Commission Percentage (%)</th><th>Subsidiary</th><th>Location</th><th>Action</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map((row) => `<tr data-loc="${esc(row.location_code || '')}">
+                <td>${esc(row.full_name || row.name || '')}</td>
+                <td>${esc(row.email || '')}</td>
+                <td>${esc(row.phone || row.contact_number || '')}</td>
+                <td>${esc(row.city || '')}</td>
+                <td>${esc(ghanaRegion(row))}</td>
+                <td>${esc(ghanaGps(row))}</td>
+                <td>${esc(row.commission_percent ?? row.percent ?? '')}</td>
+                <td>${esc(subsidiaryLabel(row.subsidiary_code))}</td>
+                <td>${esc(row.location_code || 'All')}</td>
+                <td class="act">
+                  <a class="btn-edit" href="/commission-agent-edit.html?id=${row.id}">✎ Edit</a>
+                  <button type="button" class="btn-del" data-del="${row.id}">🗑 Delete</button>
+                </td>
+              </tr>`).join('') || '<tr data-dummy="1"><td colspan="10" style="text-align:center">No data available in table</td></tr>'}
+            </tbody>
+          </table></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <div data-tbl-info></div>
+            <div class="pager" data-tbl-pager></div>
+          </div>
+        </div>`;
+      bindTable(app.querySelector('[data-tbl="agents"]'), { title: 'Sales Commission Agents', storageKey: 'agents' });
+      app.querySelectorAll('[data-del]').forEach((b) => {
+        b.onclick = async () => {
+          if (!(await confirmAction('Delete this agent?', 'This cannot be undone.'))) return;
+          const { error } = await supabase.from('sales_commission_agents').delete().eq('id', b.dataset.del);
+          if (error) { ackResult(false, error.message); return; }
+        ackResult(true);
+          load();
+        };
+      });
+    }
+    window.addEventListener(SCOPE_EVENT, load);
+    load();
+  </script>
+</body>
+</html>

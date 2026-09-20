@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Receipts — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { listReceipts, fmt } from './js/bank-book.js';
+    import { SUPABASE_URL } from './js/supabaseClient.js';
+    try { await mountUltimateShell(); } catch (e) { console.warn(e); }
+    const app = document.getElementById('app');
+    let rows = listReceipts();
+    let liveFailed = false;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/customer-receipts`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) rows = data;
+      } else liveFailed = true;
+    } catch { liveFailed = true; }
+    app.innerHTML = pageChrome('My Receipts', 'Customer portal') +
+      `<div class="ult-card"><table class="ult-table">
+        <thead><tr><th>Date</th><th>Customer</th><th class="num">Total</th><th>Receipt</th></tr></thead>
+        <tbody>${rows.map((r) => `<tr>
+          <td>${new Date(r.transaction_date).toLocaleString()}</td>
+          <td>${r.customer_name || ''} ${r.customer_phone || ''}</td>
+          <td style="text-align:right">${fmt(r.grand_total)}</td>
+          <td><a href="/r/${r.receipt_code}" target="_blank">View</a></td>
+        </tr>`).join('') || '<tr><td colspan="4">No receipts yet.</td></tr>'}</tbody>
+      </table></div>`;
+  </script>
+</body>
+</html>

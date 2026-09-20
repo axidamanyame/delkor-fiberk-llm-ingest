@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420">
+  <rect width="920" height="420" fill="#eef4fb"/>
+  <rect x="24" y="18" width="872" height="384" rx="16" fill="#fff" stroke="#dbe7f2"/>
+  <rect x="24" y="18" width="180" height="384" rx="16" fill="#0f172a"/>
+  <rect x="40" y="36" width="148" height="28" rx="8" fill="#1e3a8a"/>
+  <text x="114" y="55" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="11" font-weight="700">COMMUNICATIONS</text>
+  <g font-family="Inter,Arial" font-size="11" fill="#cbd5e1">
+    <text x="48" y="96">Floor</text>
+    <text x="48" y="120">Announcements</text>
+    <text x="48" y="144">Messages</text>
+    <text x="48" y="168">Calls</text>
+    <text x="48" y="192">Meetings</text>
+    <text x="48" y="216">To Do</text>
+    <text x="48" y="240">Knowledge Base</text>
+  </g>
+  <rect x="40" y="80" width="148" height="22" rx="6" fill="#2563eb"/>
+  <text x="52" y="96" fill="#fff" font-family="Inter,Arial" font-size="11" font-weight="700">Floor</text>
+  <text x="228" y="58" fill="#0f172a" font-family="Inter,Arial" font-size="22" font-weight="800">Communications</text>
+  <text x="228" y="82" fill="#64748b" font-family="Inter,Arial" font-size="12">Talk, assign, and keep the desk in one place</text>
+  <g font-family="Inter,Arial">
+    <rect x="228" y="108" width="150" height="86" rx="12" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="244" y="132" font-size="12" fill="#1e3a8a" font-weight="700">Messages</text>
+    <text x="244" y="168" font-size="22" font-weight="800" fill="#1d4ed8">3</text>
+    <text x="244" y="186" font-size="10" fill="#64748b">unread</text>
+    <rect x="394" y="108" width="150" height="86" rx="12" fill="#f0fdf4" stroke="#bbf7d0"/>
+    <text x="410" y="132" font-size="12" fill="#166534" font-weight="700">To Do</text>
+    <text x="410" y="168" font-size="22" font-weight="800" fill="#16a34a">5</text>
+    <text x="410" y="186" font-size="10" fill="#64748b">open</text>
+    <rect x="560" y="108" width="150" height="86" rx="12" fill="#fefce8" stroke="#fde68a"/>
+    <text x="576" y="132" font-size="12" fill="#854d0e" font-weight="700">Reminders</text>
+    <text x="576" y="168" font-size="22" font-weight="800" fill="#ca8a04">2</text>
+    <text x="576" y="186" font-size="10" fill="#64748b">today</text>
+    <rect x="726" y="108" width="150" height="86" rx="12" fill="#f5f3ff" stroke="#ddd6fe"/>
+    <text x="742" y="132" font-size="12" fill="#5b21b6" font-weight="700">Knowledge Base</text>
+    <text x="742" y="168" font-size="22" font-weight="800" fill="#7c3aed">6</text>
+    <text x="742" y="186" font-size="10" fill="#64748b">articles</text>
+  </g>
+  <text x="24" y="414" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 1 · Communications Floor — tiles open each desk</text>
+</svg>

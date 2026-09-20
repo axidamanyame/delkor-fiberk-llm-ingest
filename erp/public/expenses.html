@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expenses — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS, filterBySidebar, scopeCaption, findLocation, SCOPE_EVENT, wirePageFilters } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, deleteRow, esc, actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast, datePreset, DATE_PRESETS } from './js/confirm-action.js';
+  import { CAT_SEED } from './js/expense-data.js';
+  import { bootBook, loadUbaTxns, loadUbaAccount } from './js/uba-fiberk-book.js';
+  import { chainOf } from './js/org-chain.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const locName = (code) => BUSINESS_LOCATIONS.find((l) => l.code === code)?.name || code || '—';
+  let showFilt = false;
+  const F = { cat: '', status: '', from: '', to: '', forUser: '' };
+
+  const seed = [];
+
+  function fmtDt(s) {
+    if (!s) return '';
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return String(s).slice(0, 16);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function statusOf(r) {
+    const tot = Number(r.total_amount || r.amount || 0);
+    const paid = Number(r.paid_amount || 0);
+    if (r.payment_status) return r.payment_status;
+    if (paid <= 0) return 'due';
+    if (paid + 0.009 < tot) return 'partial';
+    return 'paid';
+  }
+  function statusPill(s) {
+    const k = String(s || 'due').toLowerCase();
+    const cls = k === 'paid' ? 'paid' : k === 'partial' ? 'partial' : 'overdue';
+    return `<span class="pill ${cls}">${esc(k.replace(/^./, (c) => c.toUpperCase()))}</span>`;
+  }
+  function recurText(r) {
+    if (!r.is_recurring) return '';
+    const n = r.recur_interval || 1;
+    const t = r.recur_interval_type || 'days';
+    const times = r.recur_repetitions ? ` × ${r.recur_repetitions}` : ' (infinite)';
+    return `Every ${n} ${t}${times}`;
+  }
+
+  async function paint() {
+    await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+    try { await bootBook(); } catch { /* UBA statement optional */ }
+    const acc = loadUbaAccount();
+    const ubaExp = loadUbaTxns()
+      .filter((t) => t.withdrawal && (t.category === 'expense' || t.category === 'bank_charge' || t.category === 'payroll'))
+      .map((t) => ({
+        id: 'exp-' + t.id,
+        title: t.payee ? `${t.payee} · ${t.remarks}` : t.remarks,
+        payment_to: t.payee || 'UBA payment',
+        category: t.expense_category || (t.category === 'payroll' ? 'Salaries' : t.category === 'bank_charge' ? 'Bank Charges' : 'Expenses'),
+        reference_no: t.instrument_id ? 'UBA-' + t.instrument_id : t.id,
+        expense_date: t.txn_date,
+        total_amount: t.withdrawal,
+        amount: t.withdrawal,
+        paid_amount: t.withdrawal,
+        paid_on: t.value_date || t.txn_date,
+        payment_method: 'bank',
+        payment_account: 'UBA Fiberk Overdraft',
+        payment_status: 'paid',
+        note: t.remarks,
+        subsidiary_code: 'fiberk',
+        location_code: (acc && acc.location_code) || 'FIB-SHOP',
+        location_name: (acc && acc.location_name) || 'Fiberk Shop',
+        added_by: 'UBA Fiberk',
+        source: 'uba-fiberk',
+      }));
+    const fromLs = await loadRows('expenses', 'df_expenses', seed);
+    const byId = new Map(fromLs.map((r) => [String(r.id), r]));
+    ubaExp.forEach((r) => { if (!byId.has(String(r.id))) byId.set(String(r.id), r); });
+    const all = [...byId.values()];
+    let rows = filterBySidebar(all.map((r) => ({
+      ...r,
+      location_code: r.location_code || r.location,
+      subsidiary_code: r.subsidiary_code || findLocation(r.location_code)?.subsidiary || '',
+      payment_status: statusOf(r),
+    })));
+    if (F.cat) rows = rows.filter((r) => r.category === F.cat);
+    if (F.status) rows = rows.filter((r) => statusOf(r) === F.status);
+    if (F.from) rows = rows.filter((r) => String(r.expense_date || '').slice(0, 10) >= F.from);
+    if (F.to) rows = rows.filter((r) => String(r.expense_date || '').slice(0, 10) <= F.to);
+    if (F.forUser) rows = rows.filter((r) => (r.expense_for || '') === F.forUser);
+    window.__dfExpenseRows = rows;
+    const tot = rows.reduce((a, r) => a + Number(r.total_amount || r.amount || 0), 0);
+    const cats = [...new Set(all.map((r) => r.category).filter(Boolean))];
+    const users = [...new Set(all.map((r) => r.expense_for).filter(Boolean))];
+
+    app.innerHTML = `
+      <h1>Expenses</h1>
+      <p class="sub">${esc(scopeCaption())}</p>
+      <section class="pf ${showFilt ? 'open' : ''}">
+        <button type="button" class="pf-btn" id="filt-tog"><span><span class="pf-ico">▾</span><span class="label">Filters</span></span><span class="pf-chev">▾</span></button>
+        <div class="pf-body">
+          <div class="filters">
+            <label>Expense Category
+              <select id="f-cat"><option value="">All</option>${cats.map((c) => `<option ${F.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+            </label>
+            <label>Payment Status
+              <select id="f-st">
+                <option value="">All</option>
+                ${['paid','partial','due'].map((s) => `<option value="${s}" ${F.status===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Expense for
+              <select id="f-for"><option value="">All</option>${users.map((u) => `<option ${F.forUser===u?'selected':''}>${esc(u)}</option>`).join('')}</select>
+            </label>
+            <label>Date range
+              <select id="f-preset">
+                <option value="">Custom</option>
+                ${DATE_PRESETS.map(([k,l]) => `<option value="${k}">${l}</option>`).join('')}
+              </select>
+            </label>
+            <label>From<input id="f-from" type="date" value="${esc(F.from)}" /></label>
+            <label>To<input id="f-to" type="date" value="${esc(F.to)}" /></label>
+          </div>
+        </div>
+      </section>
+      <section class="home-card loc-list-card" data-tbl="ex">
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>Expense Title</th>
+            <th>Payment To</th>
+            <th>Recurring details</th>
+            <th>Expense Category</th>
+            <th>Sub category</th>
+            <th>Subsidiary</th>
+            <th>Business Location</th>
+            <th>Department</th>
+            <th>Payment Status</th>
+            <th>Tax</th>
+            <th>Total amount</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-id="${esc(r.id)}">
+              <td>${actMenu(r.id, [
+                { label: 'View' },
+                { href: `/expense-form.html?id=${r.id}`, label: 'Edit' },
+                { act: 'del', label: 'Delete' },
+                { href: `/expense-form.html?id=${r.id}&pay=1`, label: 'Add payment' },
+                { href: `/expenses.html?payments=${r.id}`, label: 'View Payments' },
+              ])}</td>
+              <td>${esc(fmtDt(r.expense_date || r.created_at))}</td>
+              <td>${esc(r.reference_no)}</td>
+              <td>${esc(r.title || r.description || '')}${r.is_refund ? ' <span class="pill overdue">Refund</span>' : ''}</td>
+              <td>${esc(r.payment_to || r.vendor || '')}</td>
+              <td>${esc(recurText(r))}</td>
+              <td>${esc(r.category || r.category_name || '')}</td>
+              <td>${esc(r.sub_category || '')}</td>
+              <td>${esc(chainOf(r).subsidiary)}</td>
+              <td>${esc(chainOf(r).location)}</td>
+              <td>${esc(chainOf(r).department)}</td>
+              <td>${statusPill(statusOf(r))}</td>
+              <td>${esc(r.tax || '')}</td>
+              <td>${fmt(r.total_amount || r.amount || 0)}</td>
+            </tr>`).join('')}
+            <tr data-dummy="1"><td colspan="13" style="text-align:center">No data available in table</td></tr>
+          </tbody>
+          <tfoot><tr>
+            <td colspan="12" style="text-align:right;background:#d1d5db;font-weight:800">Total:</td>
+            <td style="background:#d1d5db;font-weight:800">${fmt(tot)}</td>
+          </tr></tfoot>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <span data-tbl-pager></span>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="ex"]'), { title: 'Expenses', storageKey: 'expenses' });
+    wirePageFilters(app);
+    document.getElementById('filt-tog').onclick = () => { showFilt = !showFilt; paint(); };
+    const bindF = () => {
+      F.cat = document.getElementById('f-cat').value;
+      F.status = document.getElementById('f-st').value;
+      F.forUser = document.getElementById('f-for').value;
+      F.from = document.getElementById('f-from').value;
+      F.to = document.getElementById('f-to').value;
+      paint();
+    };
+    ['f-cat','f-st','f-for','f-from','f-to'].forEach((id) => document.getElementById(id)?.addEventListener('change', bindF));
+    document.getElementById('f-preset')?.addEventListener('change', (e) => {
+      const r = datePreset(e.target.value);
+      if (r) { F.from = r.from; F.to = r.to; paint(); }
+    });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this expense?', 'This cannot be undone.'))) return;
+        await deleteRow('expenses', 'df_expenses', b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+  }
+  paint();
+  window.addEventListener(SCOPE_EVENT, paint);
+</script>
+</body>
+</html>

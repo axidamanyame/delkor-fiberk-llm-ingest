@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sale</title>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const id = q.get('id') || q.get('view') || '';
+    location.replace(id ? '/pos-sales.html?view=' + encodeURIComponent(id) : '/sales-orders.html');
+  </script>
+</head>
+<body>
+  <p>Opening sale… <a href="/sales-orders.html">All sales</a></p>
+</body>
+</html>

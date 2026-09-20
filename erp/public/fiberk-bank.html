@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UBA Fiberk book — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app"><p class="ult-muted">Loading Fiberk UBA…</p></main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bootUbaFiberk } from './js/uba-fiberk-hub.js';
+  try {
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    await bootUbaFiberk();
+    const app = document.getElementById('app');
+    if (app && !app.querySelector('[data-recv]')) {
+      const bar = document.createElement('p');
+      bar.className = 'ops-actions';
+      bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0';
+      bar.innerHTML = '<a class="ult-btn ult-btn-outline" href="/customer-receipts.html">Issued receipts</a><a class="ult-btn ult-btn-outline" href="/receipt.html">Public receipt</a><a class="ult-btn ult-btn-outline" href="/sms-settings.html">SMS gateway</a>';
+      app.prepend(bar);
+    }
+  } catch (err) {
+    const app = document.getElementById('app');
+    if (app) app.innerHTML = `<div class="ult-card"><h1>UBA Fiberk</h1><p>${String(err?.message || err)}</p></div>`;
+  }
+</script>
+</body>
+</html>

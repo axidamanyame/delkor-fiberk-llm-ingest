@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Users — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    /* Page-specific only — shared list-page primitives (.page, .card, .head,
+       .bar, .pager, .btn-*, table zebra) now live in css/ultimate-pos.css */
+    table.ult-table { width:100%; }
+    table.ult-table th { font-weight:800; }
+    .act { white-space:nowrap; display:flex; gap:6px; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:800; }
+    .badge-wait { background:#fff7ed; color:#9a3412; border:1px solid #fdba74; }
+    .badge-key { background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe; }
+    .pending-card { margin-bottom:16px; border-color:#fdba74; }
+    .key-cell { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+    .key-cell code { font-family:ui-monospace,Menlo,monospace; font-size:13px; letter-spacing:.06em; font-weight:800; }
+  </style>
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { SCOPE_EVENT, filterBySidebar, scopeCaption } from './js/scope.js';
+    import { bindTable } from './js/home-tables.js';
+    import { subsidiaryLabel, userMembershipLabel } from './js/entity-scope.js';
+    import { loadRows, deleteRow, readLs, actMenu } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_ROLES, isDemoUser, purgeDemoUsers } from './js/catalog-seed.js';
+    import { restoreLiveUsers } from './js/legacy-import.js';
+    import { parkLiveUserImports } from './js/migrated-data.js';
+    import { siloGateHtml } from './js/fiberk-silo.js';
+    import { listPending, isGated, issueAccessAndNotify, accessKeyAppliesTo } from './js/access-gate.js';
+    import { ensureDeleteKey, rotateDeleteKey, logCrud } from './js/delete-guard.js';
+    import { isHqRole, isAdminRole, isOwnerRole, displayRole } from './js/access-rules.js';
+    import { loadAccess, can, getAccess } from './js/rbac.js';
+    import { canMutateUser } from './js/role-guard.js';
+    import { applyStaffJob, persistStaffJob, dropExemptAccessKey, publicJobLabel } from './js/staff-jobs.js';
+
+    await mountUltimateShell();
+    try { restoreLiveUsers([]); } catch { /* ignore */ }
+    try { purgeDemoUsers(); } catch { /* ignore */ }
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    async function copyText(value) {
+      const text = String(value ?? '');
+      if (!text) return false;
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        if (ok) return true;
+      } catch { /* iframe */ }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch { /* blocked */ }
+      return false;
+    }
+
+    async function load() {
+      try { purgeDemoUsers(); } catch { /* ignore */ }
+      let remoteUsers = [];
+      let roles = (readLs(CAT_KEYS.roles, SEED_ROLES) || []).filter((r) => !/shop\s*manager/i.test(String(r.name || '')));
+      try {
+        const pair = await Promise.race([
+          Promise.all([
+            loadRows('profiles', CAT_KEYS.users, []),
+            loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES),
+          ]),
+          new Promise((resolve) => setTimeout(() => resolve([null, roles]), 4000)),
+        ]);
+        if (Array.isArray(pair?.[0])) remoteUsers = pair[0];
+        if (Array.isArray(pair?.[1]) && pair[1].length) roles = pair[1];
+      } catch { /* local restore still runs */ }
+      restoreLiveUsers(remoteUsers);
+      try { parkLiveUserImports(); } catch { /* ignore */ }
+      const users = (readLs(CAT_KEYS.users, []) || []).filter((u) => !isDemoUser(u));
+      paint(users, roles);
+    }
+
+    async function paint(uRows, roles) {
+      const u = { data: uRows, error: null };
+      const roleName = (row) => publicJobLabel(row, row.email) || '—';
+      const pending = listPending();
+      const users = (u.data || []).map((row) => applyStaffJob(row)).filter((row) => !isDemoUser(row)).filter((row) => {
+        const sub = getActiveSubsidiary()?.code;
+        if (!sub || sub === 'group') return true;
+        const rowSub = String(row.subsidiary_code || row.home_subsidiary || '').toLowerCase();
+        if (!rowSub || rowSub === 'group' || row.all_locations) return true;
+        return rowSub === String(sub).toLowerCase();
+      });
+      users.forEach((row) => {
+        persistStaffJob(row).catch(() => {});
+        dropExemptAccessKey(row).catch(() => {});
+      });
+      const statusOf = (row) => {
+        const job = roleName(row);
+        if (isOwnerRole(job) || isHqRole(job) || !accessKeyAppliesTo(row)) {
+          if (row.allow_login === false || row.status === 'inactive') return '<span class="badge badge-wait">Login off</span>';
+          return '';
+        }
+        if (row.access_unlocked === true || row.status === 'active') return '';
+        if (row.allow_login === false || row.status === 'inactive') return '<span class="badge badge-wait">Login off</span>';
+        if (row.status === 'imported') return '<span class="badge badge-key">Imported — set password</span>';
+        if (row.status === 'keyed' || row.access_key) return '<span class="badge badge-key">Key issued</span>';
+        if (isGated(row) || row.status === 'pending' || /pending/i.test(String(row.role||''))) return '<span class="badge badge-wait">Pending review</span>';
+        return '';
+      };
+      const keyCell = (row) => {
+        if (isOwnerRole(roleName(row)) || isHqRole(roleName(row)) || !accessKeyAppliesTo(row)) {
+          return '<span class="ult-muted">—</span>';
+        }
+        const k = String(row.access_key || '').trim();
+        if (!k) return '<span class="ult-muted">—</span>';
+        return `<div class="key-cell">
+          <code class="key-vis" data-key="${esc(k)}">••••••••••••</code>
+          <button type="button" class="btn-view" data-show-key>Show</button>
+          <button type="button" class="btn-edit" data-copy-key="${esc(k)}">Copy</button>
+        </div>`;
+      };
+
+      if (!getAccess()) {
+        await Promise.race([
+          loadAccess().catch(() => {}),
+          new Promise((r) => setTimeout(r, 600)),
+        ]);
+      }
+      const actorRole = getAccess()?.roleName || getAccess()?.role || 'HQ Admin';
+      window.__dfUserRows = users;
+      const canAdd = can('user.add');
+      const canEdit = can('user.edit');
+      const canDel = can('user.delete');
+      const canKey = canEdit && (isAdminRole(actorRole) || isHqRole(actorRole) || can('user.edit'));
+      const delKey = canDel ? ensureDeleteKey() : '';
+
+      app.innerHTML = `
+        <h1>Users</h1>
+        <p class="sub">${esc(scopeCaption())}</p>
+        ${siloGateHtml('people')}
+        ${canKey ? `<div class="card" style="margin-bottom:16px;border-color:#fecaca">
+          <div class="head"><h2>Delete access key</h2></div>
+          <p class="sub">Required on every Delete. View and Edit do not use this key — they are written to the audit log.</p>
+          <p style="font-family:ui-monospace,Menlo,monospace;font-size:18px;letter-spacing:.08em;margin:8px 0 12px">
+            <span id="del-key-vis">••••••••••••••••</span>
+          </p>
+          <div class="act">
+            <button type="button" class="btn-view" id="del-key-show">Show</button>
+            <button type="button" class="btn-edit" id="del-key-copy">Copy</button>
+            <button type="button" class="btn-del" id="del-key-rot">Rotate key</button>
+          </div>
+        </div>` : ''}
+        ${pending.length ? `<div class="card pending-card">
+          <div class="head"><h2>Registrations waiting for a role and access key</h2></div>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Status</th><th>Access key</th><th>Action</th></tr></thead>
+            <tbody>
+              ${pending.map((row) => `<tr>
+                <td>${esc(row.full_name || '')}</td>
+                <td>${esc(row.email || '')}</td>
+                <td>${statusOf(row)}</td>
+                <td>${keyCell(row)}</td>
+                <td class="act">
+                  <a class="btn-edit" href="/user-edit.html?id=${row.id}">Review & assign</a>
+                  ${row.status !== 'keyed' && !row.access_key && !row.access_unlocked ? `<button type="button" class="btn-edit" data-issue="${esc(row.id)}">Issue Cashier key</button>` : ''}
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>
+        </div>` : ''}
+        <div class="card" data-tbl="users">
+          <div class="head">
+            <h2>All users</h2>
+          </div>
+          ${u.error ? `<p>${esc(u.error.message)}</p>` : ''}
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Action</th><th>Username</th><th>Name</th><th>Role</th><th>Email</th><th>Status</th><th>Access key</th><th>Subsidiary</th></tr></thead>
+            <tbody>
+              ${users.map((row) => `<tr data-id="${esc(row.id)}" data-loc="${esc(row.location_code || '')}">
+                <td>${actMenu(row.id, [
+                  canEdit && canMutateUser(actorRole, roleName(row), { isSelf: String(row.id) === String(getAccess()?.userId) })
+                    ? { label: 'Edit', href: `/user-edit.html?id=${encodeURIComponent(row.id)}` } : null,
+                  can('user.view') ? { label: 'View' } : null,
+                  canDel && canMutateUser(actorRole, roleName(row), { isSelf: String(row.id) === String(getAccess()?.userId) })
+                    ? { label: 'Delete', act: 'del' } : null,
+                ].filter(Boolean))}</td>
+                <td>${esc(row.username || row.email?.split('@')[0] || '')}</td>
+                <td>${esc(row.full_name || '')}</td>
+                <td>${esc(roleName(row))}</td>
+                <td>${esc(row.email || '')}</td>
+                <td>${statusOf(row) || 'Active'}</td>
+                <td>${keyCell(row)}</td>
+                <td>${esc(userMembershipLabel(row, roleName(row)))}</td>
+              </tr>`).join('') || '<tr data-dummy="1"><td colspan="8" style="text-align:center">No data available in table</td></tr>'}
+            </tbody>
+          </table></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <div data-tbl-info></div>
+            <div class="pager" data-tbl-pager></div>
+          </div>
+        </div>`;
+
+      window.__dfUserRows = users;
+      bindTable(app.querySelector('[data-tbl="users"]'), { title: 'Users', storageKey: 'users' });
+      app.querySelectorAll('[data-show-key]').forEach((b) => {
+        b.onclick = () => {
+          const code = b.parentElement?.querySelector('[data-key]');
+          if (!code) return;
+          const showing = b.dataset.on === '1';
+          b.dataset.on = showing ? '0' : '1';
+          code.textContent = showing ? '••••••••••••' : (code.dataset.key || '');
+          b.textContent = showing ? 'Show' : 'Hide';
+        };
+      });
+      app.querySelectorAll('[data-copy-key]').forEach((b) => {
+        b.onclick = async () => {
+          const k = b.dataset.copyKey || '';
+          if (!k) return;
+          const code = b.parentElement?.querySelector('[data-key]');
+          const show = b.parentElement?.querySelector('[data-show-key]');
+          if (code) { code.textContent = k; }
+          if (show) { show.dataset.on = '1'; show.textContent = 'Hide'; }
+          const ok = await copyText(k);
+          ackResult(ok, ok
+            ? ('Access key copied: ' + k)
+            : ('Clipboard blocked. Key is ' + k + ' — copy it now.'));
+        };
+      });
+      const vis = document.getElementById('del-key-vis');
+      document.getElementById('del-key-show')?.addEventListener('click', () => {
+        if (!vis) return;
+        const showing = vis.dataset.on === '1';
+        vis.dataset.on = showing ? '0' : '1';
+        vis.textContent = showing ? '••••••••••••••••' : delKey;
+        document.getElementById('del-key-show').textContent = showing ? 'Show' : 'Hide';
+      });
+      document.getElementById('del-key-copy')?.addEventListener('click', async () => {
+        if (!delKey) {
+          ackResult(false, 'No delete access key on this account.');
+          return;
+        }
+        if (vis) {
+          vis.dataset.on = '1';
+          vis.textContent = delKey;
+          const showBtn = document.getElementById('del-key-show');
+          if (showBtn) showBtn.textContent = 'Hide';
+        }
+        const ok = await copyText(delKey);
+        if (ok) {
+          ackResult(true, 'Delete access key copied. Paste it where you need it.');
+          return;
+        }
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(vis);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } catch { /* ignore */ }
+        ackResult(false, 'Clipboard is blocked here. The key is highlighted — copy it with your keyboard.');
+      });
+      document.getElementById('del-key-rot')?.addEventListener('click', async () => {
+        if (!(await confirmAction('Rotate the delete access key?', 'The old key will stop working immediately.'))) return;
+        const next = rotateDeleteKey();
+        await logCrud('delete_key_rotated', { entity_type: 'delete_key', summary: 'Delete access key rotated' });
+        ackResult(true, 'New delete access key issued. Copy it now from Users.');
+        load();
+      });
+      app.querySelectorAll('[data-issue]').forEach((b) => {
+        b.onclick = async () => {
+          const row = pending.find((u) => String(u.id) === b.dataset.issue);
+          if (!row) return;
+          if (!(await confirmAction('Issue Cashier role and access key?', 'The key will go to the notification bell and to ' + (row.email || 'their email') + '.'))) return;
+          const issued = await issueAccessAndNotify(row, 'Cashier', 'r-cash');
+          ackResult(true, 'Cashier assigned. Key ' + issued.key + ' sent to the bell and emailed to ' + (issued.user.email || '') + '.');
+          load();
+        };
+      });
+      app.querySelectorAll('[data-del], [data-act="del"]').forEach((b) => {
+        b.onclick = async () => {
+          if (!(await confirmAction('Delete this user profile?', 'This cannot be undone.'))) return;
+          const id = b.dataset.del || b.dataset.id;
+          const res = await deleteRow('profiles', CAT_KEYS.users, id);
+          if (res?.cancelled) return;
+          ackResult(true, 'User deleted.');
+          load();
+        };
+      });
+    }
+    window.addEventListener(SCOPE_EVENT, load);
+    window.addEventListener('df-tab', load);
+    load();
+  </script>
+</body>
+</html>

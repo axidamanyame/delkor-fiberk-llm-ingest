@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Form — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-main { max-width: none !important; width: 100%; }
+    .fg { display:grid; grid-template-columns: repeat(2, 1fr); gap: 16px 24px; }
+    @media (max-width: 800px) { .fg { grid-template-columns: 1fr; } }
+    .fld { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; }
+    .fld input, .fld select { font-weight:400; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; }
+    .update { display:block; margin:20px auto; background:#5b4dff; color:#fff; border:0; border-radius:10px; padding:12px 36px; font-weight:700; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { SPECS } from './js/module-specs.js';
+    import { loadFormRow, fillForm } from './js/ls-rows.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const m = new URLSearchParams(location.search).get('m');
+    const id = new URLSearchParams(location.search).get('id');
+    const spec = SPECS[m];
+    if (!spec) {
+      app.innerHTML = pageChrome('Form') + '<div class="ult-alert">Unknown module</div>';
+    } else {
+      let row = {};
+      let err = '';
+      if (id) {
+        const found = await loadFormRow(spec.table, `df_${spec.table}`, id);
+        if (found) row = found;
+        else {
+          const q = await supabase.from(spec.table).select('*').eq('id', id).maybeSingle();
+          err = q.error?.message || '';
+          row = q.data || {};
+        }
+      }
+      const listHref = `/${m}.html`;
+      app.innerHTML = pageChrome((id ? 'Edit ' : 'Add ') + spec.title) + `
+        ${err ? `<div class="ult-alert">${esc(err)}</div>` : ''}
+        <form id="f" class="ult-card">
+          <div class="fg">
+            ${spec.cols.map((c) => {
+              const v = row[c.key] ?? '';
+              if (c.type === 'checkbox') return `<label class="fld"><span></span><label><input type="checkbox" name="${c.key}" ${v?'checked':''}/> ${esc(c.label)}</label></label>`;
+              const t = c.type === 'number' ? 'number' : c.type === 'date' ? 'date' : 'text';
+              return `<label class="fld">${esc(c.label)}${c.required?' *':''}<input name="${c.key}" type="${t}" value="${esc(v)}" ${c.required?'required':''}/></label>`;
+            }).join('')}
+          </div>
+          <button class="update" type="submit">Update</button>
+          <div style="text-align:center"><a href="${listHref}">Back to list</a></div>
+        </form>
+      `;
+      fillForm(app.querySelector('#f'), row);
+      app.querySelector('#f').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const payload = {};
+        for (const c of spec.cols) {
+          if (c.type === 'checkbox') payload[c.key] = e.target.querySelector(`[name="${c.key}"]`)?.checked || false;
+          else if (c.type === 'number') payload[c.key] = Number(fd.get(c.key) || 0);
+          else payload[c.key] = fd.get(c.key) || null;
+        }
+        const res = id
+          ? await supabase.from(spec.table).update(payload).eq('id', id)
+          : await supabase.from(spec.table).insert(payload);
+        if (res.error) { alert(res.error.message); return; }
+        location.href = listHref;
+      });
+    }
+  </script>
+</body>
+</html>

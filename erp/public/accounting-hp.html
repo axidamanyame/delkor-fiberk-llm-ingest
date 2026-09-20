@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HP reimbursement — Accounting</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/field-ops.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { accNav } from './js/accounting.js';
+  import { paintPaymentRecord } from './js/bnpl-field-payments.js';
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  await paintPaymentRecord(app, { navHtml: accNav('hp'), accounting: true });
+</script>
+</body>
+</html>

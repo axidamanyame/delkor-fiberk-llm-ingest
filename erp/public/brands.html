@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Brands</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)} h1{margin:0;font-size:22px} .sub{color:#3d4f66;font-size:14px;font-weight:400}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .add{background:#4f46e5;color:#fff;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button{border:1px solid #111;background:var(--ult-card);border-radius:8px;padding:5px 10px;font-size:12px}
+    table.ult-table th,table.ult-table td{color:var(--ult-text)}
+    .pill{border-radius:999px;padding:4px 10px;font-size:12px;text-decoration:none;border:1px solid;margin-right:6px;cursor:pointer;background:var(--ult-card)}
+    .edit{color:#6d28d9;border-color:#c4b5fd}
+    .del{color:#e11d48;border-color:#fda4af}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pager button{border:1px solid #111;background:var(--ult-card);padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, saveRow, deleteRow, uid } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_BRANDS } from './js/catalog-seed.js';
+  import { openDeskModal } from './js/desk-modal.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  async function load() {
+    const data = await loadRows('brands', CAT_KEYS.brands, SEED_BRANDS);
+    const rows = data.length ? data : SEED_BRANDS;
+    window.__dfBrandRows = rows;
+    app.innerHTML = `
+      <h1>Brands <span class="sub">Manage your brands</span></h1>
+      <p>${esc(scopeCaption())}</p>
+      <div class="card" data-tbl="t" data-ls="df_brands">
+        <div class="head"><h2>All your brands</h2><button type="button" class="add" id="add-brand">+ Add</button></div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th><input type="checkbox" id="pick-all" /></th>
+            <th>Action</th>
+            <th>Brands</th>
+            <th>Note</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}">
+            <td><input type="checkbox" data-pick="${esc(r.id)}" /></td>
+            <td>
+              <button type="button" class="btn-view" data-record-view="${esc(r.id)}">View</button>
+              <button type="button" class="btn-edit pill edit" data-edit="${esc(r.id)}">Edit</button>
+              <button type="button" class="btn-del pill del" data-del="${esc(r.id)}">Delete</button>
+            </td>
+            <td>${esc(r.name)}</td>
+            <td>${esc(r.note || r.description || '')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="4" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+        <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="t"]'), { title: 'Brands', storageKey: 'brands', skipFilters: true });
+    function brandForm(row, isNew) {
+      openDeskModal({
+        title: isNew ? 'Add brand' : 'Edit brand',
+        saveLabel: isNew ? 'Save' : 'Update',
+        body: `<label>Brand name:*</label><input name="name" required value="${esc(row.name || '')}" />
+          <label>Short description:</label><input name="description" value="${esc(row.description || row.note || '')}" placeholder="Short description" />
+          <label class="dm-check"><input type="checkbox" name="use_for_repair" ${row.use_for_repair ? 'checked' : ''} /> Use for repair?</label>`,
+        onSave: async (fd) => {
+          const next = {
+            ...row,
+            id: row.id || uid(),
+            name: String(fd.get('name') || '').trim(),
+            description: String(fd.get('description') || '').trim(),
+            note: String(fd.get('description') || '').trim(),
+            use_for_repair: fd.get('use_for_repair') === 'on',
+          };
+          if (!next.name) return false;
+          await saveRow('brands', CAT_KEYS.brands, next);
+          ackResult(true, isNew ? 'Brand added.' : 'Brand updated.');
+          load();
+        },
+      });
+    }
+    document.getElementById('add-brand')?.addEventListener('click', () => brandForm({}, true));
+    app.querySelectorAll('[data-edit]').forEach((b) => {
+      b.onclick = () => brandForm(rows.find((r) => String(r.id) === String(b.dataset.edit)) || { id: b.dataset.edit }, false);
+    });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this brand?', 'This cannot be undone.'))) return;
+        await deleteRow('brands', CAT_KEYS.brands, b.dataset.del);
+        ackResult(true, 'Deleted.');
+        load();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

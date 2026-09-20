@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edit user — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-main { max-width: none !important; width: 100%; }
+    .fg { display:grid; gap:14px 20px; margin-top:8px; }
+    .g3 { grid-template-columns: 160px 1fr 1fr; }
+    .g2 { grid-template-columns: 1fr 1fr; }
+    .g4 { grid-template-columns: repeat(4, 1fr); }
+    .g31 { grid-template-columns: 1fr 1fr auto; align-items: end; }
+    @media (max-width: 900px) { .g3,.g2,.g4,.g31 { grid-template-columns: 1fr; } }
+    .fld { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; }
+    .fld input, .fld select, .fld textarea { font-weight:400; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; font:inherit; width:100%; box-sizing:border-box; }
+    .fld textarea { min-height:72px; }
+    .chk { display:flex; align-items:center; gap:8px; font-weight:500; font-size:14px; }
+    .info { display:inline-flex; width:14px; height:14px; border-radius:50%; background:#38bdf8; color:#fff; font-size:10px; align-items:center; justify-content:center; }
+    .hint { font-weight:400; color:#6b7280; font-size:12px; }
+    .card-title { margin:0 0 12px; font-size:16px; }
+    .update { display:block; margin:20px auto 8px; background:#5b4dff; color:#fff; border:0; border-radius:10px; padding:12px 36px; font-weight:700; cursor:pointer; }
+    .mod-strip { background:#f8fafc; border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin: 16px 0 0; }
+    .mod-strip h3 { margin:0 0 6px; font-size:15px; }
+    .mod-strip .sub { margin:0 0 12px; color:#3d4f66; font-size:13px; font-weight:400; }
+    .mod-strip .chk-row-3 { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px 16px; }
+    .mod-strip .chk { display:flex; align-items:flex-start; gap:8px; font-size:13px; font-weight:600; }
+    .mod-strip .chk.is-off { color:#5b6b80; }
+    @media (max-width: 800px) { .mod-strip .chk-row-3 { grid-template-columns: 1fr 1fr; } }
+    .role-pick { display:flex; flex-direction:column; gap:8px; max-width:min(100%, 520px); margin-top:12px; }
+    .role-pick .lab { font-size:13px; font-weight:600; }
+    .role-pick input[type="search"] {
+      min-height:40px; border:1px solid #d1d5db; border-radius:8px; padding:8px 10px; font:inherit;
+    }
+    .role-pick select { min-height:220px; height:220px; }
+  </style>
+</head>
+<body>
+  <main class="ult-main" id="app">Loading user…</main>
+  <script type="module">
+    import { supabase, getActiveSubsidiary, isRemoteKey } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome, refreshShellMenu } from './js/ultimate-shell.js';
+    import { assertCanManageUsers, adminCreateUser } from './js/admin-users.js';
+    import { subsidiarySelect, stampScope } from './js/entity-scope.js';
+    import { isHqRole, isAdminRole, displayRole, roleKey } from './js/access-rules.js';
+    import { loadRows, saveRow, fillForm } from './js/ls-rows.js';
+    import { ackResult } from './js/confirm-action.js';
+    import { KEYS as CAT_KEYS, SEED_USERS, SEED_ROLES } from './js/catalog-seed.js';
+    import { BUSINESS_LOCATIONS, uniqueBusinessLocations } from './js/scope.js';
+    import { isGated, assignRoleWithKey, issueAccessAndNotify, upsertUser, alreadyUnlocked, accessKeyAppliesTo } from './js/access-gate.js';
+    import { writeAudit } from './js/supabaseClient.js';
+    import { writeActivity } from './js/staff-log.js';
+    import { can, getAccess } from './js/rbac.js';
+    import { JOB_GROUPS } from './js/job-catalog.js';
+    import { assignableRoles, uniqueByName, canMutateUser, deny } from './js/role-guard.js';
+    import { loadBizSettings } from './js/settings-store.js';
+    import {
+      hydrateGrantsFromRows, effectiveMap, inheritMap, grantChecksHtml, readGrantChecks,
+      overridesFromChecks, setUserGrants,
+    } from './js/module-grants.js';
+    await mountUltimateShell();
+    const actor = await assertCanManageUsers();
+    if (!actor) {
+      /* redirected */
+    } else {
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    const viewOnly = params.get('view') === '1';
+    async function copyText(value) {
+      const text = String(value ?? '');
+      if (!text) return false;
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:0;width:2px;height:2px;opacity:0.01';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        if (ok) return true;
+      } catch { /* iframe */ }
+      try {
+        if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
+      } catch { /* blocked */ }
+      return false;
+    }
+    const dis = viewOnly ? 'disabled' : '';
+
+    let row = {};
+    let roles = [];
+    let locations = [];
+    let depts = [];
+    let designations = [];
+    let err = '';
+    let msg = '';
+    let biz = {};
+    let modMap = {};
+
+    function val(k) { return row[k] ?? ''; }
+    function checked(k) { return row[k] ? 'checked' : ''; }
+
+    async function load() {
+      try {
+      biz = await loadBizSettings().catch(() => ({}));
+      const [roleRows, locRemote] = await Promise.all([
+        loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES),
+        supabase.from('business_locations').select('code, name').limit(50),
+      ]);
+      roles = uniqueByName(assignableRoles(roleRows, actor.roleName));
+      locations = uniqueBusinessLocations(locRemote.data || []);
+      depts = [];
+      designations = [];
+      if (!id && !can('user.add')) {
+        deny('You cannot add users.');
+        location.href = '/users.html';
+        return;
+      }
+      if (id) {
+        row = {};
+        const local = await loadRows('profiles', CAT_KEYS.users, SEED_USERS);
+        const cached = Array.isArray(window.__dfUserRows) ? window.__dfUserRows : [];
+        const fromLocal = (list) => (list || []).find((u) =>
+          String(u.id) === String(id)
+          || String(u.email || '').toLowerCase() === String(id).toLowerCase()
+          || String(u.username || '').toLowerCase() === String(id).toLowerCase()
+        );
+        const soft = async (builder) => {
+          try {
+            const r = await builder;
+            return r?.data || null;
+          } catch {
+            return null;
+          }
+        };
+        let remote = null;
+        if (isRemoteKey(id)) {
+          remote = await soft(supabase.from('profiles').select('*').eq('id', id).maybeSingle());
+        }
+        if (!remote?.id && !remote?.email && String(id).includes('@')) {
+          remote = await soft(supabase.from('profiles').select('*').eq('email', id).maybeSingle());
+        }
+        const hit = fromLocal(cached) || fromLocal(local) || {};
+        row = remote?.id || remote?.email ? { ...hit, ...remote } : hit;
+        if (row.full_name && !row.first_name) {
+          const parts = String(row.full_name).trim().split(/\s+/);
+          row.first_name = parts[0];
+          row.last_name = parts.slice(1).join(' ');
+        }
+        const targetRole = row.role_name || row.role;
+        if (!viewOnly && !canMutateUser(actor.roleName, targetRole, { isSelf: String(row.id) === String(actor.userId) })) {
+          deny('You cannot edit a user at the same rank or above yours.');
+          location.href = '/users.html';
+          return;
+        }
+        if (row.role_id && !roles.some((r) => String(r.id) === String(row.role_id))) {
+          const keep = roleRows.find((r) => String(r.id) === String(row.role_id));
+          if (keep) roles = uniqueByName([keep, ...roles]);
+        }
+      }
+      hydrateGrantsFromRows(roleRows, row?.id ? [row] : []);
+      const roleName = row.role_name || row.role || '';
+      modMap = row?.id
+        ? effectiveMap(biz, { roleName, userId: row.id })
+        : inheritMap(biz, roleName);
+      render();
+      } catch (e) {
+        app.innerHTML = pageChrome('Edit user', '') + `<p class="ult-alert">${esc(e.message || e)}</p><p><a href="/users.html">Back to users</a></p>`;
+      }
+    }
+
+    function opt(list, cur, key = 'name') {
+      const rows = list.map((x) => typeof x === 'string' ? { name: x } : x);
+      return `<option value="">Please Select</option>` + rows.map((x) =>
+        `<option ${String(cur||'') === String(x[key] || x.name) ? 'selected' : ''}>${esc(x.name || x[key])}</option>`
+      ).join('');
+    }
+
+    function render() {
+      const title = viewOnly ? 'View user' : id ? 'Edit user' : 'Add user';
+      app.innerHTML = pageChrome(title, '') + `
+        ${err ? `<div class="ult-alert">${esc(err)}</div>` : ''}
+        ${msg ? `<div class="ult-alert" style="background:#ecfdf5;border-color:#6ee7b7;color:#065f46">${esc(msg)}</div>` : ''}
+        <form id="f">
+          <div class="ult-card">
+            <div class="fg g3">
+              <label class="fld">Prefix:<input name="prefix" ${dis} value="${esc(val('prefix'))}" placeholder="Mr" /></label>
+              <label class="fld">First Name:*<input name="first_name" ${dis} required value="${esc(val('first_name'))}" /></label>
+              <label class="fld">Last Name:<input name="last_name" ${dis} value="${esc(val('last_name'))}" placeholder="Last Name" /></label>
+            </div>
+            <div class="fg g3" style="margin-top:12px">
+              <label class="fld">Email:*<input name="email" type="email" ${dis} required value="${esc(val('email'))}" /></label>
+              <label class="chk"><input type="checkbox" name="is_active" ${dis} ${row.is_active !== false ? 'checked' : ''}/> Is active ? <span class="info">i</span></label>
+              <label class="chk" title="Till PIN for this Sales Associate when Cashier role is assigned"><input type="checkbox" name="service_staff_pin" ${dis} ${checked('service_staff_pin') || checked('cashier_staff_pin')}/> Enable cashier PIN <span class="info" title="Till PIN for cashier duty.">i</span></label>
+            </div>
+          </div>
+
+          <div class="ult-card">
+            <h3 class="card-title">Roles and Permissions</h3>
+            <label class="chk"><input type="checkbox" name="allow_login" ${dis} ${row.allow_login !== false ? 'checked' : ''}/> Allow login</label>
+            <div class="fg g2" style="margin-top:12px">
+              <label class="fld">Password:<input name="password" type="password" ${dis} autocomplete="new-password" placeholder="Password" /><span class="hint">Leave password field blank if you don't want to update password</span></label>
+              <label class="fld">Confirm Password:<input name="password2" type="password" ${dis} placeholder="Confirm Password" /></label>
+            </div>
+            ${(() => {
+              const hq = isHqRole(row.role || row.role_name);
+              const sel = hq ? 'group' : (row.subsidiary_code || row.home_subsidiary || '');
+              return subsidiarySelect(sel, { allowGroup: true, disabled: hq })
+                + (hq ? '<p class="hint">HQ Admin belongs to Delkor-Fiberk Group and oversees every subsidiary.</p>' : '');
+            })()}
+            ${(() => {
+              const allowed = uniqueByName(roles);
+              const byKey = new Map(allowed.map((r) => [roleKey(displayRole(r.name) || r.name), r]));
+              const curId = String(row.role_id || '');
+              const curName = displayRole(row.role || row.role_name || '');
+              const groups = JOB_GROUPS.filter((g) => g.id !== 'gate');
+              return `<div class="role-pick">
+                <span class="lab">Role:* <span class="info">i</span></span>
+                <input type="search" id="role-q" placeholder="Search roles…" autocomplete="off" ${dis} />
+                <select name="role_id" ${dis} required size="12">
+                  <option value="">Please Select</option>
+                  ${groups.map((g) => {
+                    const opts = g.jobs.map((j) => {
+                      const rec = byKey.get(roleKey(j.name));
+                      if (!rec) return '';
+                      const on = curId === String(rec.id) || roleKey(curName) === roleKey(j.name);
+                      return `<option value="${esc(rec.id)}" ${on ? 'selected' : ''}>${esc(j.name)}</option>`;
+                    }).filter(Boolean).join('');
+                    return opts ? `<optgroup label="${esc(g.label)}">${opts}</optgroup>` : '';
+                  }).join('')}
+                </select>
+              </div>`;
+            })()}
+            ${isGated(row) || row.status === 'pending' || row.status === 'keyed' || row.access_key ? `
+            <div style="margin-top:16px;padding:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:10px">
+              <strong>Access key</strong>
+              <p class="hint">Head-office jobs get HO-XXXX-XXXX (group dashboard). Operations jobs get OP-XXXX-XXXX (till / field). Copy it here. The employee also gets it in the bell and by mail, then enters it on Orientation.</p>
+              <p id="issued-key" style="font-size:22px;letter-spacing:.08em;font-weight:800;margin:8px 0">${esc(row.access_key || 'Not issued yet')}</p>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <button type="button" class="ult-btn" id="copy-key" ${row.access_key ? '' : 'disabled'}>Copy key</button>
+                <button type="button" class="ult-btn" id="gen-key" ${dis}>${row.access_key ? 'Rotate key & notify' : 'Generate key & notify'}</button>
+              </div>
+            </div>` : ''}
+            <div style="margin-top:16px">
+              <strong>Access locations</strong> <span class="info">i</span>
+              <div style="margin-top:8px">
+                <label class="chk"><input type="checkbox" name="all_locations" ${dis} ${row.all_locations !== false ? 'checked' : ''}/> All Locations <span class="info">i</span></label>
+                ${locations.map((l) => `<label class="chk"><input type="checkbox" name="loc_${esc(l.code || l.name)}" ${dis} ${(val('location_codes')||'').includes(l.code||l.name)?'checked':''}/> ${esc(l.name || l.code)}</label>`).join('') || '<label class="chk"><input type="checkbox" ${dis}/> HQ</label>'}
+              </div>
+            </div>
+          </div>
+
+          <div class="ult-card">
+            <div class="mod-strip" style="margin:0;border:0;background:transparent;padding:0">
+              <h3 class="card-title">Modules for this person</h3>
+              <p class="sub">Starts from their role. Tick a module their role does not have — it still has to be on for the company. Untick to hide one module for this person only.</p>
+              <div class="chk-row-3">${grantChecksHtml(biz, modMap)}</div>
+            </div>
+          </div>
+
+          <div class="ult-card">
+            <h3 class="card-title">Sales</h3>
+            <div class="fg g2">
+              <label class="fld">Sales Commission Percentage (%): <span class="info">i</span><input name="sales_commission_pct" type="number" step="0.01" ${dis} value="${esc(val('sales_commission_pct') || '0.00')}" /></label>
+              <label class="fld">Max sales discount percent: <span class="info">i</span><input name="max_sales_discount_pct" type="number" step="0.01" ${dis} value="${esc(val('max_sales_discount_pct'))}" placeholder="Max sales discount percent" /></label>
+            </div>
+            <label class="chk" style="margin-top:12px"><input type="checkbox" name="allow_selected_contacts" ${dis} ${checked('allow_selected_contacts')}/> Allow Selected Contacts <span class="info">i</span></label>
+          </div>
+
+          <div class="ult-card">
+            <h3 class="card-title">More Informations</h3>
+            <div class="fg g4">
+              <label class="fld">Date of birth:<input name="dob" type="date" ${dis} value="${esc(val('dob'))}" /></label>
+              <label class="fld">Gender:<select name="gender" ${dis}><option value="">Please Select</option>${['Male','Female','Other'].map((g)=>`<option ${val('gender')===g?'selected':''}>${g}</option>`).join('')}</select></label>
+              <label class="fld">Marital Status:<select name="marital_status" ${dis}><option value="">Marital Status</option>${['Single','Married','Divorced','Widowed'].map((g)=>`<option ${val('marital_status')===g?'selected':''}>${g}</option>`).join('')}</select></label>
+              <label class="fld">Blood Group:<input name="blood_group" ${dis} value="${esc(val('blood_group'))}" placeholder="Blood Group" /></label>
+              <label class="fld">Mobile Number:<input name="mobile" ${dis} value="${esc(val('mobile'))}" /></label>
+              <label class="fld">Alternate contact number:<input name="alt_mobile" ${dis} value="${esc(val('alt_mobile'))}" /></label>
+              <label class="fld">Family contact number:<input name="family_contact" ${dis} value="${esc(val('family_contact'))}" /></label>
+              <label class="fld">Facebook Link:<input name="facebook" ${dis} value="${esc(val('facebook'))}" /></label>
+              <label class="fld">Twitter Link:<input name="twitter" ${dis} value="${esc(val('twitter'))}" /></label>
+              <label class="fld">Social Media 1:<input name="social_1" ${dis} value="${esc(val('social_1'))}" /></label>
+              <label class="fld">Social Media 2:<input name="social_2" ${dis} value="${esc(val('social_2'))}" /></label>
+              <label class="fld">Custom field 1:<input name="custom_1" ${dis} value="${esc(val('custom_1'))}" /></label>
+              <label class="fld">Custom field 2:<input name="custom_2" ${dis} value="${esc(val('custom_2'))}" /></label>
+              <label class="fld">Custom field 3:<input name="custom_3" ${dis} value="${esc(val('custom_3'))}" /></label>
+              <label class="fld">Custom field 4:<input name="custom_4" ${dis} value="${esc(val('custom_4'))}" /></label>
+              <label class="fld">Guardian Name:<input name="guardian_name" ${dis} value="${esc(val('guardian_name'))}" /></label>
+              <label class="fld">ID proof name:<input name="id_proof_name" ${dis} value="${esc(val('id_proof_name'))}" /></label>
+              <label class="fld">ID proof number:<input name="id_proof_number" ${dis} value="${esc(val('id_proof_number'))}" /></label>
+            </div>
+            <div class="fg g2" style="margin-top:12px">
+              <label class="fld">City:<input name="city" ${dis} value="${esc(val('city') || 'Accra')}" /></label>
+              <label class="fld">Region:<select name="region" ${dis}>
+                ${['Ahafo','Ashanti','Bono','Bono East','Central','Eastern','Greater Accra','North East','Northern','Oti','Savannah','Upper East','Upper West','Volta','Western','Western North'].map((r)=>`<option ${ (val('region')||'Greater Accra')===r?'selected':'' }>${r}</option>`).join('')}
+              </select></label>
+              <label class="fld">Digital Address:<input name="ghana_post_gps" ${dis} value="${esc(val('ghana_post_gps'))}" placeholder="e.g. GA-123-4567" /></label>
+            </div>
+            <div class="fg g2" style="margin-top:12px">
+              <label class="fld">Permanent Address:<textarea name="address_permanent" ${dis}>${esc(val('address_permanent'))}</textarea></label>
+              <label class="fld">Current Address:<textarea name="address_current" ${dis}>${esc(val('address_current'))}</textarea></label>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--ult-border);margin:16px 0" />
+            <h3 class="card-title">Bank Details:</h3>
+            <div class="fg g4">
+              <label class="fld">Account Holder's Name:<input name="bank_holder" ${dis} value="${esc(val('bank_holder'))}" /></label>
+              <label class="fld">Account Number:<input name="bank_account" ${dis} value="${esc(val('bank_account'))}" /></label>
+              <label class="fld">Bank Name:<input name="bank_name" ${dis} value="${esc(val('bank_name'))}" /></label>
+              <label class="fld">Bank Identifier Code: <span class="info">i</span><input name="bank_code" ${dis} value="${esc(val('bank_code'))}" /></label>
+              <label class="fld">Branch:<input name="bank_branch" ${dis} value="${esc(val('bank_branch'))}" /></label>
+              <label class="fld">Tax Payer ID: <span class="info">i</span><input name="tin" ${dis} value="${esc(val('tin'))}" placeholder="TIN" /></label>
+            </div>
+          </div>
+
+          <div class="ult-card">
+            <h3 class="card-title">HRM Details</h3>
+            <div class="fg g2">
+              <label class="fld">Department:<select name="department" ${dis}>${opt(depts, val('department'))}</select></label>
+              <label class="fld">Designation:<select name="designation" ${dis}>${opt(designations, val('designation'))}</select></label>
+            </div>
+          </div>
+
+          <div class="ult-card">
+            <h3 class="card-title">Payroll</h3>
+            <div class="fg g31">
+              <label class="fld">Primary work location:<select name="work_location" ${dis}>${opt(locations, val('work_location'), 'name')}</select></label>
+              <label class="fld">Basic salary:
+                <span style="display:flex;gap:8px">
+                  <input name="basic_salary" type="number" step="0.01" ${dis} value="${esc(val('basic_salary'))}" placeholder="Basic salary" />
+                  <select name="salary_period" ${dis}><option ${val('salary_period')!=='Per Day'?'selected':''}>Per Month</option><option ${val('salary_period')==='Per Day'?'selected':''}>Per Day</option></select>
+                </span>
+              </label>
+              <label class="fld">Pay Components:<input name="pay_components" ${dis} value="${esc(val('pay_components'))}" /></label>
+            </div>
+          </div>
+
+          ${viewOnly ? `<div style="text-align:center"><a class="ult-btn ult-btn-outline" href="/users.html">Back</a> <a class="update" href="/user-edit.html?id=${esc(id)}" style="display:inline-block;text-decoration:none">Edit</a></div>`
+            : `<button type="submit" class="update">Update</button>`}
+        </form>
+      `;
+      if (id && row && Object.keys(row).length) {
+        try { fillForm(app.querySelector('#f'), row); } catch { /* painted values stay */ }
+      }
+      app.querySelector('#f')?.addEventListener('submit', save);
+      app.querySelector('#copy-key')?.addEventListener('click', async () => {
+        const k = row.access_key || '';
+        if (!k) return;
+        const ok = await copyText(k);
+        ackResult(ok, ok ? ('Access key copied: ' + k) : ('Clipboard blocked. Key is ' + k));
+      });
+      app.querySelector('#gen-key')?.addEventListener('click', async () => {
+        const roleName = row.role && !/pending/i.test(String(row.role)) ? row.role : 'Cashier';
+        const roleId = row.role_id && row.role_id !== 'r-pending' ? row.role_id : 'r-cash';
+        const issued = await issueAccessAndNotify({ ...row, access_key: null }, roleName, roleId);
+        row = issued.user;
+        msg = 'Key ' + issued.key + ' sent to the bell and emailed to ' + (row.email || '') + '. Role: ' + issued.role + '.';
+        err = '';
+        ackResult(true, msg);
+        render();
+      });
+      const roleSel = app.querySelector('[name="role_id"]');
+      const roleQ = app.querySelector('#role-q');
+      roleQ?.addEventListener('input', () => {
+        const s = String(roleQ.value || '').trim().toLowerCase();
+        roleSel?.querySelectorAll('option').forEach((o) => {
+          if (!o.value) { o.hidden = false; return; }
+          o.hidden = !!(s && !String(o.textContent || '').toLowerCase().includes(s));
+        });
+        roleSel?.querySelectorAll('optgroup').forEach((g) => {
+          g.hidden = ![...g.querySelectorAll('option')].some((o) => !o.hidden && o.value);
+        });
+      });
+      if (roleSel) roleSel.addEventListener('change', () => {
+        const checks = readGrantChecks(app);
+        if (Object.keys(checks).length) modMap = { ...modMap, ...checks };
+        const name = roles.find((x) => String(x.id) === String(roleSel.value))?.name || '';
+        row.role = name;
+        row.role_id = roleSel.value;
+        row.role_name = name;
+        if (isHqRole(name)) {
+          row.subsidiary_code = 'group';
+          row.home_subsidiary = 'group';
+          row.all_locations = true;
+        }
+        modMap = effectiveMap(biz, { roleName: name, userId: row.id });
+        render();
+      });
+    }
+
+    async function save(e) {
+      e.preventDefault();
+      const go = await (await import('./js/confirm-action.js')).confirmAction(id ? 'Update this user?' : 'Create this user?', 'Confirm to save the profile and role.');
+      if (!go) return;
+      const f = e.target;
+      const get = (n) => f[n]?.value ?? null;
+      const on = (n) => !!f[n]?.checked;
+      const roleId = get('role_id') || null;
+      const role = roles.find((x) => String(x.id) === String(roleId))?.name || null;
+      const roleIdUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(roleId || '')) ? roleId : null;
+      if (role && !canMutateUser(actor.roleName, role)) {
+        err = 'You cannot assign the ' + role + ' role.';
+        render();
+        return;
+      }
+      if (id && !can('user.edit')) { err = 'No permission to edit users.'; render(); return; }
+      if (!id && !can('user.add')) { err = 'No permission to add users.'; render(); return; }
+      const first = get('first_name') || '';
+      const last = get('last_name') || '';
+      const payload = {
+        prefix: get('prefix'),
+        first_name: first,
+        last_name: last,
+        full_name: [first, last].filter(Boolean).join(' ') || null,
+        email: get('email'),
+        username: (get('email') || '').split('@')[0],
+        is_active: on('is_active'),
+        service_staff_pin: on('service_staff_pin'),
+        allow_login: on('allow_login'),
+        role_id: roleIdUuid,
+        role,
+        role_name: role,
+        all_locations: on('all_locations'),
+        sales_commission_pct: Number(get('sales_commission_pct') || 0),
+        max_sales_discount_pct: get('max_sales_discount_pct') === '' ? null : Number(get('max_sales_discount_pct')),
+        allow_selected_contacts: on('allow_selected_contacts'),
+        dob: get('dob') || null,
+        gender: get('gender') || null,
+        marital_status: get('marital_status') || null,
+        blood_group: get('blood_group') || null,
+        mobile: get('mobile'),
+        alt_mobile: get('alt_mobile'),
+        family_contact: get('family_contact'),
+        facebook: get('facebook'),
+        twitter: get('twitter'),
+        social_1: get('social_1'),
+        social_2: get('social_2'),
+        custom_1: get('custom_1'),
+        custom_2: get('custom_2'),
+        custom_3: get('custom_3'),
+        custom_4: get('custom_4'),
+        guardian_name: get('guardian_name'),
+        id_proof_name: get('id_proof_name'),
+        id_proof_number: get('id_proof_number'),
+        address_permanent: get('address_permanent'),
+        address_current: get('address_current'),
+        city: get('city') || 'Accra',
+        region: get('region') || 'Greater Accra',
+        ghana_post_gps: get('ghana_post_gps') || null,
+        country: 'Ghana',
+        bank_holder: get('bank_holder'),
+        bank_account: get('bank_account'),
+        bank_name: get('bank_name'),
+        bank_code: get('bank_code'),
+        bank_branch: get('bank_branch'),
+        tin: get('tin'),
+        department: get('department') || null,
+        designation: get('designation') || null,
+        work_location: get('work_location') || null,
+        basic_salary: get('basic_salary') === '' ? null : Number(get('basic_salary')),
+        salary_period: get('salary_period'),
+        pay_components: get('pay_components'),
+      };
+      if (isHqRole(role) || (isAdminRole(role) && (f.subsidiary_code?.value === 'group' || on('all_locations')))) {
+        payload.subsidiary_code = f.subsidiary_code?.value || 'group';
+        payload.home_subsidiary = payload.subsidiary_code;
+        if (isHqRole(role) || on('all_locations')) payload.all_locations = true;
+      } else {
+        try { stampScope(payload, f); } catch (ex) { err = ex.message; render(); return; }
+        payload.home_subsidiary = payload.subsidiary_code || null;
+      }
+      const locs = [...f.querySelectorAll('input[name^="loc_"]:checked')].map((el) => el.name.replace(/^loc_/, ''));
+      payload.location_codes = on('all_locations') ? ['*'] : locs;
+      payload.pos_pin = '1234';
+      payload.till_pin = '1234';
+      const checks = readGrantChecks(app);
+      if (Object.keys(checks).length) modMap = { ...modMap, ...checks };
+      const flags = overridesFromChecks(biz, modMap, { roleName: role, userId: id || row.id || '' });
+      payload.module_flags = flags;
+      if (role && !/pending/i.test(role)) {
+        const unlocked = alreadyUnlocked(row) || isHqRole(role);
+        if (unlocked) {
+          payload.status = row.status === 'inactive' ? 'inactive' : 'active';
+          payload.access_unlocked = true;
+        } else if (!row.access_key && accessKeyAppliesTo({ ...row, ...payload, role, role_name: role })) {
+          const issued = await issueAccessAndNotify({ ...row, ...payload, id, access_key: null }, role, roleIdUuid);
+          const keyed = issued.user;
+          payload.status = keyed.status;
+          payload.access_key = keyed.access_key;
+          payload.access_unlocked = keyed.access_unlocked === true;
+          payload._key_issued = !!issued.key && !issued.mail?.skipped;
+        } else {
+          payload.status = row.status || 'keyed';
+          payload.access_key = row.access_key;
+          payload.access_unlocked = false;
+        }
+        payload.role = role;
+        payload.role_name = role;
+      }
+
+      const pwd = get('password');
+      const pwd2 = get('password2');
+      if (pwd && pwd !== pwd2) { err = 'Passwords do not match'; render(); return; }
+
+      if (!id) {
+        if (!on('allow_login')) { err = 'Allow login must be on to create a sign-in.'; render(); return; }
+        if (!pwd) { err = 'Password is required when creating a user.'; render(); return; }
+        const created = await adminCreateUser({ email: payload.email, password: pwd, profile: payload });
+        const saved = await saveRow('profiles', CAT_KEYS.users, { ...payload, id: created?.user?.id || created?.id });
+        if (saved?.id) setUserGrants(saved.id, flags);
+        if (created?.error && !saved?.id) {
+          ackResult(false, created.error.message);
+          err = created.error.message; render(); return;
+        }
+        ackResult(true, 'User created' + (saved?._localOnly ? ' on this device only — company database rejected the write.' : '.'));
+        if (!saved?._localOnly) location.href = '/users.html';
+        else { err = 'Saved on this device only. Sign in as HQ Admin so the company catalogue updates.'; render(); }
+        return;
+      }
+
+      const slim = {
+        id,
+        email: payload.email,
+        username: payload.username,
+        full_name: payload.full_name,
+        first_name: payload.first_name,
+        last_name: payload.last_name,
+        prefix: payload.prefix,
+        role: payload.role,
+        role_name: payload.role_name,
+        role_id: payload.role_id,
+        is_active: payload.is_active,
+        allow_login: payload.allow_login,
+        subsidiary_code: payload.subsidiary_code,
+        home_subsidiary: payload.home_subsidiary,
+        location_code: payload.location_code || '',
+        all_locations: payload.all_locations,
+        location_codes: payload.location_codes,
+        status: payload.status,
+        access_unlocked: payload.access_unlocked,
+      };
+      if (!payload.access_unlocked && payload.access_key) slim.access_key = payload.access_key;
+      const saved = await saveRow('profiles', CAT_KEYS.users, { ...payload, ...slim, id });
+      setUserGrants(id, flags);
+      try {
+        await writeAudit({
+          action: 'PROFILE_UPDATE',
+          entity_type: 'profile',
+          entity_id: id,
+          summary: (payload.full_name || payload.email) + ' profile updated',
+          payload: { email: payload.email, role: payload.role, designation: payload.designation },
+        });
+        writeActivity({
+          action: 'profile_update',
+          type: 'Profile',
+          by: getAccess()?.email || actor?.email || '',
+          user_id: id,
+          note: 'Updated ' + (payload.full_name || payload.email),
+        });
+      } catch { /* ignore */ }
+      if (saved?._localOnly && !saved?._shared) {
+        if (saved._error) {
+          ackResult(false, 'Could not share this user: ' + saved._error + '.');
+          err = saved._error;
+          render();
+          return;
+        }
+        ackResult(true, payload.full_name + ' saved here. They have no Auth login, so the company book was left unchanged.');
+        row = { ...row, ...payload, id };
+        render();
+        return;
+      }
+      ackResult(true, payload._key_issued
+        ? (payload.full_name + ' updated. Access key is ' + payload.access_key + ' — copy it now. A copy went to the user’s bell and mail outbox.')
+        : (payload.full_name + ' updated. Change is in the audit log — no new access key.'));
+      row = { ...row, ...payload, id };
+      try {
+        const me = getAccess();
+        if (me?.userId && String(me.userId) === String(id)) await refreshShellMenu();
+      } catch { /* ignore */ }
+      render();
+    }
+
+    load();
+    }
+  </script>
+</body>
+</html>

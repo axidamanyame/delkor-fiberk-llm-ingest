@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>View Contact — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    /* Was `bootContactView()` from reports-hub.js, which rendered this through
+       the generic report painter — so a supplier's View showed a report shell
+       rather than the record. It now uses the standard view card: facts grid,
+       green for money, blue for movement. */
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { loadRows, readLs } from './js/ls-rows.js';
+    import { KEYS } from './js/catalog-seed.js';
+    import { viewCard } from './js/view-card.js';
+    import { subsidiaryLabel } from './js/entity-scope.js';
+
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+
+    const app = document.getElementById('app');
+    const q = new URLSearchParams(location.search);
+    const id = q.get('id') || '';
+    const kind = /suppl/i.test(q.get('kind') || '') ? 'supplier' : 'customer';
+    const fmt = (n) => 'GH₵ ' + Number(n || 0).toLocaleString('en-GH', { minimumFractionDigits: 2 });
+    const asList = (v) => (Array.isArray(v) ? v : []);
+
+    function label(r) {
+      return r.business_name || r.full_name || r.name || r.email || 'Contact';
+    }
+
+    /** Purchase or sale lines that reference this contact, newest first. */
+    function movement(row) {
+      const books = kind === 'supplier'
+        ? [['Purchases', 'df_purchases'], ['Purchase returns', 'df_purchase_returns']]
+        : [['Sales', 'df_sales'], ['EasyBuy', 'df_bnpl_orders']];
+      const out = [];
+      const needle = String(row.id || '').toLowerCase();
+      const nameNeedle = String(label(row)).toLowerCase();
+      for (const [book, key] of books) {
+        for (const line of asList(readLs(key, []))) {
+          const ref = String(line.supplier_id || line.customer_id || line.contact_id || '').toLowerCase();
+          const nm = String(line.supplier_name || line.customer_name || line.name || '').toLowerCase();
+          if (ref !== needle && nm !== nameNeedle) continue;
+          out.push([
+            line.date || line.created_at || '',
+            book,
+            line.ref_no || line.reference || line.invoice_no || '',
+            subsidiaryLabel(line.subsidiary_code) || '',
+            line.location_code || line.location_name || '',
+            fmt(line.total || line.amount || line.grand_total || 0),
+          ]);
+        }
+      }
+      /* Twelve, not forty: a card shows this record's recent activity. The
+         full history across the group is a report. */
+      return out.sort((a, b) => String(b[0]).localeCompare(String(a[0]))).slice(0, 12);
+    }
+
+    async function load() {
+      const table = kind === 'supplier' ? 'suppliers' : 'customers';
+      const key = kind === 'supplier' ? KEYS.suppliers : KEYS.customers;
+      const rows = await loadRows(table, key, []);
+      const row = rows.find((r) => String(r.id) === String(id));
+
+      if (!row) {
+        app.innerHTML = `<div class="ult-card" style="padding:18px">
+          <p class="ult-alert" style="padding:10px 12px;border:1px solid;border-radius:8px">
+            No ${kind} matches <code>${id || '—'}</code>.</p>
+          <p><a class="ult-btn ult-btn-outline" href="/${kind === 'supplier' ? 'suppliers' : 'customers'}.html">Back to list</a></p>
+        </div>`;
+        return;
+      }
+
+      const money = kind === 'supplier'
+        ? [
+          ['Opening balance', fmt(row.opening_balance || 0)],
+          ['Purchase due', fmt(row.purchase_due || 0)],
+          ['Return due', fmt(row.purchase_return_due || 0)],
+          ['Advance paid', fmt(row.advance_balance || 0)],
+        ]
+        : [
+          ['Opening balance', fmt(row.opening_balance || 0)],
+          ['Sales due', fmt(row.sale_due || 0)],
+          ['Returns due', fmt(row.ret_due || 0)],
+          ['Advance balance', fmt(row.advance_balance || 0)],
+        ];
+
+      app.innerHTML = viewCard({
+        title: label(row),
+        subtitle: row.contact_id || row.id || '',
+        facts: [
+          [
+            ['Phone', row.mobile || row.phone],
+            ['Email', row.email],
+            ['Type', kind === 'supplier' ? 'Supplier' : 'Customer'],
+          ],
+          [
+            ['Company', subsidiaryLabel(row.subsidiary_code)],
+            ['Location', row.location_name || row.location_code],
+            ['Group', row.supplier_group || row.customer_group || row.group_name],
+          ],
+          [
+            ['TIN', row.tax_number],
+            ['Pay term', row.pay_term],
+            ['Address', [row.address, row.city].filter(Boolean).join(', ')],
+          ],
+        ],
+        sections: [
+          { tone: 'green', columns: money.map(([l]) => l), rows: [money.map(([, v]) => v)] },
+          {
+            tone: 'blue',
+            title: 'Recent transactions',
+            columns: ['Date', 'Book', 'Ref', 'Company', 'Location', 'Amount'],
+            rows: movement(row),
+          },
+        ],
+        actions: [
+          { label: 'Edit', href: `/${kind === 'supplier' ? 'supplier-form' : 'customer-form'}.html?id=${encodeURIComponent(row.id)}`, tone: 'primary' },
+          { label: 'Back to list', href: `/${kind === 'supplier' ? 'suppliers' : 'customers'}.html`, tone: 'dark' },
+        ],
+      });
+    }
+
+    await load();
+    window.addEventListener('popstate', load);
+  </script>
+</body>
+</html>

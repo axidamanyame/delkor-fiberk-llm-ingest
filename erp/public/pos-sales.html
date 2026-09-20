@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>List POS Sales</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    .page h1{margin:0;font-size:22px;font-weight:700}
+    .sub{margin:4px 0 12px;font-size:13px;color:var(--ult-text);font-weight:400}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
+    .add{background:linear-gradient(to right,#4f46e5,#3b82f6);color:#fff;border:0;border-radius:999px;padding:8px 18px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+    .pf{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .pf-btn{width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--ult-card);border:0;cursor:pointer;font:inherit}
+    .pf-btn:hover{background:#f9fafb}
+    .pf-ico{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,#004EEB 10%,transparent);color:#004EEB;margin-right:10px;font-size:12px}
+    .pf-btn span.label{font-size:14px;font-weight:700;color:var(--ult-text)}
+    .pf-chev{color:#004EEB;transition:transform .2s}
+    .pf.open .pf-chev{transform:rotate(180deg)}
+    .pf-body{display:none;padding:8px 16px 16px}
+    .pf.open .pf-body{display:block}
+    .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+    @media(max-width:900px){.filters{grid-template-columns:1fr 1fr}}
+    .filters label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--ult-text)}
+    .filters select,.filters input,.doc input,.doc select,.doc textarea{border:1px solid #111;border-radius:8px;padding:7px 10px;width:100%;box-sizing:border-box;color:var(--ult-text);background:var(--ult-card);font-weight:400}
+    .filters input[type=checkbox]{width:auto;padding:0;flex:none}
+    table.ult-table th,table.ult-table td{color:var(--ult-text);white-space:nowrap}
+    table.ult-table td:first-child{overflow:visible;white-space:normal}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .act{position:relative;overflow:visible}
+    .act summary{list-style:none;cursor:pointer;border:1px solid #7dd3fc;color:#0284c7;background:var(--ult-card);border-radius:999px;padding:4px 12px;font-size:12px}
+    .act summary::-webkit-details-marker{display:none}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+    .pill.paid{background:#dcfce7;color:#166534}
+    .pill.due{background:#ffedd5;color:#9a3412}
+    .pill.partial{background:#fef9c3;color:#854d0e}
+    .pill.overdue{background:#fecaca;color:#7f1d1d}
+    tfoot td{font-weight:800;background:#e5e7eb;color:#111}
+    .doc label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;margin-bottom:10px}
+    .doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:6px 12px;font-size:14px}
+    .kv b{color:#3d4f66;font-weight:600}
+    .back{display:inline-flex;align-items:center;gap:6px;margin-bottom:12px;color:#004EEB;font-weight:700;text-decoration:none}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, filterAgentHtml, BUSINESS_LOCATIONS, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast, shareUrl, datePreset, datePresetHtml, noteStore } from './js/confirm-action.js';
+  import { loadRows, deleteRow } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_SALES, SEED_CUSTOMERS, isDemoRecord } from './js/catalog-seed.js';
+  import { findSale, syncHpSalesIntoBook } from './js/sale-lookup.js';
+  import { liveDeskRows, hardForkMerge, toIsoDate } from './js/fiberk-silo.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => {
+    if (ch === '&') return '&' + 'amp;';
+    if (ch === '<') return '&' + 'lt;';
+    if (ch === '>') return '&' + 'gt;';
+    if (ch === '"') return '&' + 'quot;';
+    return '&' + '#39;';
+  });
+  const params = () => new URLSearchParams(location.search);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const year = new Date().getFullYear();
+  let showFilt = false;
+  const F = {
+    loc: '', customer: '', pay: '', from: '2025-01-01', to: `${year}-12-31`,
+    user: '', ship: '', subOnly: false, preset: 'fiberkapp',
+  };
+
+  function isPosSale(o) {
+    const ch = String(o.sale_channel || o.source || o.channel || '').toLowerCase();
+    if (ch === 'pos') return true;
+    if (o.pos_session_id) return true;
+    if (/POS\s*·/i.test(String(o.notes || ''))) return true;
+    const loc = String(o.location_name || o.legacy_location || o.location_code || '');
+    if (/easybuy\s*-/i.test(loc) || /bnpl-field|jumia/i.test(loc)) return false;
+    if (ch === 'fiberkapp' || ch === 'upload' || ch === 'migrated') return /fiberk/i.test(loc) || !loc;
+    return false;
+  }
+  function overdue(o) {
+    const due = Math.max(0, Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+    if (due <= 0) return false;
+    const d = new Date(String(o.order_date || o.created_at || '').slice(0, 10));
+    return (Date.now() - d.getTime()) / 86400000 > 30;
+  }
+  function payStatus(o) {
+    const raw = String(o.payment_status || 'due').toLowerCase();
+    if (raw === 'paid') return 'paid';
+    if (raw === 'partial') return 'partial';
+    if (raw === 'unpaid' || raw === 'due') return overdue(o) ? 'overdue' : 'due';
+    return overdue(o) ? 'overdue' : (raw || 'due');
+  }
+  function itemsOf(o) {
+    const lines = o.lines || o.items || [];
+    if (Array.isArray(lines) && lines.length) return lines.reduce((s, l) => s + Number(l.qty || l.quantity || 1), 0);
+    return Number(o.total_items || 0);
+  }
+  function methodOf(o) {
+    return o.payment_method || o.pay_method || o.method || 'cash';
+  }
+  function locName(o) {
+    return findLocation(o.location_code)?.name || o.location_name || o.location_code || '';
+  }
+  function invOf(o) {
+    return o.reference || o.so_number || o.invoice_no || String(o.id || '').slice(0, 8);
+  }
+  function fmtRange() {
+    const a = F.from ? F.from.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') : '';
+    const b = F.to ? F.to.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') : '';
+    return a && b ? `${a} - ${b}` : '';
+  }
+  function linesFromNotes(o) {
+    const n = String(o.notes || '');
+    const m = n.match(/\|LINES\|(.+)$/);
+    if (!m) return [];
+    try { return JSON.parse(m[1]); } catch { return []; }
+  }
+  async function loadLines(o) {
+    if (Array.isArray(o.lines) && o.lines.length) return o.lines;
+    for (const table of ['sales_order_lines', 'sale_items', 'sales_items', 'order_lines']) {
+      const { data } = await supabase.from(table).select('*').eq('sales_order_id', o.id).limit(200);
+      if (data && data.length) return data;
+    }
+    return linesFromNotes(o);
+  }
+  function printDoc(title, html) {
+    const w = window.open('', '_blank', 'width=780,height=900');
+    if (!w) return alert('Allow pop-ups to print');
+    w.document.write(`<!doctype html><title>${title}</title>
+      <style>
+        @page{size:A4 portrait;margin:12mm}
+        body{font-family:Inter,Arial,sans-serif;color:var(--ult-text);padding:18px}
+        h1,h2{margin:0 0 6px} table{width:100%;border-collapse:collapse;margin-top:12px}
+        th,td{border-bottom:1px solid var(--ult-border);padding:6px 8px;text-align:left;font-size:13px}
+        th{background:var(--ult-card-2);text-transform:uppercase;font-size:11px}
+        .muted{color:#3d4f66;font-size:12px} .tot{font-weight:800}
+        .brand{letter-spacing:.08em;font-weight:800}
+      </style>${html}`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 250);
+  }
+
+  async function saleById(id) {
+    return findSale(id);
+  }
+
+  function viewTabs(id, on) {
+    return `<nav class="view-tabs">
+      <a class="${on==='details'?'on':''}" href="/pos-sales.html?view=${id}">Details</a>
+      <a class="${on==='pay'?'on':''}" href="/pos-sales.html?pay=${id}">Payments</a>
+      <a class="${on==='notes'?'on':''}" href="/pos-sales.html?view=${id}&tab=notes">Documents & notes</a>
+      <a class="${on==='ship'?'on':''}" href="/pos-sales.html?ship=${id}">Shipping</a>
+    </nav>`;
+  }
+
+  async function paintView(id) {
+    const o = await saleById(id);
+    if (!o) { app.innerHTML = '<p>Sale not found.</p>'; return; }
+    const lines = await loadLines(o);
+    const due = Math.max(0, Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+    app.innerHTML = `
+      <a class="back" href="/pos-sales.html">← Back to List POS Sales</a>
+      <h1>View sale ${esc(invOf(o))}</h1>
+      <p class="sub">Read only · ${esc(o.source === 'easybuy' || o.sale_channel === 'field-hp' ? 'EasyBuy field contract' : 'till ticket')} · ${esc(scopeCaption())}</p>
+      ${viewTabs(id, 'details')}
+      <div class="card doc">
+        <div class="kv">
+          <b>Invoice No.</b><span>${esc(invOf(o))}</span>
+          <b>Date</b><span>${esc(String(o.order_date || o.created_at || '').slice(0, 16).replace('T',' '))}</span>
+          <b>Customer</b><span>${esc(o.customer_name || 'Walk-In Customer')}</span>
+          <b>Location</b><span>${esc(locName(o))}</span>
+          <b>Subsidiary</b><span>${esc(o.subsidiary_code || '')}</span>
+          <b>Payment</b><span><span class="pill ${payStatus(o)}">${payStatus(o)}</span> · ${esc(methodOf(o))}</span>
+          <b>Added by</b><span>${esc(o.created_by_name || o.cashier_email || o.added_by || '')}</span>
+          <b>Sell note</b><span>${esc((o.notes || '').replace(/\|LINES\|.+$/, ''))}</span>
+          <b>Staff note</b><span>${esc(o.staff_note || '')}</span>
+          <b>Shipping</b><span>${esc(o.shipping_status || '—')} ${esc(o.shipping_details || '')}</span>
+        </div>
+        <table class="ult-table" style="margin-top:16px">
+          <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead>
+          <tbody>${(lines.length ? lines : [{}]).map((l, i) => {
+            const qty = Number(l.qty || l.quantity || 0);
+            const price = Number(l.price || l.unit_price || 0);
+            return `<tr><td>${i + 1}</td><td>${esc(l.name || l.product_name || '—')}</td><td>${qty || '—'}</td><td>${fmt(price)}</td><td>${fmt(qty * price)}</td></tr>`;
+          }).join('')}</tbody>
+        </table>
+        <p style="text-align:right;margin-top:12px">Total ${fmt(o.total_amount)} · Paid ${fmt(o.amount_paid)} · Due ${fmt(due)}</p>
+        <p style="text-align:right">
+          <a class="add" href="/sales-form.html?id=${esc(o.id)}">Edit</a>
+        </p>
+      </div>`;
+  }
+
+  async function paintShip(id) {
+    const o = await saleById(id);
+    if (!o) { app.innerHTML = '<p>Sale not found.</p>'; return; }
+    const st = String(o.shipping_status || '').toLowerCase();
+    app.innerHTML = `
+      <a class="back" href="/pos-sales.html">← Back to List POS Sales</a>
+      <h1>Edit shipping · ${esc(invOf(o))}</h1>
+      <p class="sub">${esc(o.customer_name || '')} · ${esc(locName(o))} · ${esc(o.subsidiary_code || '')}</p>
+      ${viewTabs(id, 'ship')}
+      <div class="card doc">
+        <div class="doc-grid">
+          <label>Shipping Status
+            <select id="sh-st">${['','ordered','packed','shipped','delivered','cancelled'].map((s) =>
+              `<option value="${s}" ${st===s?'selected':''}>${s ? s[0].toUpperCase()+s.slice(1) : 'Please Select'}</option>`).join('')}
+            </select>
+          </label>
+          <label>Delivered To<input id="sh-to" value="${esc(o.delivered_to || '')}" /></label>
+          <label style="grid-column:1/-1">Shipping Details<textarea id="sh-det" rows="3">${esc(o.shipping_details || '')}</textarea></label>
+          <label style="grid-column:1/-1">Shipping Address<textarea id="sh-addr" rows="2">${esc(o.shipping_address || '')}</textarea></label>
+        </div>
+        <p style="text-align:right;margin-top:12px">
+          <a href="/pos-sales.html">Cancel</a>
+          <button type="button" class="add" id="sh-save" style="margin-left:8px">Save</button>
+        </p>
+      </div>`;
+    document.getElementById('sh-save').onclick = async () => {
+      if (!(await confirmAction('Save shipping?', 'Update shipping on invoice ' + invOf(o) + '?'))) return;
+      const body = {
+        shipping_status: document.getElementById('sh-st').value || null,
+        delivered_to: document.getElementById('sh-to').value || null,
+        shipping_details: document.getElementById('sh-det').value || null,
+        shipping_address: document.getElementById('sh-addr').value || null,
+      };
+      let { error } = await supabase.from('sales_orders').update(body).eq('id', id);
+      if (error) {
+        delete body.delivered_to; delete body.shipping_address;
+        ({ error } = await supabase.from('sales_orders').update(body).eq('id', id));
+      }
+      if (error) return alert(error.message);
+      location.href = '/pos-sales.html';
+    };
+  }
+
+  async function paintPay(id) {
+    const o = await saleById(id);
+    if (!o) { app.innerHTML = '<p>Sale not found.</p>'; return; }
+    let pays = [];
+    for (const table of ['payments', 'transaction_payments', 'sale_payments']) {
+      const { data } = await supabase.from(table).select('*').or(`sales_order_id.eq.${id},transaction_id.eq.${id}`).limit(50);
+      if (data && data.length) { pays = data; break; }
+    }
+    if (!pays.length) {
+      pays = [{
+        paid_on: o.order_date || o.created_at,
+        method: methodOf(o),
+        amount: Number(o.amount_paid || 0),
+        note: 'Recorded on the till ticket',
+      }];
+    }
+    const due = Math.max(0, Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+    app.innerHTML = `
+      <a class="back" href="/pos-sales.html">← Back to List POS Sales</a>
+      <h1>Payments · ${esc(invOf(o))}</h1>
+      <p class="sub">${esc(o.customer_name || '')} · Total ${fmt(o.total_amount)} · Paid ${fmt(o.amount_paid)} · Due ${fmt(due)}</p>
+      ${viewTabs(id, 'pay')}
+      <div class="card">
+        <table class="ult-table">
+          <thead><tr><th>Paid on</th><th>Method</th><th>Amount</th><th>Note</th></tr></thead>
+          <tbody>${pays.map((p) => `<tr>
+            <td>${esc(String(p.paid_on || p.paid_at || p.created_at || '').slice(0,16).replace('T',' '))}</td>
+            <td>${esc(p.method || p.payment_method || p.pay_method || '')}</td>
+            <td>${fmt(p.amount || p.amount_paid || 0)}</td>
+            <td>${esc(p.note || p.payment_note || '')}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  async function paintNotes(id) {
+    const o = await saleById(id);
+    if (!o) { app.innerHTML = '<p>Sale not found.</p>'; return; }
+    const store = noteStore('df_sale_notes_' + id);
+    const rows = store.read();
+    app.innerHTML = `
+      <a class="back" href="/pos-sales.html">← Back to List POS Sales</a>
+      <h1>Documents & notes · ${esc(invOf(o))}</h1>
+      <p class="sub">${esc(o.customer_name || '')} · ${esc(invOf(o))}</p>
+      ${viewTabs(id, 'notes')}
+      <div class="card doc">
+        <label>Add a note
+          <textarea id="note-body" rows="4" placeholder="Staff note, delivery instruction, complaint…"></textarea>
+        </label>
+        <p style="text-align:right"><button type="button" class="add" id="note-save">Save note</button></p>
+        <table class="ult-table">
+          <thead><tr><th>When</th><th>Note</th></tr></thead>
+          <tbody>${rows.map((n) => `<tr><td>${esc(String(n.at||'').slice(0,16).replace('T',' '))}</td><td>${esc(n.body)}</td></tr>`).join('') || '<tr><td colspan="2">No notes yet</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    document.getElementById('note-save').onclick = async () => {
+      const body = document.getElementById('note-body').value.trim();
+      if (!body) return;
+      if (!(await confirmAction('Save this note?', 'Attached to invoice ' + invOf(o) + '.'))) return;
+      const next = [{ at: new Date().toISOString(), body }, ...store.read()];
+      store.write(next);
+      toast('Note saved');
+      paintNotes(id);
+    };
+  }
+
+  async function printInvoice(o) {
+    const lines = await loadLines(o);
+    printDoc('Invoice ' + invOf(o), `
+      <div class="brand">DELKOR-FIBERK GROUP</div>
+      <h1>TAX INVOICE ${esc(invOf(o))}</h1>
+      <p class="muted">${esc(locName(o))} · ${esc(o.subsidiary_code || '')} · ${esc(String(o.order_date || o.created_at || '').slice(0,16))}</p>
+      <p><b>Bill to</b> ${esc(o.customer_name || 'Walk-In Customer')}</p>
+      <table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Amount</th></tr></thead>
+      <tbody>${(lines.length?lines:[{name:'Ticket',qty:1,price:o.total_amount}]).map((l) => {
+        const qty = Number(l.qty || l.quantity || 1);
+        const price = Number(l.price || l.unit_price || 0);
+        return `<tr><td>${esc(l.name||l.product_name||'')}</td><td>${qty}</td><td>${fmt(price)}</td><td>${fmt(qty*price)}</td></tr>`;
+      }).join('')}</tbody></table>
+      <p class="tot">Total ${fmt(o.total_amount)} · Paid ${fmt(o.amount_paid)} · ${payStatus(o).toUpperCase()}</p>
+      <p class="muted">${esc((o.notes||'').replace(/\|LINES\|.+$/,''))}</p>`);
+  }
+  async function printPack(o) {
+    const lines = await loadLines(o);
+    printDoc('Packing slip ' + invOf(o), `
+      <div class="brand">DELKOR-FIBERK GROUP</div>
+      <h1>PACKING SLIP ${esc(invOf(o))}</h1>
+      <p class="muted">${esc(locName(o))} · ${esc(o.customer_name || '')}</p>
+      <table><thead><tr><th>Item</th><th>SKU</th><th>Qty</th></tr></thead>
+      <tbody>${(lines.length?lines:[{name:'Ticket',qty:1}]).map((l) =>
+        `<tr><td>${esc(l.name||l.product_name||'')}</td><td>${esc(l.sku||'')}</td><td>${Number(l.qty||l.quantity||1)}</td></tr>`
+      ).join('')}</tbody></table>`);
+  }
+  async function printDelivery(o) {
+    const lines = await loadLines(o);
+    printDoc('Delivery note ' + invOf(o), `
+      <div class="brand">DELKOR-FIBERK GROUP</div>
+      <h1>DELIVERY NOTE ${esc(invOf(o))}</h1>
+      <p><b>Deliver to</b> ${esc(o.delivered_to || o.customer_name || '')}</p>
+      <p class="muted">${esc(o.shipping_address || o.shipping_details || locName(o))}</p>
+      <table><thead><tr><th>Item</th><th>Qty</th></tr></thead>
+      <tbody>${(lines.length?lines:[{name:'Ticket',qty:1}]).map((l) =>
+        `<tr><td>${esc(l.name||l.product_name||'')}</td><td>${Number(l.qty||l.quantity||1)}</td></tr>`
+      ).join('')}</tbody></table>
+      <p>Received by ______________________ &nbsp; Date ______________</p>`);
+  }
+
+  async function load() {
+    try { await hardForkMerge(); } catch { /* pack optional */ }
+    try { await syncHpSalesIntoBook(); } catch { /* field book */ }
+    const mode = params().get('view') ? 'view' : params().get('ship') ? 'ship' : params().get('pay') ? 'pay' : 'list';
+    if (mode === 'view' && params().get('tab') === 'notes') return paintNotes(params().get('view'));
+    if (mode === 'view') return paintView(params().get('view'));
+    if (mode === 'ship') return paintShip(params().get('ship'));
+    if (mode === 'pay') return paintPay(params().get('pay'));
+
+    const [packSales, bookSales, customers] = await Promise.all([
+      liveDeskRows('sales'),
+      loadRows('sales_orders', CAT_KEYS.sales, SEED_SALES),
+      loadRows('customers', CAT_KEYS.customers, SEED_CUSTOMERS),
+    ]);
+    const seen = new Map();
+    [...(packSales || []), ...(bookSales || [])].forEach((r) => {
+      if (!r) return;
+      const id = String(r.id || r.invoice_no || r.reference || '');
+      if (id && !seen.has(id)) seen.set(id, r);
+    });
+    const data = [...seen.values()];
+    const error = null;
+    const phoneOf = {};
+    (customers || []).forEach((c) => { phoneOf[c.id] = c.phone || c.mobile || ''; });
+    let rows = filterBySidebar(data || []).filter((r) => {
+      if (isDemoRecord(r)) return false;
+      const st = String(r.status || '').toLowerCase();
+      if (st === 'draft' || st === 'quotation') return false;
+      return isPosSale(r);
+    });
+    F.loc = getActiveLocation();
+    if (F.loc) rows = rows.filter((r) => r.location_code === F.loc || locName(r) === F.loc);
+    if (F.customer) rows = rows.filter((r) => String(r.customer_id) === String(F.customer) || String(r.customer_name || '').toLowerCase().includes(F.customer.toLowerCase()));
+    if (F.pay) rows = rows.filter((r) => payStatus(r) === F.pay);
+    if (F.from) rows = rows.filter((r) => {
+      const d = toIsoDate(r.order_date || r.created_at);
+      return !d || d >= F.from;
+    });
+    if (F.to) rows = rows.filter((r) => {
+      const d = toIsoDate(r.order_date || r.created_at);
+      return !d || d <= F.to;
+    });
+    if (F.user) rows = rows.filter((r) => String(r.created_by_name || r.cashier_email || r.added_by || '') === F.user);
+    if (F.ship) rows = rows.filter((r) => String(r.shipping_status || '') === F.ship);
+    if (F.subOnly) rows = rows.filter((r) => r.subscription || r.is_subscription);
+
+    const users = [...new Set((data || []).map((r) => r.created_by_name || r.cashier_email || r.added_by).filter(Boolean))];
+    const custOpts = [...new Map((customers || []).map((c) => [c.id, c])).values()];
+    const tot = rows.reduce((a, r) => a + Number(r.total_amount || 0), 0);
+    const paid = rows.reduce((a, r) => a + Number(r.amount_paid || 0), 0);
+    const due = tot - paid;
+    const retDue = rows.reduce((a, r) => a + Number(r.return_due || 0), 0);
+    const payCounts = {};
+    const methCounts = {};
+    rows.forEach((r) => {
+      const ps = payStatus(r);
+      payCounts[ps] = (payCounts[ps] || 0) + 1;
+      const m = String(methodOf(r));
+      methCounts[m] = (methCounts[m] || 0) + 1;
+    });
+    const countTxt = (obj) => Object.entries(obj).map(([k, v]) => `${k[0].toUpperCase()+k.slice(1)} - ${v}`).join(' · ') || '—';
+
+    app.innerHTML = `
+      <h1>List POS Sales</h1>
+
+      <div class="pf ${showFilt ? 'open' : ''}" id="pf">
+        <button type="button" class="pf-btn" id="filt-tog">
+          <span style="display:flex;align-items:center">
+            <span class="pf-ico">☰</span>
+            <span class="label">Filters</span>
+          </span>
+          <span class="pf-chev">▾</span>
+        </button>
+        <div class="pf-body">
+          <div class="filters">
+            <label>Business Location:
+              <select id="f-loc" data-scope-loc data-empty-label="All"><option value="">All</option>
+                ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Customer:
+              <select id="f-c"><option value="">All</option>
+                ${custOpts.map((c) => `<option value="${c.id}" ${String(F.customer)===String(c.id)?'selected':''}>${esc(c.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Payment Status:
+              <select id="f-p">
+                <option value="">All</option>
+                <option value="paid" ${F.pay==='paid'?'selected':''}>Paid</option>
+                <option value="due" ${F.pay==='due'?'selected':''}>Due</option>
+                <option value="partial" ${F.pay==='partial'?'selected':''}>Partial</option>
+                <option value="overdue" ${F.pay==='overdue'?'selected':''}>Overdue</option>
+              </select>
+            </label>
+            <label>Date Range:
+              ${datePresetHtml(F.preset)}
+              <span style="display:flex;gap:6px;margin-top:6px">
+                <input id="f-from" type="date" value="${esc(F.from)}" />
+                <input id="f-to" type="date" value="${esc(F.to)}" />
+              </span>
+            </label>
+            <label>User:
+              <select id="f-u"><option value="">All</option>
+                ${users.map((u) => `<option ${F.user===u?'selected':''}>${esc(u)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Sales Commission Agent:
+              <select id="f-ca"><option value="">All</option></select>
+            </label>
+            <label>Cashier staff:
+              <select id="f-sf"><option value="">All</option></select>
+            </label>
+            <label>Shipping Status:
+              <select id="f-s">
+                <option value="">All</option>
+                ${['ordered','packed','shipped','delivered','cancelled'].map((s) => `<option value="${s}" ${F.ship===s?'selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="filt-check">
+              <input type="checkbox" id="f-sub" ${F.subOnly?'checked':''} /> Subscriptions
+            </label>
+            <label>Payment Method:
+              <select id="f-pm"><option value="">All</option>
+                ${['Cash','Card','Cheque','Bank Transfer','Custom Payment 1','Custom Payment 2','Custom Payment 3'].map((m) => `<option ${F.method===m?'selected':''}>${m}</option>`).join('')}
+              </select>
+            </label>
+            ${filterAgentHtml()}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-tbl="pos-sales">
+        ${error ? `<p>${esc(error.message)}</p>` : ''}
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Date</th>
+            <th>Invoice No.</th>
+            <th>Customer name</th>
+            <th>Contact Number</th>
+            <th>Location</th>
+            <th>Subsidiary</th>
+            <th>Payment Status</th>
+            <th>Payment Method</th>
+            <th>Total amount</th>
+            <th>Total paid</th>
+            <th>Sell Due</th>
+            <th>Sell Return Due</th>
+            <th>Shipping Status</th>
+            <th>Total Items</th>
+            <th data-hide="1">Types of service</th>
+            <th data-hide="1">Custom Field 1</th>
+            <th>Added By</th>
+            <th>Sell note</th>
+            <th>Staff note</th>
+            <th>Shipping Details</th>
+            <th data-hide="1">Table</th>
+            <th data-hide="1">Cashier staff</th>
+          </tr></thead>
+          <tbody>${rows.map((o) => {
+            const ps = payStatus(o);
+            const dueAmt = Math.max(0, Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+            const note = String(o.notes || '').replace(/\|LINES\|.+$/, '');
+            return `<tr data-id="${esc(o.id)}" data-view="/pos-sales.html?view=${o.id}">
+              <td><details class="act"><summary class="act-btn">Actions</summary><menu>
+                <a href="/pos-sales.html?view=${o.id}">View</a>
+                <a href="/sales-form.html?id=${o.id}">Edit</a>
+                <button type="button" data-del="${o.id}">Delete</button>
+                <a href="/pos-sales.html?ship=${o.id}">Edit Shipping</a>
+                <button type="button" data-print="inv" data-id="${o.id}">Print Invoice</button>
+                <button type="button" data-print="pack" data-id="${o.id}">Packing Slip</button>
+                <button type="button" data-print="del" data-id="${o.id}">Delivery Note</button>
+                <hr style="margin:4px 0;border:0;border-top:1px solid #e5e7eb" />
+                <a href="/pos-sales.html?pay=${o.id}">Add payment</a>
+                <a href="/pos-sales.html?pay=${o.id}">View Payments</a>
+                <a href="/sell-return-form.html?sale=${o.id}">Sell Return</a>
+                <button type="button" data-url="${o.id}">Invoice URL</button>
+                <button type="button" data-notify="${o.id}">New Sale Notification</button>
+              </menu></details></td>
+              <td>${esc(String(o.order_date || o.created_at || '').slice(0, 16).replace('T', ' '))}</td>
+              <td>${esc(invOf(o))}</td>
+              <td>${esc(o.customer_name || 'Walk-In Customer')}</td>
+              <td>${esc(phoneOf[o.customer_id] || o.phone || '')}</td>
+              <td>${esc(locName(o))}</td>
+              <td>${esc(o.subsidiary_code || '')}</td>
+              <td class="clickable_td" data-pay="${o.id}"><span class="pill ${ps}">${ps[0].toUpperCase()+ps.slice(1)}</span></td>
+              <td>${esc(String(methodOf(o)).replace(/_/g,' '))}</td>
+              <td>${fmt(o.total_amount)}</td>
+              <td>${fmt(o.amount_paid)}</td>
+              <td>${fmt(dueAmt)}</td>
+              <td>${fmt(o.return_due || 0)}</td>
+              <td>${esc(o.shipping_status || '')}</td>
+              <td>${itemsOf(o) || ''}</td>
+              <td>${esc(o.service_type || o.types_of_service_name || '')}</td>
+              <td>${esc(o.custom_field_1 || o.service_custom_field_1 || '')}</td>
+              <td>${esc(o.created_by_name || o.cashier_email || o.added_by || '')}</td>
+              <td>${esc(note)}</td>
+              <td>${esc(o.staff_note || '')}</td>
+              <td>${esc(o.shipping_details || '')}</td>
+              <td>${esc(o.table_name || '')}</td>
+              <td>${esc(o.service_staff || o.waiter || '')}</td>
+            </tr>`;
+          }).join('') || '<tr data-dummy="1"><td colspan="23" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          <tfoot><tr>
+            <td colspan="7" style="text-align:right">Total:</td>
+            <td>${esc(countTxt(payCounts))}</td>
+            <td>${esc(countTxt(methCounts))}</td>
+            <td>${fmt(tot)}</td>
+            <td>${fmt(paid)}</td>
+            <td>${fmt(due)}</td>
+            <td>${fmt(retDue)}</td>
+            <td colspan="10"></td>
+          </tr></tfoot>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+
+    bindTable(app.querySelector('[data-tbl="pos-sales"]'), { title: 'List POS Sales', storageKey: 'list-pos-sales' });
+    document.getElementById('filt-tog').onclick = () => {
+      showFilt = !showFilt;
+      document.getElementById('pf').classList.toggle('open', showFilt);
+    };
+    const grab = (ev) => {
+      const src = ev?.target?.id || '';
+      const pre = document.getElementById('f-preset')?.value || '';
+      if (src === 'f-preset' && pre) {
+        const r = datePreset(pre);
+        if (r) { F.from = r.from; F.to = r.to; }
+        F.preset = pre;
+      } else if (src === 'f-from' || src === 'f-to') {
+        F.preset = '';
+        F.from = document.getElementById('f-from').value;
+        F.to = document.getElementById('f-to').value;
+      } else {
+        F.from = document.getElementById('f-from')?.value || F.from;
+        F.to = document.getElementById('f-to')?.value || F.to;
+      }
+      F.loc = document.getElementById('f-loc').value;
+      F.customer = document.getElementById('f-c').value;
+      F.pay = document.getElementById('f-p').value;
+      F.user = document.getElementById('f-u').value;
+      F.ship = document.getElementById('f-s').value;
+      F.subOnly = document.getElementById('f-sub').checked;
+      load();
+    };
+    ['f-loc','f-c','f-p','f-from','f-to','f-u','f-s','f-sub','f-preset'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', grab);
+    });
+    const presetSel = document.getElementById('f-preset');
+    if (presetSel) presetSel.value = F.preset || '';
+    const byId = Object.fromEntries(rows.map((r) => [String(r.id), r]));
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this POS sale?', 'Invoice will be removed. This cannot be undone.'))) return;
+        await deleteRow('sales_orders', CAT_KEYS.sales, b.dataset.del);
+        toast('Sale deleted.');
+        load();
+      };
+    });
+    app.querySelectorAll('[data-print]').forEach((b) => {
+      b.onclick = async () => {
+        const o = byId[b.dataset.id];
+        if (!o) return;
+        if (b.dataset.print === 'inv') return printInvoice(o);
+        if (b.dataset.print === 'pack') return printPack(o);
+        return printDelivery(o);
+      };
+    });
+    app.querySelectorAll('[data-url]').forEach((b) => {
+      b.onclick = () => shareUrl('Invoice URL', location.origin + '/pos-sales.html?view=' + b.dataset.url);
+    });
+    app.querySelectorAll('[data-notify]').forEach((b) => {
+      b.onclick = async () => {
+        const o = byId[b.dataset.notify];
+        if (!o) return;
+        if (!(await confirmAction('Send new sale notification?', 'Notify about invoice ' + invOf(o) + ' for ' + (o.customer_name || 'Walk-In') + '.'))) return;
+        const row = {
+          title: 'New POS sale ' + invOf(o),
+          body: (o.customer_name || 'Walk-In Customer') + ' · ' + fmt(o.total_amount),
+          kind: 'sale',
+          sales_order_id: o.id,
+          subsidiary_code: o.subsidiary_code || null,
+        };
+        let { error } = await supabase.from('notifications').insert(row);
+        if (error) {
+          try {
+            const bag = JSON.parse(localStorage.getItem('df_sale_notices') || '[]');
+            bag.unshift({ ...row, at: new Date().toISOString() });
+            localStorage.setItem('df_sale_notices', JSON.stringify(bag.slice(0, 50)));
+          } catch { /* ignore */ }
+        }
+        toast('Notification queued for ' + invOf(o));
+      };
+    });
+    app.querySelectorAll('td.clickable_td[data-pay]').forEach((td) => {
+      td.onclick = (e) => {
+        e.stopPropagation();
+        location.assign('/pos-sales.html?pay=' + td.dataset.pay);
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

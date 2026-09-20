@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Import Contacts — Delkor-Fiberk ERP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { renderImporter } from './js/import-kit.js';
+    import { saveRow } from './js/ls-rows.js';
+    import { KEYS } from './js/catalog-seed.js';
+    import { getActiveSubsidiary } from './js/supabaseClient.js';
+    import { getActiveLocation } from './js/scope.js';
+
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+
+    renderImporter(app, {
+      title: 'Import Contacts',
+      subtitle: new URLSearchParams(location.search).get('contact_type') === 'supplier'
+        ? 'Suppliers. Rows without a Type column are imported as suppliers. Stamped with the company and location selected in the sidebar.'
+        : 'Customers and suppliers. A Type column routes each row; without one they are imported as customers. Stamped with the company and location selected in the sidebar.',
+      backHref: '/customers.html',
+      keyField: 'name',
+      templateName: 'contacts-template',
+      fields: [
+        { key: 'name', label: 'Name', required: true, aliases: ['contact', 'customer', 'supplier', 'business name', 'full name'], sample: 'Kwame Mensah' },
+        { key: 'contact_type', label: 'Type', aliases: ['kind', 'category'], sample: 'customer' },
+        { key: 'mobile', label: 'Mobile', type: 'phone', aliases: ['phone', 'cell', 'msisdn'], sample: '0244123456' },
+        { key: 'email', label: 'Email', type: 'email', sample: 'kwame@example.com' },
+        { key: 'address', label: 'Address', aliases: ['address line 1', 'street'], sample: 'Madina Market' },
+        { key: 'city', label: 'City', aliases: ['town'], sample: 'Accra' },
+        { key: 'tax_number', label: 'TIN', aliases: ['tax', 'tin', 'vat'], sample: '' },
+        { key: 'opening_balance', label: 'Opening balance', type: 'number', aliases: ['balance', 'due'], sample: '0' },
+        { key: 'credit_limit', label: 'Credit limit', type: 'number', sample: '0' },
+        { key: 'pay_term', label: 'Pay term', aliases: ['payment term', 'terms'], sample: '30' },
+      ],
+      save: async (rows) => {
+        const sub = getActiveSubsidiary()?.code || '';
+        const loc = getActiveLocation() || '';
+        let n = 0;
+        for (const r of rows) {
+          const type = /suppl/i.test(r.contact_type || '') ? 'supplier' : 'customer';
+          const key = type === 'supplier' ? KEYS.suppliers : KEYS.customers;
+          const table = type === 'supplier' ? 'suppliers' : 'customers';
+          await saveRow(table, key, { ...r, contact_type: type, subsidiary_code: sub, location_code: loc, source: 'import' });
+          n += 1;
+        }
+        return { ok: true, n };
+      },
+    });
+  </script>
+</body>
+</html>

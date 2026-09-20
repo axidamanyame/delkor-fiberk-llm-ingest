@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add Stock Adjustment — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .st-view{background:var(--ult-card);color:var(--ult-text);padding:8px 8px 88px;font-size:13px}
+    .st-view-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--ult-border);padding:8px 4px 14px;margin-bottom:16px}
+    .st-view-head h1{margin:0;font-size:20px;font-weight:600}
+    .st-x{border:0;background:none;font-size:22px;cursor:pointer;color:var(--ult-text)}
+    .st-meta{display:grid;grid-template-columns:1.2fr 1fr;gap:16px;margin-bottom:18px;line-height:1.45}
+    .st-k{margin-bottom:4px}
+    .st-table-wrap{overflow-x:auto;margin-bottom:22px}
+    table.st-lines{width:100%;border-collapse:collapse;font-size:13px}
+    table.st-lines th{background:#16a34a;color:#fff;font-weight:700;padding:8px;text-align:left;border:1px solid #15803d}
+    table.st-lines td{padding:8px;border:1px solid var(--ult-border)}
+    table.st-lines td.num{text-align:right}
+    .st-lower{display:grid;grid-template-columns:1.4fr .9fr;gap:28px}
+    .st-lower h3{margin:16px 0 8px;font-size:15px;font-weight:700}
+    table.st-act{width:100%;border-collapse:collapse;font-size:13px}
+    table.st-act th,table.st-act td{padding:8px;border:1px solid var(--ult-border)}
+    .st-bar{background:#e5e7eb;min-height:28px;border-radius:2px;margin-top:6px;padding:6px 8px}
+    .st-tot{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9}
+    .st-actions{position:fixed;right:24px;bottom:24px;display:flex;gap:10px;z-index:20}
+    .st-print,.st-close{background:#4f46e5;color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer}
+    .st-close{background:#6366f1}
+    @media print{.st-actions,.st-x,.ult-top,.ult-side,#grok-app-branding{display:none !important}}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS, VIRTUAL_WH, findLocation, filterBySidebar, getActiveLocation, formLocOptions, SCOPE_EVENT } from './js/scope.js';
+  import { loadBizSettings } from './js/settings-store.js';
+  import { saveRow, loadRows, esc } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { ensureFiberkStock, paintAdjustmentDetails } from './js/fiberk-stock.js';
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const editId = q.get('id');
+  const viewOnly = q.get('view') === '1' || q.get('print') === '1';
+  const LOCS = [...BUSINESS_LOCATIONS, VIRTUAL_WH];
+  const who = session?.user?.email || session?.profile?.full_name || 'Admin';
+  let products = [], lines = [], existing = null, biz = {};
+
+  function nowLocal() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function locOpts(sel) {
+    return formLocOptions(sel, { includeVirtual: true });
+  }
+  function goods() { return lines.reduce((s, L) => s + Number(L.qty || 0) * Number(L.cost || 0), 0); }
+
+  async function boot() {
+    biz = await loadBizSettings();
+    const { data } = await supabase.from('products').select('id,name,sku,cost_price,current_stock_value,subsidiary_code,location_code').order('name').limit(2000);
+    products = filterBySidebar(data || []);
+    if (editId) {
+      const all = await loadRows('stock_adjustments', 'df_stock_adjustments', []);
+      existing = all.find((r) => String(r.id) === String(editId)) || null;
+      if (!existing) {
+        const { data: row } = await supabase.from('stock_adjustments').select('*').eq('id', editId).maybeSingle();
+        existing = row;
+      }
+      if (existing?.lines) lines = existing.lines;
+      if (existing && viewOnly) {
+        paintAdjustmentDetails(app, existing);
+        if (q.get('print') === '1') setTimeout(() => window.print(), 250);
+        return;
+      }
+    }
+    paint();
+  }
+
+  function paint() {
+    const loc = document.getElementById('loc')?.value || existing?.location_code || getActiveLocation() || '';
+    const kind = document.getElementById('kind')?.value || existing?.kind || existing?.adjustment_type || '';
+    const ro = viewOnly ? 'disabled' : '';
+    const tot = goods();
+    app.innerHTML = `
+      <h1>${viewOnly ? 'View' : (editId ? 'Edit' : 'Add')} Stock Adjustment</h1>
+      <form id="stock_adjustment_form">
+        <div class="st-card">
+          <div class="st-grid4">
+            <label class="fld">Business Location:*
+              <select id="loc" ${ro}>${locOpts(loc)}</select>
+            </label>
+            <label class="fld">Reference No:
+              <input id="ref" ${ro} value="${esc(existing?.reference_no || existing?.reference || '')}" />
+            </label>
+            <label class="fld">Date:*
+              <input id="dt" type="datetime-local" ${ro} value="${esc((existing?.adjustment_date || nowLocal()).toString().slice(0, 16))}" />
+            </label>
+            <label class="fld">Adjustment type:* <span class="info-i" title="Normal: expected variance (count). Abnormal: damage, theft, expiry.">i</span>
+              <select id="kind" ${ro}>
+                <option value="">Please Select</option>
+                <option value="normal" ${kind === 'normal' ? 'selected' : ''}>Normal</option>
+                <option value="abnormal" ${kind === 'abnormal' ? 'selected' : ''}>Abnormal</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="st-card">
+          ${viewOnly ? '' : `<div class="st-search">
+            <span class="ico">⌕</span>
+            <input id="q" placeholder="Search products for stock adjustment" autocomplete="off" data-live-search="off" />
+            <ul class="st-hits" id="hits" hidden></ul>
+          </div>`}
+          <table class="line-tbl">
+            <thead><tr>
+              <th>Product</th><th>Quantity</th><th>Unit Price</th><th>Subtotal</th>
+              ${viewOnly ? '' : '<th></th>'}
+            </tr></thead>
+            <tbody>
+              ${lines.map((L, i) => `<tr>
+                <td><span class="prod-name">${esc(L.name)}</span><span class="prod-sku">${esc(L.sku || '')}</span></td>
+                <td><input class="qty" data-i="${i}" type="number" min="0" step="any" value="${L.qty}" ${ro} /></td>
+                <td><input class="cost" data-i="${i}" type="number" min="0" step="0.01" value="${L.cost}" ${ro} /></td>
+                <td>${fmt(L.qty * L.cost)}</td>
+                ${viewOnly ? '' : `<td><button type="button" class="ult-btn ult-btn-outline rm" data-i="${i}">🗑</button></td>`}
+              </tr>`).join('') || `<tr><td colspan="${viewOnly ? 4 : 5}"></td></tr>`}
+              <tr><td colspan="${viewOnly ? 3 : 4}" class="tot">Total Amount:</td><td class="tot">${fmt(tot)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="st-card">
+          <div class="st-grid2">
+            <label class="fld">Total amount recovered: <span class="info-i" title="Salvage / scrap recovered from this adjustment. Does not restore stock.">i</span>
+              <input id="rec" type="number" min="0" step="0.01" value="${esc(existing?.recovered || existing?.total_amount_recovered || 0)}" ${ro} />
+            </label>
+            <label class="fld">Reason:
+              <textarea id="reason" rows="3" placeholder="Reason" ${ro}>${esc(existing?.reason || '')}</textarea>
+            </label>
+          </div>
+          <div class="st-save">
+            ${viewOnly
+              ? `<a class="ult-btn ult-btn-outline" href="/stock-adjustments.html">Close</a>`
+              : `<button type="submit">Save</button>`}
+          </div>
+        </div>
+      </form>`;
+    bind();
+  }
+
+  function bind() {
+    document.querySelectorAll('.rm').forEach((b) => { b.onclick = () => { lines.splice(+b.dataset.i, 1); paint(); }; });
+    document.querySelectorAll('.qty,.cost').forEach((inp) => {
+      inp.oninput = () => {
+        const i = +inp.dataset.i;
+        if (inp.classList.contains('qty')) lines[i].qty = Number(inp.value || 0);
+        else lines[i].cost = Number(inp.value || 0);
+        const tr = inp.closest('tr');
+        const L = lines[i];
+        tr.children[3].textContent = fmt(L.qty * L.cost);
+        const totCell = app.querySelector('.line-tbl tr:last-child .tot:last-child');
+        if (totCell) totCell.textContent = fmt(goods());
+      };
+    });
+    const qel = document.getElementById('q');
+    const hits = document.getElementById('hits');
+    if (qel && hits) {
+      const mark = (text, term) => {
+        const src = String(text || '');
+        const i = src.toLowerCase().indexOf(term);
+        if (i < 0) return esc(src);
+        return esc(src.slice(0, i)) + '<mark>' + esc(src.slice(i, i + term.length)) + '</mark>' + esc(src.slice(i + term.length));
+      };
+      const renderHits = () => {
+        const term = qel.value.trim().toLowerCase();
+        if (term.length < 1) { hits.hidden = true; return; }
+        const loc = findLocation(document.getElementById('loc').value);
+        const pool = loc ? products.filter((p) => !p.location_code || p.location_code === loc.code || p.subsidiary_code === loc.subsidiary) : products;
+        const rows = pool.filter((p) =>
+          (p.sku || '').toLowerCase().includes(term) || (p.name || '').toLowerCase().includes(term)
+        ).slice(0, 12);
+        hits.hidden = false;
+        hits.innerHTML = rows.map((p) =>
+          `<li data-id="${p.id}"><b>${mark(p.name, term)}</b><small>${mark(p.sku || '', term)}</small></li>`
+        ).join('') || '<li class="off">No products found</li>';
+        hits.querySelectorAll('li[data-id]').forEach((li) => {
+          li.onclick = () => {
+            const p = products.find((x) => String(x.id) === String(li.dataset.id));
+            if (!p || lines.some((L) => String(L.id) === String(p.id))) return;
+            lines.push({ id: p.id, sku: p.sku, name: p.name, cost: Number(p.cost_price || 0), qty: 1, on_hand: Number(p.current_stock_value ?? p.stock ?? p.current_stock ?? 0) });
+            qel.value = ''; hits.hidden = true; paint();
+          };
+        });
+      };
+      qel.oninput = renderHits;
+      qel.onfocus = renderHits;
+    }
+    document.getElementById('stock_adjustment_form').onsubmit = save;
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    const loc = findLocation(document.getElementById('loc').value);
+    const kind = document.getElementById('kind').value;
+    if (!loc) { toast('Pick a business location', 'error'); return; }
+    if (!kind) { toast('Pick an adjustment type', 'error'); return; }
+    if (!lines.length) { toast('Add products', 'error'); return; }
+    if (!(await confirmAction('Save this stock adjustment?', 'Quantities will be written off the selected shop stock.'))) return;
+
+    const pfx = biz.prefix_stock_adjustment || 'SA';
+    const no = (document.getElementById('ref').value || '').trim() || existing?.reference_no || (pfx + Date.now().toString().slice(-6));
+    const payload = {
+      id: existing?.id,
+      adjustment_date: document.getElementById('dt').value,
+      reference_no: no,
+      location_code: loc.code,
+      subsidiary_code: loc.subsidiary,
+      kind,
+      adjustment_type: kind,
+      reason: document.getElementById('reason').value || null,
+      recovered: Number(document.getElementById('rec').value || 0),
+      total_amount: goods(),
+      lines,
+      added_by: who,
+    };
+    await saveRow('stock_adjustments', 'df_stock_adjustments', payload);
+    try {
+      for (const l of lines) {
+        const { data: p } = await supabase.from('products').select('current_stock_value').eq('id', l.id).maybeSingle();
+        const on = Number(p?.current_stock_value ?? p?.stock ?? p?.current_stock ?? l.on_hand ?? 0);
+        const next = Math.max(0, on - Number(l.qty || 0));
+        await supabase.from('products').update({ current_stock_value: next }).eq('id', l.id);
+      }
+    } catch { /* local save already done */ }
+    toast(no + ' saved');
+    location.assign('/stock-adjustments.html');
+  }
+
+  window.addEventListener(SCOPE_EVENT, () => {
+    if (editId || viewOnly) return;
+    const sel = document.getElementById('loc');
+    if (!sel) return;
+    if (lines.length && sel.value) {
+      sel.innerHTML = locOpts(sel.value);
+      return;
+    }
+    paint();
+  });
+  boot();
+</script>
+</body>
+</html>

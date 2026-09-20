@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Upload Collections book — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { supabase } from './js/supabaseClient.js';
+  await mountUltimateShell();
+
+  function localBook() {
+    let rows = [];
+    try { rows = JSON.parse(localStorage.getItem('df_collection_accounts') || '[]') || []; } catch { rows = []; }
+    try {
+      const hub = JSON.parse(localStorage.getItem('df_crm_hub_v1') || '{}');
+      const extra = hub.collections || hub.accounts || hub.collection_accounts;
+      if (Array.isArray(extra)) rows = rows.concat(extra);
+    } catch { /* ignore */ }
+    return rows;
+  }
+
+  function rowOut(r) {
+    return {
+      name: r.name || r.customer_name || r.full_name || 'Unknown',
+      phone: r.phone || r.mobile || null,
+      email: r.email || null,
+      outstanding_balance: Number(r.balance || r.outstanding || r.outstanding_balance || r.amount || 0),
+      last_payment_date: r.last_payment_date || r.last_payment || null,
+      next_due_date: r.next_due_date || r.due_date || r.next_due || null,
+      status: r.status || 'overdue',
+      credit_grade: r.credit_grade || r.grade || null,
+      notes: r.notes || null,
+      product: r.product || r.sku || null,
+      agent: r.agent || r.agent_name || null,
+      source: 'crm-local-book',
+    };
+  }
+
+  const local = localBook();
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${pageChrome('Upload Collections book', 'Writes to collection_accounts in Supabase — not CRM customers')}
+    <p class="ult-muted">${local.length} row(s) on this browser. CRM contacts are not changed.</p>
+    <p><button class="ult-btn" id="go" ${local.length ? '' : 'disabled'}>Save book to Supabase</button></p>
+    <pre id="out" class="ult-card" style="white-space:pre-wrap">${local.slice(0, 15).map((r) => (r.name || r.phone || '')).join('\n') || 'No local book on this device. Use the PC that ran CRM Collections.'}</pre>
+  `;
+
+  document.getElementById('go').onclick = async () => {
+    const out = document.getElementById('out');
+    let ok = 0, fail = 0;
+    for (const r of local) {
+      const payload = rowOut(r);
+      let q = await supabase.from('collection_accounts').insert(payload);
+      if (q.error) { fail += 1; console.warn(q.error); } else ok += 1;
+    }
+    out.textContent = 'Saved ' + ok + ' collection_accounts. Failed ' + fail + '. Open Call Centre → Accounts in Arrears.';
+  };
+</script>
+</body>
+</html>

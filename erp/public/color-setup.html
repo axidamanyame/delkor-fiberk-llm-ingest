@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { MODULE_BOOKS, moduleKeyFromPath } from './js/module-books.js';
+  import { floorNav, bindHubTabs } from './js/hub-kit.js';
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  function paint() {
+    const mod = moduleKeyFromPath() || new URLSearchParams(location.search).get('m') || 'wms';
+    const book = MODULE_BOOKS[mod] || MODULE_BOOKS.wms;
+    document.title = (book.label || 'Module') + ' · Setup';
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      ${floorNav(book.label, 'setup', '', book.home)}
+      <h1 class="hub-h1">Setup</h1>
+      <p class="ult-lead">Module setup only. This is not System settings.</p>
+      <div class="rpt-index">${(book.setup || []).map((it) =>
+        `<a class="rpt-card" href="${it.href}"><strong>${it.label}</strong><span>Open setup</span></a>`).join('') || '<p class="ult-lead">No module setup pages yet.</p>'}</div>`;
+    bindHubTabs(app, (k) => {
+      if (k === 'reports') location.assign('/color-report.html?m=' + encodeURIComponent(mod));
+      else if (k === 'setup') return;
+      else location.assign(book.home + (k && k !== 'summary' ? '?tab=' + encodeURIComponent(k) : ''));
+    });
+  }
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  paint();
+</script>
+</body>
+</html>

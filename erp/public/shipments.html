@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shipments — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading shipments…</main>
+<script type="module">
+  import { supabase, fmt, getActiveSubsidiary, operatingCode } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, saveRow, esc, uid } from './js/ls-rows.js';
+  import { ackResult } from './js/confirm-action.js';
+  import { isDemoRecord } from './js/catalog-seed.js';
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const app = document.getElementById('app');
+  const SKEY = 'df_shipments';
+  const CARRIERS = ['Delkor Logistics', 'Ghana Post', 'DHL', 'Customer pickup'];
+  const STATUSES = ['pending', 'packed', 'shipped', 'delivered', 'cancelled'];
+
+  async function load() {
+    const sub = getActiveSubsidiary();
+    const q = new URLSearchParams(location.search);
+    const editId = q.get('id');
+    const viewOnly = q.get('view') === '1';
+    const [ships, sales] = await Promise.all([
+      loadRows('shipments', SKEY, []),
+      loadRows('sales_orders', 'df_sales_orders', []),
+    ]);
+    const rows = (ships || []).filter((r) => r && !isDemoRecord(r));
+    const edit = editId ? rows.find((r) => String(r.id) === String(editId)) : null;
+    const salesOpts = (sales || []).filter((s) => s && !isDemoRecord(s)).slice(0, 80);
+
+    app.innerHTML = `
+      <h1>Shipments</h1>
+      <p class="sub">Dispatch a sale · print packing label</p>
+      <div class="ult-card">
+        <form id="ship-form" class="ult-form-grid">
+          <div class="ult-field"><label>Sale</label>
+            <select id="so" ${viewOnly ? 'disabled' : ''} required>
+              <option value="">Select a sale</option>
+              ${salesOpts.map((s) => `<option value="${esc(s.id)}" ${String(edit?.sales_order_id) === String(s.id) ? 'selected' : ''}>${esc(s.reference || s.so_number || s.id)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="ult-field"><label>Carrier</label>
+            <select id="car" ${viewOnly ? 'disabled' : ''}>
+              ${CARRIERS.map((c) => `<option ${((edit?.carrier || 'Delkor Logistics') === c) ? 'selected' : ''}>${c}</option>`).join('')}
+            </select>
+          </div>
+          <div class="ult-field"><label>Tracking</label>
+            <input id="trk" ${viewOnly ? 'readonly' : ''} value="${esc(edit?.tracking || '')}" />
+          </div>
+          <div class="ult-field"><label>Status</label>
+            <select id="st" ${viewOnly ? 'disabled' : ''}>
+              ${STATUSES.map((s) => `<option ${((edit?.status || 'pending') === s) ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </form>
+        ${viewOnly
+          ? `<p><a class="ult-btn ult-btn-outline" href="/shipments.html">Back</a>
+             <a class="ult-btn ult-btn-primary" href="/shipments.html?id=${esc(edit?.id || '')}">Edit</a></p>`
+          : `<button type="button" class="ult-btn ult-btn-primary" id="save">${edit ? 'Save shipment' : 'Create shipment'}</button>
+             ${edit ? '<a class="ult-btn ult-btn-outline" href="/shipments.html">Cancel</a>' : ''}`}
+      </div>
+      <div class="home-card" data-tbl="ships" style="margin-top:16px">
+        <div class="head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0;font-size:16px">Shipments</h2>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="tbl-bulk">
+          <span class="tbl-bulk-count" data-bulk-count>0 selected</span>
+          <button type="button" data-bulk-all>Select all</button>
+          <button type="button" data-bulk-invert>Invert</button>
+          <button type="button" class="tbl-bulk-del" data-bulk-del>Delete selected</button>
+          <button type="button" data-bulk-clear>Clear</button>
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Date</th><th>Ref</th><th>Carrier</th><th>Tracking</th><th>Status</th>
+          </tr></thead>
+          <tbody>${rows.map((s) => `<tr data-id="${esc(s.id)}">
+            <td><details class="act"><summary>Actions</summary><menu>
+              <a href="/shipments.html?id=${encodeURIComponent(s.id)}&view=1">View</a>
+              <a href="/shipments.html?id=${encodeURIComponent(s.id)}">Edit</a>
+              <a href="/print-labels.html?ship=${encodeURIComponent(s.id)}">Label</a>
+              <button type="button" data-del="${esc(s.id)}">Delete</button>
+            </menu></details></td>
+            <td>${esc(String(s.created_at || s.ship_date || '').slice(0, 16).replace('T', ' '))}</td>
+            <td>${esc(s.reference || '')}</td>
+            <td>${esc(s.carrier || '')}</td>
+            <td>${esc(s.tracking || '')}</td>
+            <td>${esc(s.status || 'pending')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="6">No shipments</td></tr>'}</tbody>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+
+    bindTable(app.querySelector('[data-tbl="ships"]'), {
+      title: 'Shipments', storageKey: 'ships', table: 'shipments', key: SKEY, onDone: load,
+    });
+    document.getElementById('save')?.addEventListener('click', async () => {
+      const so = document.getElementById('so').value;
+      if (!so) return ackResult(false, 'Pick a sale.');
+      const sale = salesOpts.find((s) => String(s.id) === String(so));
+      const payload = {
+        id: edit?.id || uid(),
+        sales_order_id: so,
+        reference: edit?.reference || ('SH-' + Date.now().toString().slice(-6)),
+        carrier: document.getElementById('car').value,
+        tracking: document.getElementById('trk').value.trim() || null,
+        status: document.getElementById('st').value || 'pending',
+        subsidiary_code: operatingCode(sub),
+        customer_name: sale?.customer_name || edit?.customer_name || '',
+      };
+      const r = await saveRow('shipments', SKEY, payload);
+      if (r?.error) return ackResult(false, r.error.message || 'Could not save.');
+      ackResult(true, payload.reference + (edit ? ' updated.' : ' created.'));
+      history.replaceState({ spa: '/shipments.html' }, '', '/shipments.html');
+      load();
+    });
+  }
+  load();
+  window.addEventListener('popstate', load);
+</script>
+</body>
+</html>

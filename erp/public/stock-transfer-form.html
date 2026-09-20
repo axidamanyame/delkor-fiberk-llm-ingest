@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add Stock Transfer — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .st-view{background:var(--ult-card);color:var(--ult-text);padding:8px 8px 88px;font-size:13px}
+    .st-view-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--ult-border);padding:8px 4px 14px;margin-bottom:16px}
+    .st-view-head h1{margin:0;font-size:20px;font-weight:600}
+    .st-x{border:0;background:none;font-size:22px;cursor:pointer;color:var(--ult-text)}
+    .st-meta{display:grid;grid-template-columns:1.2fr 1.2fr 1fr;gap:16px;margin-bottom:18px;line-height:1.45}
+    .st-k{margin-bottom:4px}
+    .st-right{text-align:left}
+    .st-table-wrap{overflow-x:auto;margin-bottom:22px}
+    table.st-lines{width:100%;border-collapse:collapse;font-size:13px}
+    table.st-lines th{background:#16a34a;color:#fff;font-weight:700;padding:8px;text-align:left;border:1px solid #15803d}
+    table.st-lines td{padding:8px;border:1px solid var(--ult-border);vertical-align:middle}
+    table.st-lines tbody tr:nth-child(even){background:var(--ult-card-2)}
+    table.st-lines td.num{text-align:right;white-space:nowrap}
+    .st-lower{display:grid;grid-template-columns:1.4fr .9fr;gap:28px}
+    .st-lower h3{margin:16px 0 8px;font-size:15px;font-weight:700}
+    table.st-act{width:100%;border-collapse:collapse;font-size:13px}
+    table.st-act th,table.st-act td{padding:8px;border:1px solid var(--ult-border)}
+    table.st-act th{text-align:left;background:var(--ult-card-2);font-weight:700}
+    .st-bar{background:#e5e7eb;min-height:28px;border-radius:2px;margin-top:6px;padding:6px 8px}
+    .st-notes{margin:0 0 8px}
+    .st-tot{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9}
+    .st-grand{font-weight:800;margin-top:4px}
+    .st-pill{display:inline-block;background:#22d3ee;color:#0f172a;padding:2px 8px;border-radius:4px;font-weight:700;font-size:12px}
+    .st-actions{position:fixed;right:24px;bottom:24px;display:flex;gap:10px;z-index:20}
+    .st-print,.st-close{background:#4f46e5;color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer}
+    .st-close{background:#6366f1}
+    @media(max-width:900px){.st-meta,.st-lower{grid-template-columns:1fr}}
+    @media print{
+      .st-actions,.st-x,.ult-top,.ult-side,#grok-app-branding{display:none !important}
+      .st-view{padding:0}
+    }
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS, VIRTUAL_WH, findLocation, getActiveLocation, formLocOptions, SCOPE_EVENT } from './js/scope.js';
+  import { loadBizSettings } from './js/settings-store.js';
+  import { saveRow, loadRows, esc } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { circulateProduct, appendMovements, applyProductPatch, displaySku, transferGate } from './js/sku-lifecycle.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { ensureFiberkStock, paintTransferDetails, fiberkTransfers } from './js/fiberk-stock.js';
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const editId = q.get('id');
+  const viewOnly = q.get('view') === '1' || q.get('print') === '1';
+  const LOCS = [...BUSINESS_LOCATIONS, VIRTUAL_WH];
+  const who = session?.user?.email || session?.profile?.full_name || 'Admin';
+  let products = [], stock = [], lines = [], existing = null, biz = {};
+
+  function nowLocal() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function qtyAt(pid, loc) {
+    const p = products.find((x) => String(x.id) === String(pid));
+    const locCode = loc?.code || loc;
+    const fromStock = stock.filter((r) => r.product_id === pid && (r.warehouse_code === loc?.warehouse || r.warehouse_code === locCode))
+      .reduce((n, r) => n + Number(r.quantity || 0), 0);
+    if (fromStock) return fromStock;
+    if (p && String(p.location_code || '') === String(locCode)) return Number(p.stock ?? p.current_stock ?? 0);
+    return 0;
+  }
+  function locOpts(sel) {
+    return formLocOptions(sel, { allSubsidiaries: true, includeVirtual: true });
+  }
+  function totals() {
+    const goods = lines.reduce((s, L) => s + Number(L.qty || 0) * Number(L.cost || 0), 0);
+    const ship = Number(document.getElementById('ship')?.value || 0);
+    return { goods, ship, all: goods + ship };
+  }
+
+  async function boot() {
+    biz = await loadBizSettings();
+    const [p, s] = await Promise.all([
+      loadRows('products', KEYS.products, []),
+      supabase.from('product_stock').select('product_id,warehouse_code,quantity').limit(4000),
+    ]);
+    products = p || [];
+    stock = s.data || [];
+    try {
+      if (editId && String(editId).startsWith('st-upos-')) await ensureFiberkStock();
+    } catch { /* local book */ }
+    if (editId) {
+      const all = await loadRows('stock_transfers', 'df_stock_transfers', []);
+      existing = all.find((r) => String(r.id) === String(editId))
+        || fiberkTransfers().find((r) => String(r.id) === String(editId))
+        || null;
+      if (!existing) {
+        const { data } = await supabase.from('stock_transfers').select('*').eq('id', editId).maybeSingle();
+        existing = data;
+      }
+      if (existing && String(existing.status).toLowerCase() === 'completed' && !viewOnly) {
+        toast('Completed transfers cannot be edited', 'error');
+        location.href = '/stock-transfers.html';
+        return;
+      }
+      const { data: ln } = await supabase.from('stock_transfer_lines').select('*').eq('transfer_id', editId);
+      if (ln?.length) {
+        lines = ln.map((L) => ({
+          id: L.product_id, sku: L.sku, name: L.product_name,
+          cost: Number(L.unit_cost || 0), qty: Number(L.quantity || 0),
+          avail: 9999,
+        }));
+      } else if (existing?.lines) {
+        lines = existing.lines;
+      }
+      if (existing && viewOnly) {
+        paintTransferDetails(app, existing);
+        if (q.get('print') === '1') setTimeout(() => window.print(), 250);
+        return;
+      }
+    }
+    paint();
+  }
+
+  function paint() {
+    const from = document.getElementById('from')?.value || existing?.from_location || getActiveLocation() || '';
+    const to = document.getElementById('to')?.value || existing?.to_location || '';
+    const st = document.getElementById('st')?.value || existing?.status || '';
+    const ro = viewOnly ? 'disabled' : '';
+    const tot = totals();
+    app.innerHTML = `
+      <h1>${viewOnly ? 'View' : (editId ? 'Edit' : 'Add')} Stock Transfer</h1>
+      <form id="stock_transfer_form">
+        <div class="st-card">
+          <div class="st-grid3">
+            <label class="fld">Date:*
+              <input id="dt" type="datetime-local" ${ro} value="${esc((existing?.transfer_date || nowLocal()).toString().slice(0, 16))}" />
+            </label>
+            <label class="fld">Reference No:
+              <input id="ref" ${ro} value="${esc(existing?.reference || '')}" placeholder="" />
+            </label>
+            <label class="fld">Status:* <span class="info-i" title="Pending and In Transit do not move stock. Completed moves stock from Location (From) to Location (To).">i</span>
+              <select id="st" ${ro}>
+                <option value="">Please Select</option>
+                <option value="pending" ${st === 'pending' ? 'selected' : ''}>Pending</option>
+                <option value="in_transit" ${st === 'in_transit' ? 'selected' : ''}>In Transit</option>
+                <option value="completed" ${st === 'completed' ? 'selected' : ''}>Completed</option>
+              </select>
+            </label>
+            <label class="fld">Location (From):*
+              <select id="from" ${ro}>${locOpts(from)}</select>
+            </label>
+            <label class="fld">Location (To):*
+              <select id="to" ${ro}>${locOpts(to)}</select>
+            </label>
+          </div>
+          <p id="hop" class="sub"></p>
+        </div>
+
+        <div class="st-card">
+          ${viewOnly ? '' : `<div class="st-search">
+            <span class="ico">⌕</span>
+            <input id="q" placeholder="Search products for stock transfer" ${from ? '' : 'disabled'} autocomplete="off" data-live-search="off" />
+            <ul class="st-hits" id="hits" hidden></ul>
+          </div>`}
+          <table class="line-tbl">
+            <thead><tr>
+              <th>Product</th><th>Quantity</th><th>Unit Price</th><th>Subtotal</th>
+              ${viewOnly ? '' : '<th></th>'}
+            </tr></thead>
+            <tbody>
+              ${lines.map((L, i) => `<tr>
+                <td><span class="prod-name">${esc(L.name)}</span><span class="prod-sku">${esc(L.sku)}</span></td>
+                <td><input class="qty" data-i="${i}" type="number" min="0.001" step="any" value="${L.qty}" ${ro} /></td>
+                <td><input class="cost" data-i="${i}" type="number" min="0" step="0.01" value="${L.cost}" ${ro} /></td>
+                <td>${fmt(L.qty * L.cost)}</td>
+                ${viewOnly ? '' : `<td><button type="button" class="ult-btn ult-btn-outline rm" data-i="${i}">🗑</button></td>`}
+              </tr>`).join('') || `<tr><td colspan="${viewOnly ? 4 : 5}" style="text-align:center;color:#111"> </td></tr>`}
+              <tr><td colspan="${viewOnly ? 3 : 4}" class="tot">Total:</td><td class="tot">${fmt(tot.goods)}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="st-card">
+          <div class="st-grid2">
+            <label class="fld">Shipping Charges:
+              <input id="ship" type="number" min="0" step="0.01" value="${esc(existing?.shipping || 0)}" ${ro} />
+            </label>
+            <label class="fld">Additional Notes
+              <textarea id="notes" rows="3" ${ro}>${esc(existing?.notes || '')}</textarea>
+            </label>
+          </div>
+          <p class="st-amt">Total Amount: ${fmt(tot.all)}</p>
+          <div class="st-save">
+            ${viewOnly
+              ? `<a class="ult-btn ult-btn-outline" href="/stock-transfers.html">Close</a>`
+              : `<button type="submit">Save</button>`}
+          </div>
+        </div>
+      </form>`;
+    bind();
+    hopWarn();
+  }
+
+  function hopWarn() {
+    const a = findLocation(document.getElementById('from').value);
+    const b = findLocation(document.getElementById('to').value);
+    const el = document.getElementById('hop');
+    if (!a || !b) { el.textContent = ''; return; }
+    const gate = transferGate(a, b, lines.map((L) => products.find((p) => String(p.id) === String(L.id))).filter(Boolean));
+    el.textContent = gate.message || '';
+    el.style.color = gate.ok ? '' : '#b91c1c';
+  }
+
+  function bind() {
+    document.getElementById('from').onchange = () => { lines = []; paint(); };
+    document.getElementById('to').onchange = hopWarn;
+    document.getElementById('ship')?.addEventListener('input', () => {
+      document.querySelector('.st-amt').textContent = 'Total Amount: ' + fmt(totals().all);
+    });
+    document.querySelectorAll('.rm').forEach((b) => { b.onclick = () => { lines.splice(+b.dataset.i, 1); paint(); }; });
+    document.querySelectorAll('.qty,.cost').forEach((inp) => {
+      inp.oninput = () => {
+        const i = +inp.dataset.i;
+        if (inp.classList.contains('qty')) lines[i].qty = Number(inp.value || 0);
+        else lines[i].cost = Number(inp.value || 0);
+        const tr = inp.closest('tr');
+        const L = lines[i];
+        tr.children[3].textContent = fmt(L.qty * L.cost);
+        const t = totals();
+        const totCell = app.querySelector('.line-tbl tr:last-child .tot:last-child');
+        if (totCell) totCell.textContent = fmt(t.goods);
+        document.querySelector('.st-amt').textContent = 'Total Amount: ' + fmt(t.all);
+      };
+    });
+    const qel = document.getElementById('q');
+    const hits = document.getElementById('hits');
+    if (qel && hits) {
+      qel.oninput = () => {
+        const term = qel.value.trim().toLowerCase();
+        const loc = findLocation(document.getElementById('from').value);
+        if (term.length < 1 || !loc) { hits.hidden = true; return; }
+        const rows = products.filter((p) => {
+          if (String(p.location_code || '') && String(p.location_code) !== loc.code) return false;
+          return (p.sku || '').toLowerCase().includes(term)
+            || (p.catalog_sku || '').toLowerCase().includes(term)
+            || (p.name || '').toLowerCase().includes(term);
+        }).slice(0, 12).map((p) => ({ p, avail: qtyAt(p.id, loc) }));
+        hits.hidden = false;
+        hits.innerHTML = rows.map((r) =>
+          `<li class="${r.avail <= 0 ? 'off' : ''}" data-id="${r.p.id}"><b>${esc(r.p.name)}</b><small>${esc(displaySku(r.p))} · ${r.avail <= 0 ? 'none at From' : r.avail + ' on hand'}</small></li>`
+        ).join('') || '<li class="off">No products found</li>';
+        hits.querySelectorAll('li[data-id]').forEach((li) => {
+          li.onclick = () => {
+            if (li.classList.contains('off')) { toast('Out of stock at From', 'error'); return; }
+            const p = products.find((x) => String(x.id) === String(li.dataset.id));
+            if (!p || lines.some((L) => String(L.id) === String(p.id))) return;
+            const loc2 = findLocation(document.getElementById('from').value);
+            lines.push({ id: p.id, sku: displaySku(p), name: p.name, cost: Number(p.cost_price || 0), qty: 1, avail: qtyAt(p.id, loc2) });
+            qel.value = ''; hits.hidden = true; paint();
+          };
+        });
+      };
+    }
+    document.getElementById('stock_transfer_form').onsubmit = save;
+  }
+
+  async function bump(pid, wh, delta) {
+    if (!wh) return;
+    const { data } = await supabase.from('product_stock').select('id,quantity').eq('product_id', pid).eq('warehouse_code', wh).maybeSingle();
+    if (data) await supabase.from('product_stock').update({ quantity: Number(data.quantity || 0) + delta }).eq('id', data.id);
+    else if (delta > 0) await supabase.from('product_stock').insert({ product_id: pid, warehouse_code: wh, quantity: delta });
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    const from = findLocation(document.getElementById('from').value);
+    const to = findLocation(document.getElementById('to').value);
+    const status = document.getElementById('st').value;
+    if (!from || !to) { toast('Pick Location (From) and Location (To)', 'error'); return; }
+    if (from.code === to.code) { toast('Locations must differ', 'error'); return; }
+    if (!status) { toast('Pick a status', 'error'); return; }
+    const gate = transferGate(from, to, lines.map((L) => products.find((p) => String(p.id) === String(L.id)) || L));
+    if (!gate.ok) { toast(gate.message, 'error'); return; }
+    if (!lines.length) { toast('Add products', 'error'); return; }
+    const over = lines.find((L) => L.avail != null && L.qty > L.avail && L.avail !== 9999);
+    if (over) { toast(over.sku + ' qty exceeds available at From', 'error'); return; }
+    if (!(await confirmAction('Save this stock transfer?', status === 'completed'
+      ? 'Completed will move stock from Location (From) to Location (To).'
+      : 'Pending / In Transit will not move stock.'))) return;
+
+    const pfx = biz.prefix_stock_transfer || 'ST';
+    const no = (document.getElementById('ref').value || '').trim() || existing?.reference || (pfx + Date.now().toString().slice(-6));
+    const tot = totals();
+    const payload = {
+      id: existing?.id,
+      reference: no,
+      status,
+      transfer_date: document.getElementById('dt').value,
+      from_location: from.code,
+      to_location: to.code,
+      from_warehouse_code: from.warehouse,
+      to_warehouse_code: to.warehouse,
+      from_subsidiary: from.subsidiary,
+      to_subsidiary: to.subsidiary,
+      subsidiary_code: from.subsidiary === 'group' ? to.subsidiary : from.subsidiary,
+      location_code: from.code,
+      via_virtual: from.code === 'OPS-HUB' || to.code === 'OPS-HUB' || from.hub || to.hub,
+      shipping: tot.ship,
+      notes: document.getElementById('notes').value,
+      total_amount: tot.all,
+      lines,
+      added_by: who,
+    };
+    const saved = await saveRow('stock_transfers', 'df_stock_transfers', payload);
+    const id = saved?.id || existing?.id;
+    try {
+      if (editId) await supabase.from('stock_transfer_lines').delete().eq('transfer_id', editId);
+      for (const L of lines) {
+        await supabase.from('stock_transfer_lines').insert({
+          transfer_id: id, product_id: L.id, sku: L.sku, product_name: L.name,
+          quantity: L.qty, unit_cost: L.cost,
+        });
+      }
+      if (status === 'completed') {
+        const events = [];
+        for (const L of lines) {
+          await bump(L.id, from.warehouse, -L.qty);
+          await bump(L.id, to.warehouse, L.qty);
+          const src = products.find((x) => String(x.id) === String(L.id));
+          if (src) {
+            const { product: next, events: ev } = circulateProduct(src, {
+              from, to, qty: L.qty, reference: no, type: 'transfer',
+            });
+            applyProductPatch(next);
+            events.push(...ev);
+            L.sku_after = next.sku;
+            L.movement_key = next.movement_key;
+          }
+          await supabase.from('stock_movements').insert([
+            { product_id: L.id, sku: L.sku, qty: -L.qty, movement_type: 'transfer_out', warehouse_code: from.warehouse, location_name: from.name, reference: no },
+            { product_id: L.id, sku: L.sku_after || L.sku, qty: L.qty, movement_type: 'transfer_in', warehouse_code: to.warehouse, location_name: to.name, reference: no },
+          ]);
+        }
+        if (events.length) appendMovements(events);
+      }
+    } catch { /* local fallback already saved */ }
+    toast(no + (status === 'completed' ? ' completed — stock moved.' : ' saved as ' + status.replace('_', ' ') + '.'));
+    location.href = '/stock-transfers.html';
+  }
+
+  window.addEventListener(SCOPE_EVENT, () => {
+    if (editId || viewOnly) return;
+    const fromEl = document.getElementById('from');
+    if (!fromEl) return;
+    if (lines.length && fromEl.value) {
+      const keep = fromEl.value;
+      fromEl.innerHTML = locOpts(keep);
+      const toEl = document.getElementById('to');
+      if (toEl) toEl.innerHTML = locOpts(toEl.value);
+      return;
+    }
+    paint();
+  });
+  boot();
+</script>
+</body>
+</html>

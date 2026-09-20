@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purchases catch-up — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .cu-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin:12px 0 18px; }
+    .cu-kpis article { background:#eff6ff; border:1px solid #bfdbfe; border-radius:14px; padding:14px 16px; }
+    .cu-kpis article.gap { background:#ecfdf5; border-color:#99f6e4; }
+    .cu-kpis span { display:block; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#1e3a8a; }
+    .cu-kpis b { display:block; margin-top:4px; font-size:22px; color:#0f172a; }
+    .cu-note { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; border-radius:12px; padding:12px 14px; font-size:13px; }
+    .ai-tabs a { display:inline-block; padding:8px 12px; border-radius:999px; font-weight:700; font-size:13px; color:#1e3a8a; text-decoration:none; }
+    .ai-tabs a.on { background:#1e3a8a; color:#fff; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading catch-up desk…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { can } from './js/rbac.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { BUSINESS_LOCATIONS } from './js/scope.js';
+  import {
+    loadCatchupDesk, bookCatchup, ignoreCatchup, deleteCatchup, cedi, esc,
+  } from './js/purchase-catchup.js';
+  import { actMenu } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const hq = can('purchase.add') || can('purchase.edit');
+  const q = new URLSearchParams(location.search);
+  let tab = q.get('tab') || 'unmatched';
+  let editId = q.get('id') || '';
+  const actor = session.user?.email || 'HQ';
+
+  function ymd(v) {
+    return String(v || '').slice(0, 10);
+  }
+
+  async function paint() {
+    const desk = await loadCatchupDesk();
+    const lists = { unmatched: desk.unmatched, billed: desk.billed, ignored: desk.ignored };
+    if (editId === 'new' || (editId && editId !== 'new')) {
+      const row = editId === 'new'
+        ? { id: '', payee: '', debit: '', transaction_date: new Date().toISOString().slice(0, 10), description: '', instrument_id: '' }
+        : (desk.queue.find((r) => String(r.id) === editId) || desk.unmatched[0] || {});
+      const bill = row.bill || {};
+      app.innerHTML = `
+        <h1>${bill.id ? 'Edit catch-up bill' : 'Book catch-up bill'}</h1>
+        <p class="sub">Creates a live purchase (source: catch-up). Fiberkapp migrated purchases stay siloed.</p>
+        <form id="f" class="sell-card">
+          <div class="sell-grid">
+            <label class="fld">Supplier *<input name="supplier_name" value="${esc(bill.supplier_name || row.payee || '')}" required ${hq ? '' : 'disabled'}></label>
+            <label class="fld">Bill date *<input name="bill_date" type="date" value="${esc(ymd(bill.bill_date || row.transaction_date))}" required ${hq ? '' : 'disabled'}></label>
+            <label class="fld">Amount (GH₵) *<input name="amount" type="number" step="0.01" value="${esc(bill.amount || row.debit || '')}" required ${hq ? '' : 'disabled'}></label>
+            <label class="fld">Reference<input name="reference" value="${esc(bill.reference || row.instrument_id || '')}" ${hq ? '' : 'disabled'}></label>
+            <label class="fld">Location<select name="location_code" ${hq ? '' : 'disabled'}>
+              ${BUSINESS_LOCATIONS.map((l) => `<option value="${esc(l.code)}" ${(bill.location_code || 'FIB-SHOP') === l.code ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}
+            </select></label>
+          </div>
+          <label class="fld">Notes<textarea name="notes" rows="3" ${hq ? '' : 'disabled'}>${esc(bill.notes || row.description || '')}</textarea></label>
+          <p class="ult-muted" style="font-size:12px">UBA line: ${esc(row.description || 'manual')} · ${esc(ymd(row.transaction_date) || '—')}</p>
+          <p>
+            ${hq ? '<button class="ult-btn ult-btn-primary" type="submit">Save live bill</button>' : ''}
+            <a class="ult-btn ult-btn-outline" href="/purchase-catchup.html">Back</a>
+          </p>
+        </form>`;
+      document.getElementById('f')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!hq) return;
+        if (!(await confirmAction('Book this as a live purchase?', 'This does not change the Fiberkapp migrated book.'))) return;
+        const fd = new FormData(e.target);
+        await bookCatchup(row, {
+          id: bill.id,
+          purchase_id: bill.purchase_id,
+          supplier_name: fd.get('supplier_name'),
+          bill_date: fd.get('bill_date'),
+          amount: fd.get('amount'),
+          reference: fd.get('reference'),
+          notes: fd.get('notes'),
+          location_code: fd.get('location_code'),
+        }, actor);
+        toast('Catch-up bill saved on live purchases');
+        location.href = '/purchase-catchup.html?tab=billed';
+      });
+      return;
+    }
+
+    const rows = lists[tab] || desk.unmatched;
+    const tabs = `
+      <div class="ai-tabs">
+        <a class="${tab === 'unmatched' ? 'on' : ''}" href="/purchase-catchup.html?tab=unmatched">Unmatched (${desk.unmatched.length})</a>
+        <a class="${tab === 'billed' ? 'on' : ''}" href="/purchase-catchup.html?tab=billed">Booked (${desk.billed.length})</a>
+        <a class="${tab === 'ignored' ? 'on' : ''}" href="/purchase-catchup.html?tab=ignored">Ignored (${desk.ignored.length})</a>
+      </div>`;
+
+    app.innerHTML = `
+      ${pageChrome('Purchases catch-up')}
+      <div class="cu-kpis">
+        <article><span>Unmatched UBA lines</span><b>${desk.unmatched.length}</b></article>
+        <article class="gap"><span>Gap to book</span><b>${cedi(desk.gap)}</b></article>
+        <article><span>Already booked</span><b>${cedi(desk.booked)}</b></article>
+        <article><span>Live POs (not silo)</span><b>${desk.purchases.length}</b></article>
+      </div>
+      ${tabs}
+      <p style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin:12px 0">
+        ${hq ? '<a class="ult-btn ult-btn-primary" href="/purchase-catchup.html?id=new">Add paper bill</a>' : ''}
+      </p>
+      <section class="home-card" data-tbl="cu">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th><th>Date</th><th>Payee / supplier</th><th>UBA remark</th><th>Amount</th><th>Status</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => {
+            const actions = [
+              { label: tab === 'billed' ? 'View' : 'Book', href: `/purchase-catchup.html?id=${encodeURIComponent(r.id)}` },
+            ];
+            if (hq && tab === 'unmatched') actions.push({ label: 'Ignore', act: 'ignore' });
+            if (hq && tab === 'billed') {
+              actions.push({ label: 'Edit', href: `/purchase-catchup.html?id=${encodeURIComponent(r.id)}` });
+              actions.push({ label: 'Delete', act: 'del' });
+            }
+            return `<tr>
+              <td>${actMenu(r.id, actions)}</td>
+              <td>${esc(ymd(r.transaction_date))}</td>
+              <td>${esc(r.payee || r.bill?.supplier_name || '—')}</td>
+              <td>${esc((r.description || '').slice(0, 80))}</td>
+              <td>${cedi(r.amount)}</td>
+              <td>${esc(r.status)}</td>
+            </tr>`;
+          }).join('') || '<tr data-dummy="1"><td colspan="6" style="text-align:center">No lines in this tab.</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="cu"]'), { title: 'Catch-up ' + tab, storageKey: 'cu-' + tab });
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const row = desk.queue.find((x) => String(x.id) === String(b.dataset.id));
+      if (!row) return;
+      if (b.dataset.act === 'ignore') {
+        if (!(await confirmAction('Ignore this UBA line?', 'It will leave the unmatched queue. Not a purchase.'))) return;
+        await ignoreCatchup(row, actor);
+        toast('Ignored');
+        location.href = '/purchase-catchup.html?tab=ignored';
+      }
+      if (b.dataset.act === 'del') {
+        if (!(await confirmAction('Delete this catch-up bill?', 'Removes the live PO created from this UBA line.'))) return;
+        await deleteCatchup(row.bill || { id: 'cu-' + row.id, purchase_id: row.purchase?.id });
+        toast('Deleted');
+        location.reload();
+      }
+    };
+  }
+
+  try { await paint(); }
+  catch (err) {
+    app.innerHTML = `<h1>Purchases catch-up</h1><p class="sub">${esc(err.message || err)}</p>`;
+  }
+</script>
+</body>
+</html>

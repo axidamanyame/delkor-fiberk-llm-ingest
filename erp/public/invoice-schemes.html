@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Schemes — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { OPERATING_SUBSIDIARIES } from './js/supabaseClient.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    let rows = [];
+    let modal = null;
+    let err = '';
+
+    function padPreview(prefix, start, pad) {
+      const n = String(Number(start) || 1).padStart(Number(pad) || 4, '0');
+      return (prefix || 'INV') + n;
+    }
+
+    async function load() {
+      const r = await supabase.from('invoice_schemes').select('*').order('name');
+      if (r.error) {
+        err = r.error.message;
+        rows = [
+          { name: 'Default', prefix: 'INV', start_number: 1, number_padding: 4, is_default: true },
+          { name: 'AXI Online', prefix: 'AXI', start_number: 1, number_padding: 4, subsidiary_code: 'axidigetek' },
+          { name: 'Fiberk Shop', prefix: 'FIB', start_number: 1, number_padding: 4, subsidiary_code: 'fiberk' },
+        ];
+      } else {
+        err = '';
+        rows = r.data || [];
+      }
+      render();
+    }
+
+    function render() {
+      app.innerHTML = pageChrome('Invoice Schemes', 'Invoice number format per shop. Give each location its own scheme so Fiberk tickets never collide with Axidigetek.') + `
+        <p>
+          <a class="ult-btn ult-btn-outline" href="/business-locations.html">← Business locations</a>
+          <button type="button" class="ult-btn ult-btn-primary" id="add">+ Add scheme</button>
+        </p>
+        <div class="ult-card">
+          ${err ? `<div class="ult-alert">${err} — run sql/93_erp_rules.sql</div>` : ''}
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Name</th><th>Prefix</th><th>Start</th><th>Padding</th><th>Preview</th><th>Subsidiary</th><th>Default</th><th></th></tr></thead>
+            <tbody>${rows.map((r) => `<tr>
+              <td><strong>${r.name}</strong></td>
+              <td><code>${r.prefix || ''}</code></td>
+              <td>${r.start_number ?? 1}</td>
+              <td>${r.number_padding ?? 4}</td>
+              <td><code>${padPreview(r.prefix, r.start_number, r.number_padding)}</code></td>
+              <td>${r.subsidiary_code || 'Any'}</td>
+              <td>${r.is_default ? 'Yes' : ''}</td>
+              <td><button type="button" class="ult-btn ult-btn-sm ed" data-id="${r.id || r.name}">Edit</button></td>
+            </tr>`).join('') || '<tr><td colspan="8">No schemes yet</td></tr>'}</tbody>
+          </table></div>
+        </div>
+        ${modal ? formHtml() : ''}`;
+      document.getElementById('add').onclick = () => {
+        modal = { name: '', prefix: 'INV', start_number: 1, number_padding: 4, subsidiary_code: '', is_default: false };
+        render();
+      };
+      document.querySelectorAll('.ed').forEach((b) => {
+        b.onclick = () => {
+          modal = { ...(rows.find((r) => String(r.id) === b.dataset.id || r.name === b.dataset.id) || {}) };
+          render();
+        };
+      });
+      document.getElementById('sch-x')?.addEventListener('click', () => { modal = null; render(); });
+      document.getElementById('sch-save')?.addEventListener('click', save);
+    }
+
+    function formHtml() {
+      const m = modal;
+      return `<div class="modal-full" style="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:10vh 16px">
+        <div class="ult-card" style="width:min(480px,96vw)">
+          <h3>${m.id ? 'Edit scheme' : 'Add scheme'} <button type="button" id="sch-x" style="float:right;border:0;background:none;font-size:18px">✕</button></h3>
+          <div class="ult-form-grid">
+            <div class="ult-field"><label>Name *</label><input id="s-name" value="${m.name || ''}" /></div>
+            <div class="ult-field"><label>Prefix *</label><input id="s-pre" value="${m.prefix || 'INV'}" maxlength="8" /></div>
+            <div class="ult-field"><label>Start number</label><input id="s-start" type="number" min="1" value="${m.start_number ?? 1}" /></div>
+            <div class="ult-field"><label>Number padding</label><input id="s-pad" type="number" min="1" max="8" value="${m.number_padding ?? 4}" /></div>
+            <div class="ult-field"><label>Subsidiary (optional)</label>
+              <select id="s-sub"><option value="">Any</option>${OPERATING_SUBSIDIARIES.map((s) =>
+                `<option value="${s.code}" ${m.subsidiary_code===s.code?'selected':''}>${s.name}</option>`).join('')}</select>
+            </div>
+            <div class="ult-field"><label>Default scheme</label>
+              <select id="s-def"><option value="false">No</option><option value="true" ${m.is_default?'selected':''}>Yes</option></select>
+            </div>
+          </div>
+          <p class="ult-muted" id="s-prev">Preview: ${padPreview(m.prefix, m.start_number, m.number_padding)}</p>
+          <p><button type="button" class="ult-btn ult-btn-success" id="sch-save">Save</button>
+            <button type="button" class="ult-btn ult-btn-outline" id="sch-x2">Cancel</button></p>
+        </div></div>`;
+    }
+
+    async function save() {
+      const row = {
+        name: document.getElementById('s-name').value.trim(),
+        prefix: document.getElementById('s-pre').value.trim().toUpperCase(),
+        start_number: Number(document.getElementById('s-start').value) || 1,
+        number_padding: Number(document.getElementById('s-pad').value) || 4,
+        subsidiary_code: document.getElementById('s-sub').value || null,
+        is_default: document.getElementById('s-def').value === 'true',
+      };
+      if (!row.name || !row.prefix) return alert('Name and prefix required');
+      if (modal.id) row.id = modal.id;
+      if (row.is_default) {
+        await supabase.from('invoice_schemes').update({ is_default: false }).neq('name', row.name);
+      }
+      const { error } = await supabase.from('invoice_schemes').upsert(row);
+      if (error) return alert(error.message + ' — run sql/93_erp_rules.sql');
+      modal = null;
+      await load();
+    }
+
+    document.addEventListener('click', (e) => {
+      if (e.target.id === 'sch-x2') { modal = null; render(); }
+    });
+    load();
+  </script>
+</body>
+</html>

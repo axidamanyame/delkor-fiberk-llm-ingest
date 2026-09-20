@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balance Sheet — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import {
+    payNav, esc, ensurePayBooks, loadPayAccounts, loadFlows, loadPaySales, loadPayPurchases,
+    scopePay, accountBalance, closingStock, dues, locOptions, byLoc, filtersCard, bindFilt,
+    printReport, currentSubCode, companyOf, fmtDate,
+  } from './js/pay-accounts.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const today = new Date().toISOString().slice(0, 10);
+  const F = { loc: '', date: today };
+
+  async function paint() {
+    await ensurePayBooks();
+    const accounts = byLoc(scopePay(await loadPayAccounts()).filter((a) => !a.is_closed && a.status !== 'Closed'), F.loc);
+    const flows = byLoc(scopePay(await loadFlows()), F.loc);
+    const sales = byLoc(scopePay(await loadPaySales()), F.loc);
+    const purchases = byLoc(scopePay(await loadPayPurchases()), F.loc);
+    const due = dues(null, sales, purchases, null, F.date);
+    const stock = closingStock(currentSubCode(), F.loc);
+    const bals = accounts.map((a) => ({ name: a.name, bal: accountBalance(a, flows, F.date) }))
+      .filter((x) => x.bal !== 0 || accounts.length < 8);
+    const totAcc = bals.reduce((s, x) => s + x.bal, 0);
+    const totLiab = due.supplier;
+    const totAsset = due.customer + stock + totAcc;
+    const co = companyOf(getActiveSubsidiary()?.code || 'group');
+
+    const sheet = `
+      <div class="bs-grid" id="bs-sheet">
+        <div class="bs-col">
+          <h3>Liability</h3>
+          <table>
+            <tr><td>Supplier Due:</td><td>${fmt(due.supplier)}</td></tr>
+            <tr class="tot"><td>Total Liability:</td><td>${fmt(totLiab)}</td></tr>
+          </table>
+        </div>
+        <div class="bs-col">
+          <h3>Assets</h3>
+          <table>
+            <tr><td>Customer Due:</td><td>${fmt(due.customer)}</td></tr>
+            <tr><td>Closing stock:</td><td>${fmt(stock)}</td></tr>
+            <tr><td colspan="2"><strong>Account Balances:</strong></td></tr>
+            ${bals.map((x) => `<tr><td class="indent">${esc(x.name)}:</td><td>${fmt(x.bal)}</td></tr>`).join('')}
+            <tr class="tot"><td>Total Assets:</td><td>${fmt(totAsset)}</td></tr>
+          </table>
+        </div>
+      </div>`;
+
+    app.innerHTML = `
+      ${payNav('bs')}
+      <div class="acc-top">
+        <div>
+          <h1>Balance Sheet</h1>
+          <p class="sub">${esc(scopeCaption())} · As of ${esc(fmtDate(F.date))}</p>
+        </div>
+      </div>
+      ${filtersCard(`
+        <label>Business Location:
+          <select id="f-loc">${locOptions(F.loc)}</select>
+        </label>
+        <label>Filter by date:
+          <input id="f-date" type="date" value="${esc(F.date)}" />
+        </label>
+      `)}
+      <div class="home-card">${sheet}
+        <div class="print-row"><button type="button" class="btn-print" id="btn-print">🖨 Print</button></div>
+      </div>`;
+
+    bindFilt(app);
+    app.querySelector('#f-loc').addEventListener('change', (e) => { F.loc = e.target.value; paint(); });
+    app.querySelector('#f-date').addEventListener('change', (e) => { F.date = e.target.value; paint(); });
+    app.querySelector('#btn-print').addEventListener('click', () => {
+      printReport(`${co.name} - Balance Sheet - ${fmtDate(F.date)}`, sheet);
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

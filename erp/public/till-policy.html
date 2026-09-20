@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Till policy — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .pol { max-width: 760px; }
+    .pol h2 { margin: 22px 0 8px; font-size: 15px; }
+    .row { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid var(--ult-border); }
+    .row input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; flex: 0 0 auto; }
+    .row b { display: block; font-size: 14px; }
+    .row span { display: block; font-size: 13px; color: #64748b; margin-top: 2px; }
+    .deny { padding: 24px; background: var(--ult-card); border: 1px solid var(--ult-border); border-radius: 12px; }
+  </style>
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { getAccess } from './js/rbac.js';
+  import { canEditTillPolicy, loadTillPolicy, saveTillPolicy } from './js/till-policy.js';
+  import { enrollThisDevice } from './js/till-open.js';
+  import { ackResult, confirmAction } from './js/confirm-action.js';
+  import { esc } from './js/ls-rows.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const ctx = getAccess();
+  const allowed = canEditTillPolicy(ctx?.roleName);
+
+  function check(id, on, title, hint) {
+    return `<label class="row">
+      <input type="checkbox" id="${id}" ${on ? 'checked' : ''} />
+      <div><b>${esc(title)}</b><span>${esc(hint)}</span></div>
+    </label>`;
+  }
+
+  if (!allowed) {
+    app.innerHTML = `
+      ${pageChrome('Till policy', 'Cash, MoMo, silent HQ alerts, and shop attendance.')}
+      <div class="deny">
+        <p>Only <strong>HQ Admin</strong>, Owner, and Founder can turn this policy on or off, or override it.</p>
+        <p class="ult-muted">Ask leadership if a till rule is blocking shop work.</p>
+      </div>`;
+  } else {
+    const pol = await loadTillPolicy();
+    let status = '';
+    function paint() {
+      app.innerHTML = `
+        ${pageChrome('Till & staff hours', 'HQ master control: till cash/MoMo, shop attendance, and 08:00 Ghana start time.')}
+        <div class="ult-card pol">
+          ${check('till_policy_on', pol.till_policy_on, 'Till policy is on', 'Master switch. Off = MoMo/cash count and silent alerts do not run.')}
+          <h2>Cash & MoMo count</h2>
+          ${check('till_count_required', pol.till_count_required, 'Cashiers must enter MoMo and cash', 'Replaces opening float. Total cash on hand = MoMo + cash.')}
+          ${check('till_silent_alert', pol.till_silent_alert, 'Silent HQ alert on mismatch', 'Till still opens. HQ gets the bell, this page, and the chatbot flash. Cashier sees nothing.')}
+          ${check('till_flash_bot', pol.till_flash_bot, 'Flash the chatbot for HQ', 'Red pulse on the assistant so anyone with HQ access sees it on their screen.')}
+          ${check('till_block_mismatch', pol.till_block_mismatch, 'Block till open when totals do not match', 'Off by default (Ghana shop flow). On = cashier cannot enter until HQ overrides.')}
+          <h2>Attendance</h2>
+          ${check('till_attend_on', pol.till_attend_on, 'Shop IP + GPS check-in', 'Primary: shop internet. Fallback: geofence around Fiberk Shop (Ashaley Botwe).')}
+          ${check('till_attend_alert', pol.till_attend_alert, 'Silent HQ notice if attendance is unverified', 'Till still opens. HQ is told the device was off the shop IP / geofence.')}
+          <label class="row">
+            <div style="flex:1">
+              <b>Geofence radius (metres)</b>
+              <span>Tight ring around the shop. Default 60 m.</span>
+              <input id="till_geofence_m" class="ult-input" type="number" min="20" max="250" step="5" value="${esc(pol.till_geofence_m)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <h2>Staff hours (Ghana time)</h2>
+          <p class="ult-muted">HQ Admin and Owner are exempt. Everyone else is measured against Africa/Accra.</p>
+          ${check('staff_hours_on', pol.staff_hours_on, 'Staff hours policy is on', 'Master switch for late login and no-show alerts.')}
+          <label class="row">
+            <div style="flex:1">
+              <b>Start time</b>
+              <span>Shop floor start. Default 08:00 Ghana time.</span>
+              <input id="staff_start" class="ult-input" type="time" value="${esc(pol.staff_start)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <label class="row">
+            <div style="flex:1">
+              <b>Grace (minutes)</b>
+              <span>Allowed after start before it counts as late. Default 0.</span>
+              <input id="staff_grace_min" class="ult-input" type="number" min="0" max="120" step="1" value="${esc(pol.staff_grace_min)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          ${check('staff_late_alert', pol.staff_late_alert, 'Alert if they sign in after start', 'Silent HQ alert + chatbot flash. Audit log: Staff alerts. They still get in.')}
+          ${check('staff_absent_alert', pol.staff_absent_alert, 'Alert if they have not signed in by start', 'Fires once per person per day after the wait below, when HQ is on the ERP.')}
+          <label class="row">
+            <div style="flex:1">
+              <b>Wait after start before no-show (minutes)</b>
+              <span>Default 15. Avoids a false alert if someone is a few minutes behind.</span>
+              <input id="staff_absent_after_min" class="ult-input" type="number" min="0" max="180" step="5" value="${esc(pol.staff_absent_after_min)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <label class="row">
+            <div style="flex:1">
+              <b>Expected hours per day</b>
+              <span>Used to score lateness (minutes late come off this) and absence (a zero day).</span>
+              <input id="staff_hours_day" class="ult-input" type="number" min="1" max="16" step="0.5" value="${esc(pol.staff_hours_day)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <label class="row">
+            <div style="flex:1">
+              <b>Work days per week</b>
+              <span>Monday–Friday when 5. Weekend is not scored.</span>
+              <input id="staff_days_week" class="ult-input" type="number" min="1" max="7" step="1" value="${esc(pol.staff_days_week)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <label class="row">
+            <div style="flex:1">
+              <b>Attendance weight in general rating (%)</b>
+              <span>Rest is the job target (sales for cashier/sales jobs, work target for others).</span>
+              <input id="staff_kpi_att_weight" class="ult-input" type="number" min="0" max="100" step="5" value="${esc(pol.staff_kpi_att_weight)}" style="max-width:140px;margin-top:8px" />
+            </div>
+          </label>
+          <p class="ult-muted" style="margin:14px 0 8px">HQ Admin and above may override a single opening from the till screen. That skip is logged. Shop staff cannot.</p>
+          <p style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="ult-btn ult-btn-primary" id="save">Save policy</button>
+            <button type="button" class="ult-btn ult-btn-outline" id="enroll">This computer is the shop till</button>
+            <a class="ult-btn ult-btn-outline" href="/till-alerts.html">Open discrepancies</a>
+          </p>
+          <p id="st">${status}</p>
+        </div>`;
+      document.getElementById('save').onclick = async () => {
+        const next = {
+          till_policy_on: document.getElementById('till_policy_on').checked,
+          till_count_required: document.getElementById('till_count_required').checked,
+          till_silent_alert: document.getElementById('till_silent_alert').checked,
+          till_flash_bot: document.getElementById('till_flash_bot').checked,
+          till_block_mismatch: document.getElementById('till_block_mismatch').checked,
+          till_attend_on: document.getElementById('till_attend_on').checked,
+          till_attend_alert: document.getElementById('till_attend_alert').checked,
+          till_geofence_m: Number(document.getElementById('till_geofence_m').value) || 60,
+          staff_hours_on: document.getElementById('staff_hours_on').checked,
+          staff_start: document.getElementById('staff_start').value || '08:00',
+          staff_grace_min: Number(document.getElementById('staff_grace_min').value) || 0,
+          staff_late_alert: document.getElementById('staff_late_alert').checked,
+          staff_absent_alert: document.getElementById('staff_absent_alert').checked,
+          staff_absent_after_min: Number(document.getElementById('staff_absent_after_min').value) || 15,
+          staff_hours_day: Number(document.getElementById('staff_hours_day').value) || 8,
+          staff_days_week: Number(document.getElementById('staff_days_week').value) || 5,
+          staff_kpi_att_weight: Number(document.getElementById('staff_kpi_att_weight').value) || 60,
+        };
+        Object.assign(pol, next);
+        const r = await saveTillPolicy(next);
+        status = r.error
+          ? `<span style="color:#b91c1c">${esc(r.error.message || 'Could not save')}</span>`
+          : '<span style="color:#166534">Saved. Live tills pick this up on the next open.</span>';
+        ackResult(!r.error, r.error ? (r.error.message || 'Not saved') : 'Till policy saved.');
+        paint();
+      };
+      document.getElementById('enroll').onclick = async () => {
+        if (!(await confirmAction('Enrol this computer as the Fiberk Shop till?'))) return;
+        await enrollThisDevice({ locationCode: 'FIB-SHOP', locationName: 'Fiberk Shop', enrolledBy: ctx?.email });
+        ackResult(true, 'This device and its public IP are now the shop till fingerprint.');
+      };
+    }
+    paint();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Customers — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}.page h1{margin:0;font-size:22px;color:var(--ult-text)}
+    .sub{margin:0 0 12px;color:var(--ult-text);font-size:13px}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;width:100%;box-sizing:border-box;margin-bottom:12px}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .head h2{margin:0;font-size:16px;color:var(--ult-text)}
+    .add{background:#4f46e5;color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button,.filters select{border:1px solid #111;background:var(--ult-card);color:var(--ult-text);border-radius:8px;padding:5px 10px;font-size:12px}
+    .filt-toggle{width:100%;text-align:left;background:var(--ult-card);border:1px solid var(--ult-border);border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;color:var(--ult-text);margin-bottom:10px}
+    .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media(max-width:900px){.filters{grid-template-columns:1fr 1fr}}
+    table.ult-table th,table.ult-table td{color:var(--ult-text);white-space:nowrap}
+    table.ult-table tfoot td{background:#d1d5db;font-weight:800;color:#111}
+    .act-btn{color:#0284c7;border:1px solid #7dd3fc;background:var(--ult-card);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .act-menu{position:absolute;background:var(--ult-card);border:1px solid var(--ult-border);border-radius:8px;min-width:190px;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+    .act-menu a,.act-menu button{display:block;width:100%;text-align:left;border:0;background:var(--ult-card);padding:8px 12px;color:var(--ult-text);text-decoration:none;font-size:13px;cursor:pointer}
+    .pager{display:flex;justify-content:flex-end;gap:6px}
+    .pager button{border:1px solid #111;background:var(--ult-card);color:var(--ult-text);padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pdf-orient button{display:block;width:100%;margin:4px 0;border:1px solid #111;background:#fff;padding:6px}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { SCOPE_EVENT, filterBySidebar, scopeCaption, filterAgentHtml, inferRowScope, findLocation } from './js/scope.js';
+    import { bindTable, openFlyout, closeFlyout } from './js/home-tables.js';
+    import { subsidiaryLabel, ghanaAddressLine } from './js/entity-scope.js';
+    import { OPERATING_COMPANIES, MARKETPLACES, DEPARTMENTS, placeFiberkappParty } from './js/org-chain.js';
+    import { loadCustomerGroups, resolveCustomerGroup, groupFromSubsidiary } from './js/contact-rules.js';
+    import { backfillDemoScope } from './js/demo-seed.js';
+    import { loadRows, safeFrom, deleteRow } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_CUSTOMERS, SEED_GROUPS, SEED_SALES, SEED_USERS } from './js/catalog-seed.js';
+    import { excludeMigrated, siloGateHtml } from './js/fiberk-silo.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let showFilt = false;
+    const F = { sellDue:false, sellRet:false, adv:false, open:false, group:'', assigned:'', status:'', noSell:'', sub:'', loc:'', dept:'' };
+
+    const scope = filterBySidebar;
+
+    async function load() {
+      const [parties, sales, rets, groups, profiles] = await Promise.all([
+        loadRows('customers', CAT_KEYS.customers, SEED_CUSTOMERS),
+        loadRows('sales_orders', CAT_KEYS.sales, SEED_SALES),
+        safeFrom('sell_returns'),
+        loadRows('customer_groups', CAT_KEYS.groups, SEED_GROUPS),
+        loadRows('profiles', CAT_KEYS.users, SEED_USERS),
+      ]);
+      const dueMap = {}, retMap = {}, lastSale = {};
+      (sales || []).forEach((s) => {
+        if (!s.customer_id) return;
+        dueMap[s.customer_id] = (dueMap[s.customer_id] || 0) + Math.max(0, Number(s.total_amount||0)-Number(s.amount_paid||0));
+        const d = String(s.order_date || s.created_at || '').slice(0,10);
+        if (d && (!lastSale[s.customer_id] || d > lastSale[s.customer_id])) lastSale[s.customer_id] = d;
+      });
+      (rets || []).forEach((s) => {
+        if (!s.customer_id) return;
+        retMap[s.customer_id] = (retMap[s.customer_id] || 0) + Number(s.total || s.total_amount || 0);
+      });
+      let rows = scope(parties || []).map((p) => {
+        const placed = placeFiberkappParty({ ...inferRowScope(p), ...p, group: p.group || p.group_name || p.customer_group });
+        const loc = findLocation(placed.location_code);
+        return {
+          ...p,
+          subsidiary_code: placed.subsidiary_code || p.subsidiary_code,
+          subsidiary: placed.subsidiary,
+          location_code: placed.location_code || p.location_code,
+          location_name: placed.location,
+          department_code: placed.department_code,
+          department: placed.department,
+          sale_due: dueMap[p.id] || Number(p.total_due || 0),
+          ret_due: retMap[p.id] || 0,
+          group_name: resolveCustomerGroup({ ...p, subsidiary_code: placed.subsidiary_code }, groups || []),
+          address: ghanaAddressLine(p) || loc?.name || '',
+        };
+      });
+      const blank = (parties || []).filter((p) => !p.group_name && !p.customer_group_id && !p.customer_group && p.id);
+      if (blank.length) {
+        Promise.all(blank.slice(0, 120).map((p) =>
+          supabase.from('customers').update({
+            group_name: groupFromSubsidiary(p.subsidiary_code, p.location_code || p.location_name),
+          }).eq('id', p.id)
+        )).catch(() => {});
+      }
+      if (F.sellDue) rows = rows.filter((r) => r.sale_due > 0);
+      if (F.sellRet) rows = rows.filter((r) => r.ret_due > 0);
+      if (F.adv) rows = rows.filter((r) => Number(r.advance_balance||0) > 0);
+      if (F.open) rows = rows.filter((r) => Number(r.opening_balance||0) > 0);
+      if (F.sub) rows = rows.filter((r) => r.subsidiary_code === F.sub);
+      if (F.loc) rows = rows.filter((r) => r.location_code === F.loc);
+      if (F.dept) rows = rows.filter((r) => r.department_code === F.dept);
+      if (F.group) rows = rows.filter((r) => r.group_name === F.group);
+      if (F.assigned) rows = rows.filter((r) => r.assigned_to === F.assigned);
+      if (F.status === 'active') rows = rows.filter((r) => r.is_active !== false);
+      if (F.status === 'inactive') rows = rows.filter((r) => r.is_active === false);
+      if (F.noSell) {
+        const months = { '1':1, '3':3, '6':6, '12':12 }[F.noSell] || 0;
+        const cut = new Date(); cut.setMonth(cut.getMonth() - months);
+        const cutS = cut.toISOString().slice(0,10);
+        rows = rows.filter((r) => !lastSale[r.id] || lastSale[r.id] < cutS);
+      }
+      const totDue = rows.reduce((a,r)=>a+Number(r.sale_due||0),0);
+      const totRet = rows.reduce((a,r)=>a+Number(r.ret_due||0),0);
+      const groupOpts = (groups||[]).map((g)=>`<option ${F.group===g.name?'selected':''}>${esc(g.name)}</option>`).join('');
+      const asgOpts = (profiles||[]).map((p)=>`<option value="${p.id}" ${F.assigned===p.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('');
+
+      app.innerHTML = `
+        <h1>Customers</h1>
+        <p class="sub">${esc(scopeCaption())} — Manage your Customers</p>
+        ${siloGateHtml('customers')}
+        <div class="filter-section" id="filt-box">
+          <div class="filter-header">Filters <span class="filter-chevron">▼</span></div>
+          <div class="filter-body">
+            <div class="filters" style="margin-bottom:12px">
+              <div>Subsidiary<br><select id="f-sub"><option value="">All</option>${OPERATING_COMPANIES.map((s)=>`<option value="${s.code}" ${F.sub===s.code?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+              <div>Business location<br><select id="f-loc"><option value="">All</option>${MARKETPLACES.map((m)=>`<option value="${m.code}" ${F.loc===m.code?'selected':''}>${esc(m.name)}</option>`).join('')}</select></div>
+              <div>Department<br><select id="f-dept"><option value="">All</option>${DEPARTMENTS.map((d)=>`<option value="${d.code}" ${F.dept===d.code?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div>
+            </div>
+            <div class="filters">
+            <div class="filt-checks">
+              <label class="filt-check"><input type="checkbox" id="f-due" ${F.sellDue?'checked':''}/> Sell Due</label>
+              <label class="filt-check"><input type="checkbox" id="f-ret" ${F.sellRet?'checked':''}/> Sell Return</label>
+              <label class="filt-check"><input type="checkbox" id="f-adv" ${F.adv?'checked':''}/> Advance Balance</label>
+              <label class="filt-check"><input type="checkbox" id="f-open" ${F.open?'checked':''}/> Opening Balance</label>
+            </div>
+              <div>Has no sell from:<br><select id="f-nosell">
+                <option value="">Please Select</option>
+                <option value="1" ${F.noSell==='1'?'selected':''}>One month</option>
+                <option value="3" ${F.noSell==='3'?'selected':''}>Three months</option>
+                <option value="6" ${F.noSell==='6'?'selected':''}>Six months</option>
+                <option value="12" ${F.noSell==='12'?'selected':''}>One year</option>
+              </select></div>
+              <div>Customer Group:<br><select id="f-group"><option value="">None</option>${groupOpts}</select></div>
+              <div>Assigned to:<br><select id="f-asg"><option value="">None</option>${asgOpts}</select></div>
+              ${filterAgentHtml()}
+              <div>Status:<br><select id="f-st"><option value="">None</option><option value="active" ${F.status==='active'?'selected':''}>Active</option><option value="inactive" ${F.status==='inactive'?'selected':''}>Inactive</option></select></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" data-tbl="cust">
+          <div class="head"><h2>All your Customers</h2><a class="add" href="/customer-form.html">+ Add</a></div>
+          <div class="bar">
+            <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>200</option><option>500</option><option>1000</option><option>All</option></select> entries</label>
+            <div class="grow"></div>
+            <button type="button" data-exp="csv">Export CSV</button>
+            <button type="button" data-exp="xls">Export Excel</button>
+            <button type="button" data-exp="print">Print</button>
+            <button type="button" data-exp="cols">Column visibility</button>
+            <button type="button" data-exp="pdf">Export PDF</button>
+            <input data-tbl-search placeholder="Search …" />
+          </div>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th>Action</th><th>Contact ID</th><th>Subsidiary</th><th>Business Location</th><th>Department</th><th>Business Name</th><th>Name</th><th>Email</th>
+              <th>Tax number</th><th>Credit Limit</th><th>Pay term</th><th>Opening Balance</th>
+              <th>Advance Balance</th><th>Added On</th><th>Customer Group</th><th>Address</th>
+              <th>Mobile</th><th>Total Sale Due</th><th>Total Sell Return Due</th>
+              <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th><th>Custom Field 4</th><th>Custom Field 5</th>
+              <th>Custom Field 6</th><th>Custom Field 7</th><th>Custom Field 8</th><th>Custom Field 9</th><th>Custom Field 10</th>
+            </tr></thead>
+            <tbody>${rows.map((p)=>`<tr data-id="${esc(p.id)}" data-view="${esc(p.id)}">
+              <td style="position:relative"><button type="button" class="act-btn" data-act="${p.id}">Actions ▾</button></td>
+              <td>${esc(p.contact_code||p.code||p.contact_id||'')}</td>
+              <td>${esc(p.subsidiary || subsidiaryLabel(p.subsidiary_code))}</td>
+              <td>${esc(p.location_name||'')}</td>
+              <td>${esc(p.department||'')}</td>
+              <td>${esc(p.business_name||'')}</td>
+              <td>${esc(p.full_name||p.name||'')}</td>
+              <td>${esc(p.email||'')}</td>
+              <td>${esc(p.tin||p.tax_number||'')}</td>
+              <td>${p.credit_limit==null||p.credit_limit===''?'No Limit':fmt(p.credit_limit)}</td>
+              <td>${esc(p.pay_term||'')}</td>
+              <td>${fmt(p.opening_balance)}</td>
+              <td>${fmt(p.advance_balance)}</td>
+              <td>${esc(String(p.created_at||'').slice(0,10))}</td>
+              <td>${esc(p.group_name)}</td>
+              <td>${esc(p.address||'')}</td>
+              <td>${esc(p.phone||p.mobile||'')}</td>
+              <td>${fmt(p.sale_due)}</td>
+              <td>${fmt(p.ret_due)}</td>
+              <td>${esc(p.custom_field_1||'')}</td><td>${esc(p.custom_field_2||'')}</td>
+              <td>${esc(p.custom_field_3||'')}</td><td>${esc(p.custom_field_4||'')}</td>
+              <td>${esc(p.custom_field_5||'')}</td>
+              <td>${esc(p.custom_field_6||'')}</td><td>${esc(p.custom_field_7||'')}</td>
+              <td>${esc(p.custom_field_8||'')}</td><td>${esc(p.custom_field_9||'')}</td>
+              <td>${esc(p.custom_field_10||'')}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="29" style="text-align:center">No data available in table</td></tr>'}</tbody>
+            <tfoot><tr><td colspan="14" style="text-align:right">Total:</td><td>${fmt(totDue)}</td><td>${fmt(totRet)}</td><td colspan="13"></td></tr></tfoot>
+          </table></div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+        </div>`;
+
+      bindTable(app.querySelector('[data-tbl="cust"]'), { title:'Customers', storageKey:'customers' });
+            const bindF = () => {
+        F.sellDue = document.getElementById('f-due').checked;
+        F.sellRet = document.getElementById('f-ret').checked;
+        F.adv = document.getElementById('f-adv').checked;
+        F.open = document.getElementById('f-open').checked;
+        F.group = document.getElementById('f-group').value;
+        F.assigned = document.getElementById('f-asg').value;
+        F.status = document.getElementById('f-st').value;
+        F.noSell = document.getElementById('f-nosell').value;
+        F.sub = document.getElementById('f-sub').value;
+        F.loc = document.getElementById('f-loc').value;
+        F.dept = document.getElementById('f-dept').value;
+        load();
+      };
+      ['f-due','f-ret','f-adv','f-open','f-group','f-asg','f-st','f-nosell','f-sub','f-loc','f-dept'].forEach((id) => {
+        document.getElementById(id).onchange = bindF;
+      });
+      app.querySelectorAll('[data-act]').forEach((b) => {
+        b.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = b.dataset.act;
+          if (document.querySelector(`.act-flyout[data-for="${CSS.escape(String(id))}"]`)) { closeFlyout(); return; }
+          const menu = openFlyout(b, `
+            <a href="/customer-view.html?id=${id}&pay=1">Pay</a>
+            <a href="/customer-view.html?id=${id}">View</a>
+            <a href="/customer-form.html?id=${id}">Edit</a>
+            <button type="button" data-del="${id}">Delete</button>
+            <button type="button" data-off="${id}">Deactivate</button>
+            <a href="/customer-view.html?id=${id}&tab=ledger">Ledger</a>
+            <a href="/sales-orders.html?customer=${id}">Sales</a>
+            <a href="/customer-view.html?id=${id}&tab=docs">Documents & Note</a>`);
+          menu.dataset.for = String(id);
+          menu.querySelector('[data-del]').onclick = async () => {
+            closeFlyout();
+            if (!(await confirmAction('Delete this customer?', 'This cannot be undone.'))) return;
+            await deleteRow('customers', CAT_KEYS.customers, id);
+            ackResult(true, 'Customer deleted.');
+            load();
+          };
+          menu.querySelector('[data-off]').onclick = async () => {
+            closeFlyout();
+            const { error } = await supabase.from('customers').update({ is_active:false }).eq('id', id);
+            if (error) { ackResult(false, error.message); return; }
+            ackResult(true);
+            load();
+          };
+        };
+      });
+    }
+    window.addEventListener(SCOPE_EVENT, () => load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; }));
+    load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; });
+  </script>
+</body>
+</html>

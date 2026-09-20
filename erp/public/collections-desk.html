@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Collections — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/collections-ops.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading Collections…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { paintCollections } from './js/collections-desk.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  async function paint() {
+    await paintCollections(app, {
+      navHtml: '',
+      go(tab) {
+        const u = new URL(location.href);
+        u.searchParams.delete('tab');
+        if (tab && tab !== 'accounts') u.searchParams.set('pane', tab);
+        else u.searchParams.delete('pane');
+        const next = u.pathname + u.search;
+        if (next !== location.pathname + location.search) history.pushState({ spa: next, tab: true }, '', next);
+        paint();
+      },
+    });
+  }
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  await paint();
+</script>
+</body>
+</html>

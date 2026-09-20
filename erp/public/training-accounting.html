@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accounting training — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/staff-learn.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading accounting training…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { ackResult } from './js/confirm-action.js';
+  import { packById, deptPackBody } from './js/dept-training.js';
+
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const KEY = 'df_training_progress';
+  const pack = packById('accounting');
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+  const save = (o) => localStorage.setItem(KEY, JSON.stringify(o));
+  const app = document.getElementById('app');
+
+  function paint() {
+    const done = load();
+    const n = (pack.lessons || []).filter((m) => done[m.id]).length;
+    app.innerHTML = `
+      ${pageChrome('Accounting training', n + ' of ' + pack.lessons.length + ' lessons marked complete.')}
+      <p class="ult-muted" style="margin:-8px 0 12px"><a href="/training.html">All training</a> · <a href="/accounting.html">Accounting</a></p>
+      <div class="or-wrap" style="max-width:920px">
+        ${deptPackBody(pack, done)}
+      </div>`;
+    app.querySelectorAll('[data-toggle-mod]').forEach((btn) => {
+      btn.onclick = () => btn.closest('.mod')?.classList.toggle('open');
+    });
+    app.querySelectorAll('[data-train]').forEach((btn) => {
+      btn.onclick = () => {
+        const cur = load();
+        cur[btn.dataset.train] = true;
+        save(cur);
+        ackResult(true, 'Lesson saved as complete.');
+        paint();
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

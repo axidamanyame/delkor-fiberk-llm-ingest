@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Collections floor — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/collections-ops.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { supabase } from './js/supabaseClient.js';
+  import { esc } from './js/ls-rows.js';
+  import { loadBook, queue, shortDate } from './js/collections-home.js';
+  import { sortCallsRecent, formatCallWhen } from './js/call-when.js';
+  await mountUltimateShell();
+  const { accounts, calls } = await loadBook();
+  const qs = queue(accounts);
+  const want = new URLSearchParams(location.search).get('q');
+  let qKey = (want && qs.find((q) => q.key === want)?.key)
+    || qs.find((q) => q.rows.length)?.key
+    || qs[0]?.key;
+  let sel = (qs.find((q) => q.key === qKey)?.rows || [])[0] || accounts[0] || null;
+
+  function hist(id) {
+    const keys = new Set([id, sel?.id, sel?.easybuy_id].filter(Boolean).map(String));
+    return sortCallsRecent(calls.filter((c) => keys.has(String(c.account_id)) || keys.has(String(c.easybuy_id)))).slice(0, 24);
+  }
+
+  function paint() {
+    const rows = qs.find((q) => q.key === qKey)?.rows || [];
+    if (sel && !rows.includes(sel) && rows[0]) sel = rows[0];
+    const h = sel ? hist(sel.id || sel.easybuy_id) : [];
+    const wa = sel?.phone
+      ? `https://wa.me/233${String(sel.phone).replace(/\D/g, '').replace(/^0/, '')}`
+      : '';
+    document.getElementById('app').innerHTML = `
+      ${pageChrome('Collections floor')}
+      <div class="ops-page">
+        <div class="ops-toolbar">
+          <p class="ops-sub">One queue, one account, one outcome. Save before you leave the card.</p>
+          <div class="ops-actions">
+            <a class="ult-btn ult-btn-outline" href="/collections-home.html">Dashboard</a>
+            <a class="ult-btn ult-btn-primary" href="/collections-desk.html">Full book</a>
+          </div>
+        </div>
+        <div class="ops-floor">
+          <div class="ops-pane">
+            <div class="ops-pane-h">Queues</div>
+            <div>
+              ${qs.map((q) => `<button type="button" class="ops-qbtn ${q.key === qKey ? 'on' : ''}" data-q="${esc(q.key)}">
+                ${esc(q.label)} <em>${q.rows.length}</em>
+              </button>`).join('')}
+            </div>
+            <div class="ops-pane-h">In this queue</div>
+            <div class="ops-pane-b">
+              ${rows.map((a) => `<div class="ops-acc ${sel && (a.id === sel.id || a.phone === sel.phone) ? 'on' : ''}" data-id="${esc(a.id || a.easybuy_id || '')}">
+                <strong>${esc(a.name || '')}</strong>
+                <span>${esc(a.phone || '—')} · ${esc(a.status || '')} · next ${esc(shortDate(a.next_follow_up))}</span>
+              </div>`).join('') || '<p class="ops-col-empty">Empty queue.</p>'}
+            </div>
+          </div>
+          <div class="ops-pane">
+            <div class="ops-pane-b">
+              ${sel ? `
+                <div class="ops-detail">
+                  <h2>${esc(sel.name || '')}</h2>
+                  <p class="ops-meta">${esc(sel.phone || '—')} · ${esc(sel.product || 'Hire purchase')} · ${esc(sel.status || '')}<br>
+                    Next ${esc(shortDate(sel.next_follow_up))} · ${sel.attempts || 0} attempts · ${esc(sel.agent || 'No agent')}</p>
+                  ${sel.last_note ? `<p class="ops-note">${esc(sel.last_note)}</p>` : ''}
+                  <div class="ops-form">
+                    <label>Outcome
+                      <select id="out">
+                        <option value="ptp">Promise to pay</option>
+                        <option value="no_contact">No contact</option>
+                        <option value="current">Paying</option>
+                        <option value="on_hold">On hold</option>
+                        <option value="dispute">Dispute</option>
+                        <option value="escalate">Escalate</option>
+                        <option value="completed">Settled</option>
+                      </select>
+                    </label>
+                    <label>Escalate
+                      <select id="esc"><option value="">None</option>
+                        <option value="1">1 Supervisor</option><option value="2">2 Hard</option>
+                        <option value="3">3 Pre-legal</option><option value="4">4 Legal</option>
+                      </select>
+                    </label>
+                    <label>Promise ₵ <input id="pamt" type="number" step="0.01" /></label>
+                    <label>Promise date <input id="pdate" type="date" /></label>
+                    <label class="span">Notes <textarea id="note" rows="3"></textarea></label>
+                    <div class="ops-form-actions">
+                      <button class="ult-btn ult-btn-primary" id="save" type="button">Save outcome</button>
+                      <a class="ult-btn ult-btn-outline" href="tel:${esc(sel.phone || '')}">Phone</a>
+                      ${wa ? `<a class="ult-btn ult-btn-outline" target="_blank" rel="noopener" href="${esc(wa)}">WhatsApp</a>` : ''}
+                    </div>
+                  </div>
+                </div>` : '<p class="ops-col-empty">Pick an account.</p>'}
+            </div>
+          </div>
+          <div class="ops-pane">
+            <div class="ops-pane-h">Diary</div>
+            <div class="ops-pane-b">
+              ${h.length ? `<ol class="ops-tl">${h.map((c) => `<li>
+                <time>${esc(formatCallWhen(c))}</time>
+                <strong>${esc(c.outcome || '')}</strong>
+                <p>${esc(c.response || c.follow_up || '')}</p>
+              </li>`).join('')}</ol>` : '<p class="ops-col-empty">No calls on this account.</p>'}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    document.querySelectorAll('[data-q]').forEach((b) => {
+      b.onclick = () => {
+        qKey = b.dataset.q;
+        sel = (qs.find((q) => q.key === qKey)?.rows || [])[0] || null;
+        const u = new URL(location.href);
+        u.searchParams.set('q', qKey);
+        history.replaceState({}, '', u);
+        paint();
+      };
+    });
+    document.querySelectorAll('[data-id]').forEach((b) => {
+      b.onclick = () => {
+        sel = accounts.find((a) => String(a.id) === b.dataset.id || String(a.easybuy_id) === b.dataset.id) || sel;
+        paint();
+      };
+    });
+    const outEl = document.getElementById('out');
+    if (outEl && sel?.status && [...outEl.options].some((o) => o.value === sel.status)) {
+      outEl.value = sel.status;
+    }
+    document.getElementById('save')?.addEventListener('click', async () => {
+      const outcome = document.getElementById('out').value;
+      const note = document.getElementById('note').value;
+      const pdate = document.getElementById('pdate').value;
+      const amt = Number(document.getElementById('pamt').value) || null;
+      const lv = document.getElementById('esc').value;
+      await supabase.from('collection_calls').insert({
+        account_id: sel.easybuy_id || sel.id,
+        name: sel.name,
+        phone: sel.phone,
+        outcome,
+        response: note,
+        next_follow_up: pdate || null,
+        promise_amount: amt,
+        promise_date: pdate || null,
+        called_at: new Date().toISOString(),
+      });
+      if (amt && pdate) await supabase.from('collections_promises').insert({ account_easybuy_id: sel.easybuy_id || sel.id, amount: amt, due_date: pdate });
+      if (lv) await supabase.from('collections_escalations').insert({ account_easybuy_id: sel.easybuy_id || sel.id, level: Number(lv), reason: note });
+      if (sel.id) await supabase.from('collection_accounts').update({
+        status: outcome, last_note: note, next_follow_up: pdate || sel.next_follow_up,
+      }).eq('id', sel.id);
+      sel = { ...sel, status: outcome, last_note: note, next_follow_up: pdate || sel.next_follow_up };
+      paint();
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

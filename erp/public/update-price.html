@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Update Price</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:20px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+    .go{background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main" id="app"></main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { filterBySidebar, scopeCaption } from './js/scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <h1>Update Price</h1>
+    <p>${scopeCaption()}</p>
+    <div class="card">
+      <h3>Import Export Product Price</h3>
+      <div class="grid">
+        <div>
+          <button type="button" class="go" id="exp">Export product prices</button>
+          <h4>Instructions:</h4>
+          <p>Export product prices by clicking on above button<br>
+          Make changes in product price including tax &amp; selling price groups.<br>
+          Do not change any product name, sku &amp; headers<br>
+          After making changes import the file</p>
+        </div>
+        <div>
+          <form id="imp">
+            <label>File To Import:</label><br>
+            <input type="file" id="file" accept=".csv" required /><br><br>
+            <button class="go">Submit</button>
+          </form>
+          <p id="msg"></p>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('exp').onclick = async () => {
+    const { data } = await supabase.from('products').select('sku,name,cost_price,selling_price,tax_name,tax_type').limit(5000);
+    const rows = filterBySidebar(data || []);
+    const head = 'sku,name,cost_price,selling_price,tax,tax_type';
+    const csv = [head, ...rows.map((r) => [r.sku,r.name,r.cost_price,r.selling_price,r.tax,r.tax_type].join(','))].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'product-prices.csv';
+    a.click();
+  };
+  document.getElementById('imp').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Import these prices?', 'SKU and name are not changed. Only prices for the active company.'))) return;
+    const text = await document.getElementById('file').files[0].text();
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    const start = /sku/i.test(lines[0]) ? 1 : 0;
+    let ok = 0;
+    for (const line of lines.slice(start)) {
+      const [sku, name, cost, sell, tax, tax_type] = line.split(',');
+      if (!sku) continue;
+      const { error } = await supabase.from('products').update({
+        cost_price: Number(cost || 0), selling_price: Number(sell || 0), tax: tax || null, tax_type: tax_type || null,
+      }).eq('sku', sku.trim());
+      if (!error) ok++;
+    }
+    document.getElementById('msg').textContent = 'Updated ' + ok + ' SKU(s).';
+  };
+</script>
+</body>
+</html>

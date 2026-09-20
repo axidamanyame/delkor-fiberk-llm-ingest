@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Opened Registers</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    .page h1{margin:0;font-size:22px;font-weight:700}
+    .sub{margin:4px 0 12px;font-size:13px;color:var(--ult-text);font-weight:400}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}
+    .add{background:linear-gradient(to right,#4f46e5,#3b82f6);color:#fff;border:0;border-radius:999px;padding:8px 18px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+    .pf{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;margin-bottom:12px;overflow:hidden}
+    .pf-btn{width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--ult-card);border:0;cursor:pointer;font:inherit}
+    .pf-ico{width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,#004EEB 10%,transparent);color:#004EEB;margin-right:10px}
+    .pf-btn span.label{font-size:14px;font-weight:700;color:var(--ult-text)}
+    .pf-chev{color:#004EEB;transition:transform .2s}
+    .pf.open .pf-chev{transform:rotate(180deg)}
+    .pf-body{display:none;padding:8px 16px 16px}
+    .pf.open .pf-body{display:block}
+    .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
+    @media(max-width:900px){.filters{grid-template-columns:1fr 1fr}}
+    .filters label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--ult-text)}
+    .filters select,.filters input{border:1px solid #111;border-radius:8px;padding:7px 10px;width:100%;box-sizing:border-box;color:var(--ult-text);background:var(--ult-card)}
+    table.ult-table th,table.ult-table td{color:var(--ult-text);white-space:nowrap}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .act{position:relative}
+    .act summary{list-style:none;cursor:pointer;border:1px solid #7dd3fc;color:#0284c7;background:var(--ult-card);border-radius:999px;padding:4px 12px;font-size:12px}
+    .act summary::-webkit-details-marker{display:none}
+    .act menu{position:absolute;left:0;top:100%;background:var(--ult-card);border:1px solid var(--ult-border);border-radius:8px;padding:6px 0;min-width:180px;z-index:5;margin:4px 0 0;box-shadow:0 8px 20px rgba(0,0,0,.08)}
+    .act menu a,.act menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:6px 12px;font:inherit;color:var(--ult-text);cursor:pointer;text-decoration:none}
+    .act menu a:hover,.act menu button:hover{background:#eff6ff;color:#004EEB}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+    .pill.open{background:#dcfce7;color:#166534}
+    .pill.closed{background:#e5e7eb;color:#374151}
+    tfoot td{font-weight:800;background:#e5e7eb}
+    .kv{display:grid;grid-template-columns:180px 1fr;gap:6px 12px;font-size:14px}
+    .kv b{color:#3d4f66;font-weight:600}
+    .back{display:inline-flex;margin-bottom:12px;color:#004EEB;font-weight:700;text-decoration:none}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, filterAgentHtml, BUSINESS_LOCATIONS, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_SESSIONS, SEED_SALES } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => {
+    if (ch === '&') return '&' + 'amp;';
+    if (ch === '<') return '&' + 'lt;';
+    if (ch === '>') return '&' + 'gt;';
+    if (ch === '"') return '&' + 'quot;';
+    return '&' + '#39;';
+  });
+  let showFilt = false;
+  const F = { loc: '', cashier: '', status: '' };
+
+  function locName(r) {
+    return findLocation(r.location_code)?.name || r.location_name || r.location_code || '';
+  }
+  function stamp(v) {
+    return String(v || '').slice(0, 16).replace('T', ' ');
+  }
+
+  async function paintView(id) {
+    const all = await loadRows('pos_sessions', CAT_KEYS.sessions, SEED_SESSIONS);
+    const r = all.find((x) => String(x.id) === String(id));
+    if (!r) { app.innerHTML = '<p>Register not found.</p>'; return; }
+    const sales = (await loadRows('sales_orders', CAT_KEYS.sales, SEED_SALES)).filter((s) => String(s.pos_session_id) === String(id));
+    const tot = (sales || []).reduce((a, s) => a + Number(s.total_amount || 0), 0);
+    app.innerHTML = `
+      <a class="back" href="/pos-sessions.html">← Back to Opened Registers</a>
+      <h1>Register details</h1>
+      <p class="sub">${esc(r.cashier_email || '')} · ${esc(locName(r))} · ${esc(r.subsidiary_code || '')}</p>
+      <div class="card">
+        <div class="kv">
+          <b>Opened</b><span>${esc(stamp(r.opened_at || r.created_at))}</span>
+          <b>Closed</b><span>${esc(stamp(r.closed_at) || (r.status === 'open' ? 'still open' : '—'))}</span>
+          <b>Status</b><span><span class="pill ${r.status==='open'?'open':'closed'}">${esc(r.status || '')}</span></span>
+          <b>Opening float</b><span>${fmt(r.opening_float)}</span>
+          <b>MoMo on hand</b><span>${fmt(r.momo_on_hand)}</span>
+          <b>Cash on hand</b><span>${fmt(r.cash_on_hand)}</span>
+          <b>Closing cash</b><span>${fmt(r.closing_cash || r.closing_float || 0)}</span>
+          <b>Sales on this till</b><span>${(sales||[]).length} · ${fmt(tot)}</span>
+        </div>
+        <p style="margin-top:16px;text-align:right">
+          ${r.status==='open' ? `<a class="add" href="/pos.html?session=${r.id}">Continue till</a>` : ''}
+        </p>
+      </div>`;
+  }
+
+  async function load() {
+    const id = new URLSearchParams(location.search).get('id');
+    if (id) return paintView(id);
+
+    const data = await loadRows('pos_sessions', CAT_KEYS.sessions, SEED_SESSIONS);
+    const error = null;
+    let rows = filterBySidebar(data || []);
+    F.loc = getActiveLocation();
+    if (F.loc) rows = rows.filter((r) => r.location_code === F.loc || locName(r) === F.loc);
+    if (F.cashier) rows = rows.filter((r) => String(r.cashier_email || '') === F.cashier);
+    if (F.status) rows = rows.filter((r) => String(r.status || '').toLowerCase() === F.status);
+
+    const cashiers = [...new Set((data || []).map((r) => r.cashier_email).filter(Boolean))];
+    const openN = rows.filter((r) => r.status === 'open').length;
+    const floatSum = rows.reduce((a, r) => a + Number(r.opening_float || 0), 0);
+
+    app.innerHTML = `
+      <h1>Opened Registers</h1>
+      <p class="sub">${esc(scopeCaption())} · Cash registers for each subsidiary and location. This is not the POS sales list.</p>
+
+      <div class="pf ${showFilt ? 'open' : ''}" id="pf">
+        <button type="button" class="pf-btn" id="filt-tog">
+          <span style="display:flex;align-items:center"><span class="pf-ico">☰</span><span class="label">Filters</span></span>
+          <span class="pf-chev">▾</span>
+        </button>
+        <div class="pf-body">
+          <div class="filters">
+            <label>Business Location:
+              <select id="f-loc" data-scope-loc data-empty-label="All"><option value="">All</option>
+                ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Cashier:
+              <select id="f-c"><option value="">All</option>
+                ${cashiers.map((u) => `<option ${F.cashier===u?'selected':''}>${esc(u)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Status:
+              <select id="f-s">
+                <option value="">All</option>
+                <option value="open" ${F.status==='open'?'selected':''}>Open</option>
+                <option value="closed" ${F.status==='closed'?'selected':''}>Closed</option>
+              </select>
+            </label>
+            ${filterAgentHtml()}
+          </div>
+        </div>
+      </div>
+
+      <div class="card" data-tbl="registers">
+        <div class="head">
+          <h2 style="margin:0;font-size:16px">Opened Registers</h2>
+          <a class="add" href="/till-login.html">+ Open register</a>
+        </div>
+        ${error ? `<p>${esc(error.message)}</p>` : ''}
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Opened</th>
+            <th>Closed</th>
+            <th>Cashier</th>
+            <th>Location</th>
+            <th>Subsidiary</th>
+            <th>Float</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${rows.map((s) => `<tr>
+            <td><details class="act"><summary>Actions</summary><menu>
+              <a href="/pos-sessions.html?id=${s.id}">👁 View</a>
+              ${s.status==='open' ? `<a href="/pos.html?session=${s.id}">▦ Continue till</a>
+              <button type="button" data-close="${s.id}">✖ Close register</button>` : ''}
+            </menu></details></td>
+            <td>${esc(stamp(s.opened_at || s.created_at))}</td>
+            <td>${esc(stamp(s.closed_at))}</td>
+            <td>${esc(s.cashier_email || '')}</td>
+            <td>${esc(locName(s))}</td>
+            <td>${esc(s.subsidiary_code || '')}</td>
+            <td>${fmt(s.opening_float)}</td>
+            <td><span class="pill ${s.status==='open'?'open':'closed'}">${esc(s.status || '')}</span></td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="8" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          <tfoot><tr>
+            <td colspan="6" style="text-align:right">Total:</td>
+            <td>${fmt(floatSum)}</td>
+            <td>Open - ${openN} · Closed - ${rows.length - openN}</td>
+          </tr></tfoot>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+
+    bindTable(app.querySelector('[data-tbl="registers"]'), { title: 'Opened Registers', storageKey: 'opened-registers' });
+    document.getElementById('filt-tog').onclick = () => {
+      showFilt = !showFilt;
+      document.getElementById('pf').classList.toggle('open', showFilt);
+    };
+    const grab = () => {
+      F.loc = document.getElementById('f-loc').value;
+      F.cashier = document.getElementById('f-c').value;
+      F.status = document.getElementById('f-s').value;
+      load();
+    };
+    ['f-loc','f-c','f-s'].forEach((id) => document.getElementById(id)?.addEventListener('change', grab));
+    app.querySelectorAll('[data-close]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Close this cash register?', 'The till will no longer accept sales until it is opened again.'))) return;
+        let { error } = await supabase.from('pos_sessions').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', b.dataset.close);
+        if (error) ({ error } = await supabase.from('pos_sessions').update({ status: 'closed' }).eq('id', b.dataset.close));
+        if (error) return alert(error.message);
+        load();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

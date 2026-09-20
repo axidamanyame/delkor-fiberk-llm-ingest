@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tax Rates — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, saveRow, deleteRow, esc, actMenu } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const KEY = 'df_tax_rates';
+  const GKEY = 'df_tax_groups';
+  const TABLE = 'tax_rates';
+  const seed = [
+    { id: 'vat', name: 'VAT', amount: 15, for_tax_group: false },
+    { id: 'nhil', name: 'NHIL', amount: 2.5, for_tax_group: true },
+    { id: 'getfund', name: 'GETFund', amount: 2.5, for_tax_group: true },
+    { id: 'covid', name: 'COVID Levy', amount: 1, for_tax_group: true },
+  ];
+  const gseed = [{ id: 'gh-stack', name: 'Ghana statutory stack', tax_ids: 'nhil,getfund,covid' }];
+
+  async function paint() {
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const tab = q.get('tab') || 'rates';
+  const rows = await loadRows(TABLE, KEY, seed);
+  const groups = await loadRows('tax_groups', GKEY, gseed);
+
+  const tabs = `<div class="ai-tabs">
+    <a class="${tab === 'rates' ? 'on' : ''}" href="/tax-rates.html">Tax Rates</a>
+    <a class="${tab === 'groups' ? 'on' : ''}" href="/tax-rates.html?tab=groups">Tax Groups</a>
+  </div>`;
+
+  if (id && tab !== 'groups') {
+    const row = id === 'new' ? {} : (rows.find((r) => String(r.id) === id) || {});
+    const dis = view ? 'disabled' : '';
+    app.innerHTML = `
+      <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} Tax Rate</h1>
+      <form id="f" class="sell-card">
+        <div class="sell-grid">
+          <label class="fld">Name *<input name="name" value="${esc(row.name)}" ${dis} required></label>
+          <label class="fld">Rate % *<input name="amount" type="number" step="0.01" value="${row.amount ?? row.rate ?? ''}" ${dis} required></label>
+        </div>
+        <p><label class="chk"><input type="checkbox" name="for_tax_group" ${row.for_tax_group ? 'checked' : ''} ${dis}> For tax group only</label></p>
+        <p>${view ? `<a class="ult-btn ult-btn-primary" href="/tax-rates.html?id=${esc(row.id)}">Edit</a>` : '<button class="ult-btn ult-btn-primary">Save</button>'}
+           <a class="ult-btn ult-btn-outline" href="/tax-rates.html">Back</a></p>
+      </form>`;
+    if (!view) document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this tax rate?'))) return;
+      const data = {};
+      document.querySelectorAll('#f [name]').forEach((el) => { data[el.name] = el.type === 'checkbox' ? el.checked : el.value; });
+      data.rate = Number(data.amount);
+      await saveRow(TABLE, KEY, { ...row, ...data });
+      toast('Saved'); location.href = '/tax-rates.html';
+    };
+  } else if (tab === 'groups' && id) {
+    const row = id === 'new' ? {} : (groups.find((r) => String(r.id) === id) || {});
+    app.innerHTML = `
+      <h1>${row.id ? 'Edit' : 'Add'} Tax Group</h1>
+      <form id="f" class="sell-card">
+        <label class="fld">Name *<input name="name" value="${esc(row.name)}" required></label>
+        <p>Sub taxes</p>
+        ${rows.map((t) => `<label class="chk"><input type="checkbox" name="tax" value="${t.id}" ${(row.tax_ids || '').split(',').includes(String(t.id)) ? 'checked' : ''}> ${esc(t.name)} (${t.amount ?? t.rate}%)</label>`).join('')}
+        <p><button class="ult-btn ult-btn-primary">Save</button> <a class="ult-btn ult-btn-outline" href="/tax-rates.html?tab=groups">Back</a></p>
+      </form>`;
+    document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this tax group?'))) return;
+      const name = document.querySelector('[name=name]').value;
+      const tax_ids = [...document.querySelectorAll('[name=tax]:checked')].map((c) => c.value).join(',');
+      await saveRow('tax_groups', GKEY, { ...row, name, tax_ids });
+      toast('Saved'); location.href = '/tax-rates.html?tab=groups';
+    };
+  } else if (tab === 'groups') {
+    app.innerHTML = `
+      <h1>Tax Groups</h1>${tabs}
+      <p style="text-align:right"><a class="ult-btn ult-btn-primary" href="/tax-rates.html?tab=groups&id=new">Add</a></p>
+      <section class="home-card" data-tbl="tg">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Name</th><th>Sub taxes</th></tr></thead>
+          <tbody>${groups.map((r) => `<tr>
+            <td>${actMenu(r.id, [
+              { label: 'Edit', href: `/tax-rates.html?tab=groups&id=${r.id}` },
+              { label: 'Delete', act: 'delg' },
+            ])}</td>
+            <td>${esc(r.name)}</td><td>${esc(r.tax_ids)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="3" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="tg"]'), { title: 'Tax groups', storageKey: 'tax-groups' });
+  } else {
+    app.innerHTML = `
+      <h1>Tax Rates</h1>${tabs}
+      <p class="sub">Ghana statutory stack. POS default rate is also on Business Settings → Tax.</p>
+      <p style="text-align:right"><a class="ult-btn ult-btn-primary" href="/tax-rates.html?id=new">Add</a></p>
+      <section class="home-card" data-tbl="tx">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Name</th><th>Rate %</th><th>For tax group</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${actMenu(r.id, [
+              { label: 'View', href: `/tax-rates.html?id=${r.id}&view=1` },
+              { label: 'Edit', href: `/tax-rates.html?id=${r.id}` },
+              { label: 'Delete', act: 'del' },
+            ])}</td>
+            <td>${esc(r.name)}</td><td>${esc(r.amount ?? r.rate)}</td>
+            <td>${r.for_tax_group ? 'Yes' : 'No'}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="4" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="tx"]'), { title: 'Tax rates', storageKey: 'tax-rates' });
+  }
+  }
+
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  app.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    if (b.dataset.act === 'del') {
+      if (!(await confirmAction('Delete this tax rate?'))) return;
+      await deleteRow(TABLE, KEY, b.dataset.id); toast('Deleted'); paint();
+    }
+    if (b.dataset.act === 'delg') {
+      if (!(await confirmAction('Delete this tax group?'))) return;
+      await deleteRow('tax_groups', GKEY, b.dataset.id); toast('Deleted'); paint();
+    }
+  });
+  await paint();
+</script>
+</body>
+</html>

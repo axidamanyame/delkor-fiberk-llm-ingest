@@ -1,0 +1,33 @@
+# Index these (RAG / corpus)
+SYSTEM-PROMPT.md
+LLM-HANDOFF.md
+CHAT-EXPORT.md
+FILEMAP.md
+README.md
+erp/public/js/**/*.js
+erp/public/*.html
+erp/public/css/*.css
+erp/public/sql/**/*.sql
+erp/*.sql
+erp/api/**
+erp/tools/**
+erp/LOCAL-RUN.txt
+erp/SOURCE.txt
+chat-export/**/*.json
+
+# Never index
+**/uploads/**
+**/fk-catalog/**
+**/*.jpg
+**/*.png
+**/*.mp4
+**/*.xlsx
+**/*.xls
+**/*.csv
+**/imports/**
+**/.env
+**/node_modules/**
+**/*uba*
+**/*easybuy*
+**/users-*.csv
+**/customers-*.csv

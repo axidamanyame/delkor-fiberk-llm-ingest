@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accounting settings — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { can } from './js/rbac.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { OPERATING_SUBSIDIARIES } from './js/supabaseClient.js';
+  import {
+    esc, loadAccounts, scopeAccounts, accountOpts, loadSettings, saveSettings,
+    loadSubTypes, loadDetailTypes, resetAccounting, tableBar, tableFoot, deleteRow, KEYS,
+    ensureDemoBooks,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  if (!can('settings.business')) location.replace('/settings.html?tab=modules');
+  const app = document.getElementById('app');
+  let tab = new URLSearchParams(location.search).get('tab') || 'map';
+
+  const MAP_GROUPS = [
+    { key: 'sale', title: 'Sell' },
+    { key: 'sell_payment', title: 'Sales Payments' },
+    { key: 'purchases', title: 'Purchases' },
+    { key: 'purchase_payment', title: 'Purchase Payments' },
+    { key: 'expense', title: 'Expenses', wrap: true },
+  ];
+
+  async function paint() {
+    if (!can('settings.business')) return;
+    await ensureDemoBooks();
+    const accounts = scopeAccounts(await loadAccounts());
+    const settings = loadSettings();
+    const subTypes = await loadSubTypes();
+    const details = await loadDetailTypes();
+    const maps = settings.default_map || {};
+
+    const mapForm = `
+      <div style="margin-bottom:12px">
+        <button type="button" class="ult-btn" id="reset" style="background:#e11d48;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:700">Reset data</button>
+      </div>
+      <div class="st-grid4">
+        <label class="fld">Journal Entry Prefix:
+          <input id="jpre" value="${esc(settings.journal_prefix || '')}" />
+        </label>
+        <label class="fld">Transfer Prefix:
+          <input id="tpre" value="${esc(settings.transfer_prefix || '')}" />
+        </label>
+        <label class="fld">Financial year start month:
+          <select id="fysm">${[1,2,3,4,5,6,7,8,9,10,11,12].map((m) =>
+            `<option value="${m}" ${Number(settings.fy_start_month || 1) === m ? 'selected' : ''}>${m}</option>`).join('')}</select>
+        </label>
+      </div>
+      <hr class="set-hr"/>
+      <h3>Map Transactions <span class="info-i" title="Set default accounts to which transactions will be automatically mapped">i</span></h3>
+      ${OPERATING_SUBSIDIARIES.map((sub) => {
+        const m = maps[sub.code] || {};
+        const pair = (g) => `
+          <div class="st-grid4">
+            <label class="fld">Payment account:
+              <select data-map="${esc(sub.code)}" data-g="${g.key}" data-k="payment_account">${accountOpts(accounts.filter((a) => a.subsidiary_code === sub.code || !a.subsidiary_code), m[g.key]?.payment_account, 'Payment account')}</select>
+            </label>
+            <label class="fld">Deposit to:
+              <select data-map="${esc(sub.code)}" data-g="${g.key}" data-k="deposit_to">${accountOpts(accounts.filter((a) => a.subsidiary_code === sub.code || !a.subsidiary_code), m[g.key]?.deposit_to, 'Deposit to')}</select>
+            </label>
+          </div>`;
+        return `<div class="map-box">
+          <h3 class="box-title">${esc(sub.name)}</h3>
+          ${MAP_GROUPS.map((g) => `<div class="${g.wrap ? 'map-exp' : ''}">
+            <strong>${esc(g.title)}</strong>${pair(g)}${g.wrap ? '' : '<hr/>'}
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+      <div class="set-update-wrap"><button type="button" class="btn-update-settings" id="save-map">Update</button></div>`;
+
+    const subTable = `
+      <div class="tbl-head"><div></div><a class="ult-add" href="/accounting-type-form.html?kind=sub">+ Add</a></div>
+      ${tableBar()}
+      <div class="ult-table-wrap"><table class="ult-table loc-table">
+        <thead><tr><th>Account Sub Type</th><th>Account Type</th><th data-nosort="1">Action</th></tr></thead>
+        <tbody>
+          ${subTypes.map((s) => `<tr>
+            <td>${esc(s.name)}</td><td>${esc(s.account_type)}</td>
+            <td>${actMenu(s.id || s.name, [
+              { href: `/accounting-type-form.html?kind=sub&id=${encodeURIComponent(s.id || s.name)}`, label: 'Edit' },
+              { act: 'del-sub', label: 'Delete' },
+            ])}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>${tableFoot()}`;
+
+    const detTable = `
+      <div class="tbl-head"><div></div><a class="ult-add" href="/accounting-type-form.html?kind=detail">+ Add</a></div>
+      ${tableBar()}
+      <div class="ult-table-wrap"><table class="ult-table loc-table">
+        <thead><tr><th>Name</th><th>Parent Type</th><th>Description</th><th data-nosort="1">Action</th></tr></thead>
+        <tbody>
+          ${details.map((d) => `<tr>
+            <td>${esc(d.name)}</td><td>${esc(d.parent || d.parent_type || '')}</td><td>${esc(d.description || '')}</td>
+            <td>${actMenu(d.id || d.name, [
+              { href: `/accounting-type-form.html?kind=detail&id=${encodeURIComponent(d.id || d.name)}`, label: 'Edit' },
+              { act: 'del-det', label: 'Delete' },
+            ])}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>${tableFoot()}`;
+
+    app.innerHTML = `
+      <div class="ult-chrome"><h1>Accounting map</h1></div>
+      <p class="sub">System → Settings → Accounting map · ${esc(scopeCaption())}. This page is gated by Business Settings — it is not a tab on Accounting.</p>
+      <p class="sub"><a href="/settings.html?tab=modules">← Modules</a></p>
+      <div class="acc-inner-tabs">
+        <a class="${tab === 'map' ? 'on' : ''}" href="/accounting-settings.html?tab=map">Accounting Settings / Map Transactions</a>
+        <a class="${tab === 'sub' ? 'on' : ''}" href="/accounting-settings.html?tab=sub">Account Sub Type</a>
+        <a class="${tab === 'detail' ? 'on' : ''}" href="/accounting-settings.html?tab=detail">Detail Type</a>
+      </div>
+      <div class="home-card">
+        ${tab === 'map' ? mapForm : tab === 'sub' ? subTable : detTable}
+      </div>`;
+
+    app.querySelector('#reset')?.addEventListener('click', async () => {
+      const ok = await confirmAction('Reset accounting data?', 'This will delete all accounting data. And data cannot be reverted back.');
+      if (!ok) return;
+      await resetAccounting();
+      toast('Accounting data reset');
+      paint();
+    });
+    app.querySelector('#save-map')?.addEventListener('click', async () => {
+      const ok = await confirmAction('Update accounting settings?', 'Default mappings apply to new documents.');
+      if (!ok) return;
+      const next = loadSettings();
+      next.journal_prefix = document.getElementById('jpre').value.trim();
+      next.transfer_prefix = document.getElementById('tpre').value.trim();
+      next.fy_start_month = Number(document.getElementById('fysm').value || 1);
+      next.default_map = next.default_map || {};
+      app.querySelectorAll('[data-map]').forEach((sel) => {
+        const sub = sel.dataset.map;
+        const g = sel.dataset.g;
+        const k = sel.dataset.k;
+        next.default_map[sub] = next.default_map[sub] || {};
+        next.default_map[sub][g] = next.default_map[sub][g] || {};
+        next.default_map[sub][g][k] = sel.value;
+      });
+      saveSettings(next);
+      toast('Settings updated');
+    });
+    app.querySelectorAll('[data-act="del-sub"]').forEach((b) => {
+      b.onclick = async () => {
+        const ok = await confirmAction('Delete account sub type?', 'Accounts using it keep the name as text.');
+        if (!ok) return;
+        await deleteRow('account_sub_types', KEYS.subTypes, b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="del-det"]').forEach((b) => {
+      b.onclick = async () => {
+        const ok = await confirmAction('Delete detail type?');
+        if (!ok) return;
+        await deleteRow('account_detail_types', KEYS.detailTypes, b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+    if (tab !== 'map') bindTable(app, { title: tab === 'sub' ? 'Account Sub Type' : 'Detail Type', storageKey: 'acc-' + tab });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  window.addEventListener('df-tab', () => {
+    tab = new URLSearchParams(location.search).get('tab') || 'map';
+    paint();
+  });
+  window.addEventListener('popstate', () => {
+    tab = new URLSearchParams(location.search).get('tab') || 'map';
+    paint();
+  });
+  paint();
+</script>
+</body>
+</html>

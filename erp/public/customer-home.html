@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My account</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  const session = await mountUltimateShell();
+  const mail = session.user.email;
+  const { data: me } = await supabase.from('customers').select('id,name,phone,email').eq('email', mail).maybeSingle();
+  const { data: sales } = me?.id
+    ? await supabase.from('sales_orders').select('reference,total_amount,amount_paid,status,created_at').eq('customer_id', me.id).limit(50)
+    : { data: [] };
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <h1>My purchases</h1>
+    <p>${me?.name || mail} — only your invoices.</p>
+    <table class="ult-table"><thead><tr><th>Ref</th><th>Status</th><th>Total</th><th>Paid</th></tr></thead>
+    <tbody>${(sales||[]).map((s)=>`<tr><td>${s.reference||''}</td><td>${s.status||''}</td><td>${fmt(s.total_amount)}</td><td>${fmt(s.amount_paid)}</td></tr>`).join('') || '<tr><td colspan="4">No invoices</td></tr>'}</tbody></table>`;
+</script>
+</body></html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { bootCrmHub } from './js/crm-hub.js';
+    const app = document.getElementById('app');
+    const watchdog = setTimeout(() => {
+      if (app && /Loading/.test(app.textContent || '')) {
+        app.innerHTML = `<div class="card" style="padding:24px"><h1>CRM</h1><p>Follow ups, leads and campaigns.</p><p><a href="/collections-desk.html">Collections</a> · <a href="/call-centre.html">Call Centre</a></p></div>`;
+      }
+    }, 2500);
+    try {
+      const session = await mountUltimateShell();
+      if (!session) throw new Error('auth');
+      await bootCrmHub();
+    } catch (err) {
+      if (app) app.innerHTML = `<div class="card" style="padding:24px"><h1>CRM</h1><p>${String(err?.message || err)}</p></div>`;
+    } finally {
+      clearTimeout(watchdog);
+    }
+  </script>
+</body>
+</html>

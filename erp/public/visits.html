@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Visits — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, getActiveAgent, findLocation, BNPL_FIELD_LOCATION } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, deleteRow, esc, actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadBizSettings, fieldOpsAllowed } from './js/settings-store.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+
+  function fmtDt(s) {
+    if (!s) return '';
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return String(s).slice(0, 16);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+  }
+  function cap(s) { return String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
+
+  async function paint() {
+    const biz = await loadBizSettings();
+    if (!fieldOpsAllowed(biz, 'field_flow_visits')) {
+      app.innerHTML = `
+        <h1>Field Visits</h1>
+        <p class="sub">Visits are not released to Field Ops. Preselect them under <a href="/settings.html?tab=fieldops">Business Settings → Field Ops</a>.</p>`;
+      return;
+    }
+    const all = await loadRows('visits', 'df_visits', []);
+    const agentId = getActiveAgent();
+    const rows = filterBySidebar(all.map((r) => ({
+      ...r,
+      location_code: r.location_code || BNPL_FIELD_LOCATION,
+      subsidiary_code: r.subsidiary_code || 'bnpl',
+    }))).filter((r) => !agentId || String(r.agent_id || '') === String(agentId));
+
+    app.innerHTML = `
+      <h1>Field Visits</h1>
+      <p class="sub">${esc(scopeCaption())} · Agent visit log for BNPL Field Sales</p>
+      <section class="home-card" data-tbl="visits">
+        <div class="loc-list-head">
+          <div>All field visits</div>
+          <a class="ult-add" href="/visit-form.html">+ Visit</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Date</th>
+            <th>Agent</th>
+            <th>Customer / Place</th>
+            <th>Purpose</th>
+            <th>Status</th>
+            <th>Location</th>
+            <th>Notes</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-view="/visit-form.html?id=${esc(r.id)}&view=1">
+              <td>${actMenu(r.id, [
+                { href: `/visit-form.html?id=${r.id}&view=1`, label: 'View' },
+                { href: `/visit-form.html?id=${r.id}`, label: 'Edit' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+              <td>${esc(fmtDt(r.visit_date || r.created_at))}</td>
+              <td>${esc(r.agent_name || '—')}</td>
+              <td>${esc(r.customer_name || r.place || '')}</td>
+              <td>${esc(cap(r.purpose || 'visit'))}</td>
+              <td><span class="pill">${esc(cap(r.status || 'planned'))}</span></td>
+              <td>${esc(findLocation(r.location_code)?.name || 'BNPL Field Sales')}</td>
+              <td>${esc(r.notes || '')}</td>
+            </tr>`).join('')}
+            <tr data-dummy="1"><td colspan="8" style="text-align:center">No visits recorded</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <div data-tbl-pager></div>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="visits"]'), { title: 'Field Visits', storageKey: 'field-visits' });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this visit?', 'This cannot be undone.'))) return;
+        await deleteRow('visits', 'df_visits', b.dataset.id);
+        toast('Visit deleted');
+        paint();
+      };
+    });
+  }
+  paint();
+  window.addEventListener(SCOPE_EVENT, paint);
+</script>
+</body>
+</html>

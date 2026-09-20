@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account type — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { can } from './js/rbac.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import {
+    esc, loadSubTypes, loadDetailTypes, saveRow, KEYS, TYPES, uid,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  if (!can('settings.business')) {
+    location.replace('/settings.html?tab=modules');
+  } else {
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const kind = q.get('kind') === 'detail' ? 'detail' : 'sub';
+  const editId = q.get('id');
+  const isDetail = kind === 'detail';
+
+  const [subs, details] = await Promise.all([loadSubTypes(), loadDetailTypes()]);
+  const existing = isDetail
+    ? details.find((d) => String(d.id) === String(editId) || d.name === editId)
+    : subs.find((s) => String(s.id) === String(editId) || s.name === editId);
+
+  const title = (existing ? 'Edit ' : 'Add ') + (isDetail ? 'Detail Type' : 'Account Sub Type');
+  app.innerHTML = `
+    <p class="sub"><a href="/accounting-settings.html">← Accounting map</a> · System → Settings</p>
+    <h1>${esc(title)}</h1>
+    <form id="t-form" class="st-card">
+      <div class="st-grid4">
+        <label class="fld">Name:*
+          <input id="tname" required value="${esc(existing?.name || '')}" />
+        </label>
+        ${isDetail ? `<label class="fld">Parent Type:*
+          <select id="tparent">
+            ${subs.map((s) => `<option ${existing?.parent === s.name || existing?.parent_type === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select>
+        </label>` : `<label class="fld">Account Type:*
+          <select id="ttype">${TYPES.map((t) => `<option ${existing?.account_type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+        </label>
+        <label class="fld">Show balance
+          <select id="tbal">
+            <option value="1" ${existing?.show_balance !== 0 ? 'selected' : ''}>Yes</option>
+            <option value="0" ${existing?.show_balance === 0 ? 'selected' : ''}>No</option>
+          </select>
+        </label>`}
+      </div>
+      ${isDetail ? `<label class="fld">Description:
+        <textarea id="tdesc" rows="3">${esc(existing?.description || '')}</textarea>
+      </label>` : ''}
+      <div class="st-save">
+        <button type="submit">${existing ? 'Update' : 'Save'}</button>
+        <a class="ult-btn ult-btn-outline" href="/accounting-settings.html?tab=${isDetail ? 'detail' : 'sub'}" style="margin-left:8px">Cancel</a>
+      </div>
+    </form>`;
+
+  document.getElementById('t-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('tname').value.trim();
+    if (!name) { toast('Name is required', 'error'); return; }
+    const ok = await confirmAction(existing ? 'Update type?' : 'Save type?', name);
+    if (!ok) return;
+    if (isDetail) {
+      await saveRow('account_detail_types', KEYS.detailTypes, {
+        ...(existing || { id: uid() }),
+        name,
+        parent: document.getElementById('tparent').value,
+        parent_type: document.getElementById('tparent').value,
+        description: document.getElementById('tdesc').value,
+      });
+    } else {
+      await saveRow('account_sub_types', KEYS.subTypes, {
+        ...(existing || { id: uid() }),
+        name,
+        account_type: document.getElementById('ttype').value,
+        show_balance: Number(document.getElementById('tbal').value),
+      });
+    }
+    toast('Saved');
+    location.assign('/accounting-settings.html?tab=' + (isDetail ? 'detail' : 'sub'));
+  };
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Call Centre — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/collections-ops.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading Call Centre…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { paintCallCenter } from './js/call-center.js';
+  import { workAlerts, alertBanner } from './js/call-alerts.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  let box = { callbacks: 0, due: 0, items: [] };
+  try { box = await workAlerts(); } catch { /* ignore */ }
+  async function paint() {
+    if (!/call-centre\.html/i.test(location.pathname)) return;
+    await paintCallCenter(app, { navHtml: alertBanner(box), go() {} });
+  }
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  await paint();
+</script>
+</body>
+</html>

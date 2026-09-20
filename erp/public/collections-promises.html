@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Promise-to-pay — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { listPromises, fmt, table } from './js/collections.js';
+  await mountUltimateShell();
+  const rows = await listPromises().catch(() => []);
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Promise-to-pay', 'Due today / overdue promises')}
+    <p><a class="ult-btn ult-btn-outline" href="/collections.html">Dashboard</a></p>
+    ${table(['Customer','Date','Amount','Status','Notes'],
+      rows.map((r) => `<tr>
+        <td>${r.customer_id || ''}</td>
+        <td>${r.promised_date || ''}${r.promised_date && r.promised_date < today && r.status==='open' ? ' · overdue' : ''}</td>
+        <td>${fmt(r.promised_amount)}</td>
+        <td>${r.status || ''}</td>
+        <td>${r.notes || ''}</td>
+      </tr>`).join(''))}`;
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .fin-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+    .fin-kpi{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 16px}
+    .fin-kpi span{display:block;font-size:12px;color:#475569;font-weight:700}
+    .fin-kpi strong{font-size:22px;color:#0f172a}
+    .fin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .fin-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    .fin-card h2{margin:0 0 10px;font-size:16px}
+    .fin-list{margin:0;padding:0;list-style:none}
+    .fin-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:13px}
+    @media(max-width:900px){.fin-kpis,.fin-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { fmt } from './js/supabaseClient.js';
+  import { finNav, financeSnapshot, kpiRow } from './js/finance-hub.js';
+  import { budgetVsActual, varianceTableHtml } from './js/budget-vs-actual.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  async function paint() {
+    const tab = new URLSearchParams(location.search).get('tab') || 'treasury';
+    let s;
+    try {
+      s = await Promise.race([
+        financeSnapshot(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2800)),
+      ]);
+    } catch {
+      s = { cashPos: 0, bank: 0, momo: 0, cash: 0, accounts: [], collectedHint: 0, expMonth: 0, purchDue: [], budgetTotal: 0, pendingExp: [], pendingPo: [], openColl: 0, aging: { current: 0, d30: 0, d60: 0, d90: 0 }, loanBook: 0, orderCount: 0, doneColl: 0 };
+    }
+    const cap = esc(scopeCaption());
+    let body = '';
+    if (tab === 'treasury') {
+      body = `
+        ${kpiRow([
+          { l: 'Cash position', v: fmt(s.cashPos) },
+          { l: 'Bank', v: fmt(s.bank) },
+          { l: 'MoMo / wallets', v: fmt(s.momo) },
+          { l: 'Cash on hand', v: fmt(s.cash) },
+        ])}
+        <div class="fin-grid">
+          <section class="fin-card">
+            <h2>Bank & wallet balances</h2>
+            <ul class="fin-list">${s.accounts.slice(0, 12).map((a) =>
+              `<li><span>${esc(a.name)}</span><b>${fmt(a.bal)}</b></li>`).join('') || '<li>No accounts yet</li>'}</ul>
+            <p style="margin:12px 0 0"><a class="ult-btn ult-btn-primary" href="/payment-accounts.html">Open accounts</a>
+              <a class="ult-btn" href="/accounting-transfer.html">Internal transfer</a></p>
+          </section>
+          <section class="fin-card">
+            <h2>Cash flow planner</h2>
+            <p class="sub">Daily / weekly / monthly view of known inflows (EasyBuy deposits, sales) and outflows (expenses, supplier bills).</p>
+            <ul class="fin-list">
+              <li><span>HP deposits booked</span><b>${fmt(s.collectedHint)}</b></li>
+              <li><span>Expenses on file</span><b>${fmt(s.expMonth)}</b></li>
+              <li><span>Open supplier bills</span><b>${s.purchDue.length}</b></li>
+            </ul>
+            <p style="margin:12px 0 0"><a href="/account-cash-flow.html">Statement cash flow</a> lives in Accounting reports.</p>
+          </section>
+        </div>`;
+    } else if (tab === 'budget') {
+      const y = new Date().getFullYear();
+      let result = { rows: [], departments: [] };
+      try { result = await budgetVsActual(`${y}-01-01`, `${y}-12-31`); } catch { /* stay on page */ }
+      body = `
+        ${kpiRow([
+          { l: 'Budget lines', v: fmt(s.budgetTotal) },
+          { l: 'Spend on file', v: fmt(s.expMonth) },
+          { l: 'Variance', v: fmt(s.budgetTotal - s.expMonth) },
+          { l: 'Departments', v: String(result.departments?.length || 0) },
+        ])}
+        <section class="fin-card">
+          <h2>Budget vs actual</h2>
+          ${varianceTableHtml(result)}
+          <p style="margin:12px 0 0"><a class="ult-btn ult-btn-primary" href="/accounting-budget.html">Budget book</a>
+            <a class="ult-btn" href="/budgets.html">Department budgets</a></p>
+        </section>`;
+    } else if (tab === 'controls') {
+      body = `
+        ${kpiRow([
+          { l: 'Pending expenses', v: String(s.pendingExp.length) },
+          { l: 'Pending POs', v: String(s.pendingPo.length) },
+          { l: 'Open collections', v: String(s.openColl) },
+          { l: 'Audit', v: 'On' },
+        ])}
+        <div class="fin-grid">
+          <section class="fin-card"><h2>Expense approvals</h2>
+            <ul class="fin-list">${s.pendingExp.slice(0, 8).map((e) =>
+              `<li><span>${esc(e.ref || e.category || e.id)}</span><b>${fmt(e.amount || e.total)}</b></li>`).join('') || '<li>None waiting</li>'}</ul>
+            <p style="margin:12px 0 0"><a href="/expenses.html">Expenses</a></p>
+          </section>
+          <section class="fin-card"><h2>Purchase approvals</h2>
+            <ul class="fin-list">${s.pendingPo.slice(0, 8).map((p) =>
+              `<li><span>${esc(p.reference || p.ref || p.id)}</span><b>${fmt(p.total || p.amount)}</b></li>`).join('') || '<li>None waiting</li>'}</ul>
+            <p style="margin:12px 0 0"><a href="/purchase-orders.html">Purchases</a></p>
+          </section>
+        </div>`;
+    } else if (tab === 'capital') {
+      const od = s.accounts.find((a) => /overdraft/i.test(a.name || ''));
+      body = `
+        ${kpiRow([
+          { l: 'Overdraft / facilities', v: fmt(od?.bal || 0) },
+          { l: 'HP loan book (EasyBuy)', v: fmt(s.loanBook) },
+          { l: 'CAPEX lines', v: '0' },
+          { l: 'Investments', v: '—' },
+        ])}
+        <section class="fin-card">
+          <h2>Loans & facilities</h2>
+          <ul class="fin-list">
+            <li><span>UBA Fiberk overdraft</span><b>${fmt(od?.bal || 0)}</b></li>
+            <li><span>Partner HP book (EasyBuy collects)</span><b>${fmt(s.loanBook)}</b></li>
+          </ul>
+          <p style="margin:12px 0 0"><a href="/uba-fiberk.html">UBA Fiberk</a></p>
+        </section>`;
+    } else if (tab === 'vendors') {
+      const today = new Date().toISOString().slice(0, 10);
+      const fmtDay = (v) => {
+        const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || '—');
+      };
+      const overdue = (p) => p.due_date && p.due_date < today;
+      const rows = (s.purchDue || []).slice().sort((a, b) => String(a.due_date).localeCompare(String(b.due_date)));
+      body = `
+        ${kpiRow([
+          { l: 'Open supplier bills', v: String(rows.length) },
+          { l: 'Scheduled today', v: String(s.scheduledToday || rows.filter((p) => p.due_date === today).length) },
+          { l: 'Overdue', v: String(rows.filter(overdue).length) },
+          { l: 'Amount due', v: fmt(rows.reduce((n, p) => n + Number(p.due_amt || 0), 0)) },
+        ])}
+        <section class="fin-card">
+          <h2>Payment calendar</h2>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th>Due date</th>
+              <th>Supplier</th>
+              <th>Bill / PO</th>
+              <th>Status</th>
+              <th>Amount due</th>
+            </tr></thead>
+            <tbody>${rows.length ? rows.map((p) => {
+              const due = p.due_date || '';
+              const mark = due === today ? 'Today' : overdue(p) ? 'Overdue' : '';
+              return `<tr>
+                <td>${esc(fmtDay(due))}${mark ? ` <span class="pill ${overdue(p) ? 'overdue' : 'paid'}">${mark}</span>` : ''}</td>
+                <td>${esc(p.supplier_name || p.supplier || '—')}</td>
+                <td>${esc(p.reference || p.ref || p.id || '—')}</td>
+                <td>${esc(p.payment_status || p.status || 'due')}</td>
+                <td>${fmt(p.due_amt)}</td>
+              </tr>`;
+            }).join('') : '<tr data-dummy="1"><td colspan="5">No unpaid bills in this book</td></tr>'}</tbody>
+          </table></div>
+        </section>`;
+    } else if (tab === 'revenue') {
+      body = `
+        ${kpiRow([
+          { l: 'Current / not due', v: fmt(s.aging.current) },
+          { l: '1–30 days', v: fmt(s.aging.d30) },
+          { l: '31–60 days', v: fmt(s.aging.d60) },
+          { l: '61+ days', v: fmt(s.aging.d90) },
+        ])}
+        <section class="fin-card">
+          <h2>Receivables aging</h2>
+          <p class="sub">HP loan balances from the EasyBuy order book. EasyBuy owns collection; this panel is the partner view.</p>
+          <p><a class="ult-btn ult-btn-primary" href="/collections.html">Collections</a>
+            <a class="ult-btn" href="/field-ops.html">Field orders</a></p>
+        </section>`;
+    } else {
+      const gm = s.collectedHint && s.loanBook ? ((s.collectedHint / (s.loanBook + s.collectedHint)) * 100).toFixed(1) + '%' : '—';
+      body = `
+        ${kpiRow([
+          { l: 'Deposit / ticket mix', v: gm },
+          { l: 'Working capital (cash)', v: fmt(s.cashPos) },
+          { l: 'Open HP tickets', v: String(s.orderCount) },
+          { l: 'Collections closed', v: String(s.doneColl) },
+        ])}
+        <section class="fin-card">
+          <h2>Executive snapshot</h2>
+          <ul class="fin-list">
+            <li><span>Cash conversion</span><b>Field deposits vs supplier cash cycle</b></li>
+            <li><span>Burn / opex on file</span><b>${fmt(s.expMonth)}</b></li>
+          </ul>
+        </section>`;
+    }
+
+    app.innerHTML = `
+      ${finNav(tab)}
+      <h1>Finance</h1>
+      <p class="sub">${cap}</p>
+      ${body}`;
+    app.querySelectorAll('[data-htab]').forEach((a) => {
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        const key = a.getAttribute('data-htab');
+        const next = '/finance.html?tab=' + encodeURIComponent(key);
+        if (location.pathname + location.search !== next) history.pushState({ spa: next, tab: true }, '', next);
+        paint();
+      });
+    });
+  }
+
+  window.addEventListener(SCOPE_EVENT, paint);
+  window.addEventListener('popstate', paint);
+  window.addEventListener('df-tab', paint);
+  paint();
+</script>
+</body>
+</html>

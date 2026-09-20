@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invoice Settings — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, saveRow, deleteRow, setDefault, esc, actMenu } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const KEY = 'df_invoice_layouts';
+  const TABLE = 'invoice_layouts';
+  const seed = [
+    { id: 'classic', name: 'Classic', design: 'classic', is_default: true, show_logo: true, show_letter_head: false, invoice_heading: 'Tax Invoice', sub_heading: 'Delkor-Fiberk Group', header_text: '', footer_text: 'Goods once sold are returnable within 7 days with receipt.', show_qr: true, show_customer: true, show_tax: true, show_payments: true },
+    { id: 'slim', name: 'Slim 80mm', design: 'slim', is_default: false, show_logo: false, invoice_heading: 'Receipt', footer_text: 'Thank you', show_qr: false, show_customer: true, show_tax: true, show_payments: true },
+    { id: 'elegant', name: 'Elegant A4', design: 'elegant', is_default: false, show_logo: true, invoice_heading: 'Invoice', footer_text: '', show_qr: true, show_customer: true, show_tax: true, show_payments: true },
+  ];
+  const rows = await loadRows(TABLE, KEY, seed);
+
+  if (id) {
+    const row = id === 'new' ? {} : (rows.find((r) => String(r.id) === id) || {});
+    const dis = view ? 'disabled' : '';
+    app.innerHTML = `
+      <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} Invoice Layout</h1>
+      <form id="f" class="sell-card">
+        <div class="sell-grid">
+          <label class="fld">Name *<input name="name" value="${esc(row.name)}" ${dis} required></label>
+          <label class="fld">Design<select name="design" ${dis}>
+            ${['classic', 'elegant', 'slim', 'detailed', 'columnize-taxes'].map((d) => `<option ${row.design === d ? 'selected' : ''}>${d}</option>`).join('')}
+          </select></label>
+          <label class="fld">Invoice heading<input name="invoice_heading" value="${esc(row.invoice_heading || 'Tax Invoice')}" ${dis}></label>
+          <label class="fld">Sub heading<input name="sub_heading" value="${esc(row.sub_heading)}" ${dis}></label>
+        </div>
+        <label class="fld">Header text<textarea name="header_text" rows="2" ${dis}>${esc(row.header_text)}</textarea></label>
+        <label class="fld">Footer text<textarea name="footer_text" rows="3" ${dis}>${esc(row.footer_text)}</textarea></label>
+        <div class="chk-row">
+          ${[['show_logo', 'Show logo'], ['show_letter_head', 'Show letter head'], ['show_qr', 'Show QR'], ['show_customer', 'Show customer'], ['show_tax', 'Show tax'], ['show_payments', 'Show payments'], ['is_default', 'Set as default']].map(([k, l]) =>
+            `<label class="chk"><input type="checkbox" name="${k}" ${row[k] ? 'checked' : ''} ${dis}> ${l}</label>`).join('')}
+        </div>
+        <p>${view ? `<a class="ult-btn ult-btn-primary" href="/invoice-settings.html?id=${esc(row.id)}">Edit</a>` : '<button class="ult-btn ult-btn-primary">Save</button>'}
+           <a class="ult-btn ult-btn-outline" href="/invoice-settings.html">Back</a></p>
+      </form>`;
+    if (!view) document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this invoice layout?'))) return;
+      const data = {};
+      document.querySelectorAll('#f [name]').forEach((el) => { data[el.name] = el.type === 'checkbox' ? el.checked : el.value; });
+      await saveRow(TABLE, KEY, { ...row, ...data });
+      toast('Saved'); location.href = '/invoice-settings.html';
+    };
+  } else {
+    app.innerHTML = `
+      <h1>Invoice Settings</h1>
+      <p class="sub">Layouts used when printing sales, credit and repair invoices. Numbering prefixes are on Business Settings → Prefixes.</p>
+      <p style="text-align:right"><a class="ult-btn ult-btn-primary" href="/invoice-settings.html?id=new">Add</a></p>
+      <section class="home-card" data-tbl="inv">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Name</th><th>Design</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${actMenu(r.id, [
+              { label: 'View', href: `/invoice-settings.html?id=${r.id}&view=1` },
+              { label: 'Edit', href: `/invoice-settings.html?id=${r.id}` },
+              { label: 'Set as default', act: 'def' },
+              { label: 'Delete', act: 'del' },
+            ])}${r.is_default ? ' <span class="pill paid">Default</span>' : ''}</td>
+            <td>${esc(r.name)}</td><td>${esc(r.design)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="3" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="inv"]'), { title: 'Invoice layouts', storageKey: 'inv-lay' });
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'del') {
+        if (!(await confirmAction('Delete this layout?'))) return;
+        await deleteRow(TABLE, KEY, b.dataset.id); toast('Deleted'); location.reload();
+      }
+      if (b.dataset.act === 'def') { await setDefault(TABLE, KEY, b.dataset.id); toast('Default set'); location.reload(); }
+    };
+  }
+</script>
+</body>
+</html>

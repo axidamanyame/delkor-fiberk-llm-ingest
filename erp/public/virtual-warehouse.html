@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hub board — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .hub-sec { margin: 18px 0 8px; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--ult-muted); }
+    .hub-sec:first-of-type { margin-top: 4px; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading Operations Hub…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, esc, readLs } from './js/ls-rows.js';
+  import { isDemoRecord } from './js/catalog-seed.js';
+  import { loadOrders } from './js/bnpl-field-orders.js';
+  import { loadPayments } from './js/bnpl-field-payments.js';
+  import { excludeMigrated, isMigratedRow } from './js/fiberk-silo.js';
+  import { deskHow } from './js/desk-manual.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const TKEY = 'df_stock_transfers';
+  let liveCh = null;
+
+  function dropLive() {
+    try {
+      (supabase.getChannels?.() || []).forEach((ch) => {
+        const topic = String(ch.topic || ch.params?.config?.broadcast?.ack || '');
+        if (topic.includes('vw-live') || topic.includes('stock_transfers')) {
+          try { supabase.removeChannel(ch); } catch { /* ignore */ }
+        }
+      });
+    } catch { /* ignore */ }
+    liveCh = null;
+  }
+
+  function leg() {
+    return new URLSearchParams(location.search).get('leg') || 'all';
+  }
+
+  function n(rows) {
+    return Array.isArray(rows) ? rows.filter((r) => r && !isDemoRecord(r) && !isMigratedRow(r)).length : 0;
+  }
+
+  function card(href, title, count) {
+    return `<a class="wms-card" href="${esc(href)}"><strong>${esc(title)}</strong><b>${esc(String(count))}</b></a>`;
+  }
+
+  async function fetchRows() {
+    let remote = [];
+    try {
+      const { data } = await supabase.from('vw_virtual_hub_transfers').select('*').order('created_at', { ascending: false }).limit(200);
+      remote = data || [];
+    } catch { /* local */ }
+    const local = await loadRows('stock_transfers', TKEY, []);
+    const map = new Map();
+    [...local, ...remote].forEach((r) => {
+      if (!r || isDemoRecord(r)) return;
+      const id = String(r.id || r.reference || '');
+      if (!id) return;
+      map.set(id, { ...(map.get(id) || {}), ...r });
+    });
+    let rows = excludeMigrated([...map.values()]);
+    const L = leg();
+    if (L === 'in') rows = rows.filter((r) => r.hub_leg === 'inbound_to_hub' || r.to_is_hub);
+    if (L === 'out') rows = rows.filter((r) => r.hub_leg === 'outbound_to_hub' || r.from_is_hub);
+    return rows;
+  }
+
+  async function paint(rows) {
+    const L = leg();
+    const intoHub = rows.filter((r) => r.hub_leg === 'outbound_to_hub' || r.to_is_hub).length;
+    const outHub = rows.filter((r) => r.hub_leg === 'inbound_to_hub' || r.from_is_hub).length;
+    const btn = (k, href, label) =>
+      `<a class="ult-btn ${L === k ? 'ult-btn-primary' : 'ult-btn-outline'}" href="${href}">${label}</a>`;
+    const purchases = n([...readLs('df_purchases', []), ...readLs('df_purchase_orders', [])]);
+    const xfers = n(readLs('df_stock_transfers', []));
+    const adjs = n(readLs('df_stock_adjustments', []));
+    const counts = n((readLs('df_stock_adjustments', []) || []).filter((a) => a.type === 'stock_count'));
+    let hpOrders = n(readLs('df_bnpl_field_orders', []));
+    let hpPays = n(readLs('df_bnpl_field_payments', []));
+    try {
+      const [ords, pays] = await Promise.all([loadOrders(), loadPayments()]);
+      hpOrders = (ords || []).length || hpOrders;
+      hpPays = (pays || []).length || hpPays;
+    } catch { /* packs */ }
+    const colAcc = n(readLs('df_collection_accounts', []));
+    const visits = n(readLs('df_visits', []));
+    const picks = n((readLs('df_wms_picks', []) || []).filter((p) => (p.status || 'pending') !== 'picked'));
+
+    app.innerHTML = `
+      ${pageChrome('Hub board')}
+      ${deskHow('ops')}
+      <p class="ult-muted" id="live-status">Live updates optional</p>
+      <div class="ult-kpis">
+        <div class="ult-kpi"><div class="ult-kpi-icon amber">◎</div><div class="ult-kpi-body"><div class="ult-kpi-label">Hub movements</div><div class="ult-kpi-value">${rows.length}</div></div></div>
+        <div class="ult-kpi"><div class="ult-kpi-icon blue">↓</div><div class="ult-kpi-body"><div class="ult-kpi-label">Into hub</div><div class="ult-kpi-value">${intoHub}</div></div></div>
+        <div class="ult-kpi"><div class="ult-kpi-icon green">↑</div><div class="ult-kpi-body"><div class="ult-kpi-label">Out of hub</div><div class="ult-kpi-value">${outHub}</div></div></div>
+        <div class="ult-kpi"><div class="ult-kpi-icon cyan">☎</div><div class="ult-kpi-body"><div class="ult-kpi-label">Easybuy accounts</div><div class="ult-kpi-value">${colAcc}</div></div></div>
+      </div>
+
+      <h2 class="hub-sec">This hub</h2>
+      <div class="wms-grid">
+        ${card('/receive-stock.html', 'Receive Stock', purchases)}
+        ${card('/put-away.html', 'Put Away', outHub)}
+        ${card('/stock-transfers.html', 'Transfers', xfers)}
+        ${card('/stock-transfer-form.html', 'Add Transfer', '+')}
+        ${card('/stock-adjustments.html', 'Adjustments', adjs)}
+        ${card('/stock-adjustment-form.html', 'Add Adjustment', '+')}
+        ${card('/stock-count.html', 'Stock Count', counts)}
+        ${card('/stock-transfers.html', 'Transfers', '—')}
+      </div>
+
+      <h2 class="hub-sec">WMS floor</h2>
+      <div class="wms-grid">
+        ${card('/wms.html', 'WMS Floor', picks)}
+        ${card('/wms.html?tab=recv', 'Receiving', purchases)}
+        ${card('/wms.html?tab=putaway', 'EasyBuy put-away', outHub)}
+        ${card('/wms.html?tab=pick', 'Picking', picks)}
+        ${card('/wms.html?tab=dispatch', 'Dispatch', n(readLs('df_shipments', [])))}
+        ${card('/shipments.html', 'Shipments', n(readLs('df_shipments', [])))}
+      </div>
+
+      <h2 class="hub-sec">Easybuy / BNPL Field</h2>
+      <div class="wms-grid">
+        ${card('/collections-home.html', 'Collections', colAcc)}
+        ${card('/collections-floor.html', 'Collections floor', colAcc)}
+        ${card('/collections-desk.html', 'HP accounts', colAcc)}
+        ${card('/collections-desk.html?pane=ptp', 'Promise to pay', n((readLs('df_collection_ptps', []) || []).filter((p) => p.status === 'open')))}
+        ${card('/collections-desk.html?pane=field', 'Field handoff', n(readLs('df_collection_handoffs', [])))}
+        ${card('/field-ops.html', 'Field Ops floor', visits)}
+        ${card('/field-ops.html?tab=orders', 'Order List', hpOrders)}
+        ${card('/field-ops.html?tab=payments', 'Payment Record', hpPays)}
+        ${card('/field-ops.html?tab=master', 'HP Book', hpOrders)}
+        ${card('/field-ops.html?tab=stock', 'Field stock hub', '—')}
+        ${card('/field-ops.html?tab=collect', 'Field collections', n(readLs('df_collection_handoffs', [])))}
+      </div>
+
+      <div class="scope-bar" style="display:flex;gap:8px;margin:16px 0 12px;flex-wrap:wrap">
+        ${btn('all', '/virtual-warehouse.html', 'All hub legs')}
+        ${btn('out', '/virtual-warehouse.html?leg=out', 'Company → Hub')}
+        ${btn('in', '/virtual-warehouse.html?leg=in', 'Hub → Company')}
+        <a class="ult-btn ult-btn-outline" href="/stock-transfer-form.html">+ New transfer</a>
+      </div>
+      <div class="home-card" data-tbl="hub-moves">
+        <div class="head" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h2 style="margin:0;font-size:16px">Hub movements</h2>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="tbl-bulk">
+          <span class="tbl-bulk-count" data-bulk-count>0 selected</span>
+          <button type="button" data-bulk-all>Select all</button>
+          <button type="button" data-bulk-invert>Invert</button>
+          <button type="button" class="tbl-bulk-del" data-bulk-del>Delete selected</button>
+          <button type="button" data-bulk-clear>Clear</button>
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Date</th><th>Ref</th><th>Leg</th><th>From</th><th>To</th><th>Status</th><th>Notes</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}">
+            <td><details class="act"><summary class="act-btn">Actions</summary><menu>
+              <a href="/stock-transfer-form.html?id=${encodeURIComponent(r.id)}&view=1">View</a>
+              <a href="/stock-transfer-form.html?id=${encodeURIComponent(r.id)}">Edit</a>
+              <button type="button" data-del="${esc(r.id)}">Delete</button>
+            </menu></details></td>
+            <td>${esc(String(r.transfer_date || r.created_at || '').slice(0, 10))}</td>
+            <td><strong>${esc(r.reference || '')}</strong></td>
+            <td>${esc(r.hub_leg || '—')}</td>
+            <td>${esc(r.from_warehouse || r.from_subsidiary || '—')}<div class="ult-muted">${esc(r.from_subsidiary || '')}</div></td>
+            <td>${esc(r.to_warehouse || r.to_subsidiary || '—')}<div class="ult-muted">${esc(r.to_subsidiary || '')}</div></td>
+            <td>${esc(r.status || '')}</td>
+            <td class="ult-muted">${esc(r.notes || '')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="8">No hub transfers yet</td></tr>'}</tbody>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="hub-moves"]'), {
+      title: 'Hub movements', storageKey: 'hub-moves', table: 'stock_transfers', key: TKEY, onDone: reload,
+    });
+  }
+
+  async function reload() {
+    const rows = await fetchRows();
+    await paint(rows);
+    armLive();
+  }
+
+  function armLive() {
+    dropLive();
+    const status = document.getElementById('live-status');
+    try {
+      const name = 'vw-live-' + Date.now().toString(36);
+      const ch = supabase.channel(name);
+      liveCh = ch;
+      ch.on('postgres_changes', { event: '*', schema: 'public', table: 'stock_transfers' }, () => {
+        reload().catch(() => {});
+      });
+      ch.subscribe((s) => {
+        if (status) {
+          status.textContent = s === 'SUBSCRIBED'
+            ? 'Live · waiting for hub movements'
+            : (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT' ? 'Showing saved movements (live off)' : 'Realtime: ' + s);
+        }
+      });
+    } catch (err) {
+      if (status) status.textContent = 'Showing saved movements (live off)';
+      console.warn('hub live', err);
+    }
+  }
+
+  window.addEventListener('df-spa-leave', dropLive);
+  window.addEventListener('popstate', () => reload());
+  await reload();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Module — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    const title = new URLSearchParams(location.search).get('t') || 'Module';
+    document.title = title + ' — Delkor-Fiberk';
+    document.getElementById('app').innerHTML = pageChrome(title, 'Menu item is live. Detail screens will be filled in the next passes.') + `
+      <div class="ult-card">
+        <p>This subcategory is registered in the sidebar and in <code>app_menu_items</code>.</p>
+        <p class="ult-muted">Existing working pages (POS, products, sales, purchases) stay as they are.</p>
+      </div>`;
+  </script>
+</body>
+</html>

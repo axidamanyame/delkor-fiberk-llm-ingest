@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location Price Groups — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS } from './js/scope.js';
+  import { loadRows, readLs, writeLs, esc } from './js/ls-rows.js';
+  import { toast } from './js/confirm-action.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const KEY = 'df_loc_price_groups';
+  const seed = [
+    { id: 'spg-retail', name: 'Retail', description: 'Walk-in till price' },
+    { id: 'spg-wholesale', name: 'Wholesale', description: '−12% distributors' },
+    { id: 'spg-vip', name: 'VIP', description: '−8% corporate' },
+    { id: 'spg-staff', name: 'Staff', description: '−20% employee' },
+  ];
+  const groups = await loadRows('selling_price_groups', 'df_price_groups', seed);
+  const shops = BUSINESS_LOCATIONS.filter((l) => l.code !== 'VW-GROUP');
+  const saved = readLs(KEY, null) || {};
+
+  function paint() {
+    app.innerHTML = `
+      <h1>Location Price Groups <span class="sub" style="font-weight:400;color:#3d4f66;font-size:14px">Default selling group per shop — catalogue of groups is under Products</span></h1>
+      <p class="ult-muted">Products → Selling Price Group creates the groups. This screen assigns which group each location uses at the till.</p>
+      <form id="f" class="ult-card">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Location</th><th>Subsidiary</th><th>Default price group</th></tr></thead>
+          <tbody>${shops.map((l) => {
+            const cur = saved[l.code] || (l.subsidiary === 'axidigetek' ? 'spg-wholesale' : l.subsidiary === 'bnpl' ? 'spg-retail' : 'spg-retail');
+            const opts = groups.map((g) => `<option value="${esc(g.id)}" ${String(g.id)===String(cur)?'selected':''}>${esc(g.name)}</option>`).join('');
+            return `<tr><td>${esc(l.name)}</td><td>${esc(l.subsidiary)}</td>
+              <td><select name="${esc(l.code)}">${opts}</select></td></tr>`;
+          }).join('')}</tbody>
+        </table></div>
+        <p style="margin-top:14px"><button type="submit" class="ult-btn ult-btn-primary">Save assignments</button>
+          <a class="ult-btn ult-btn-outline" href="/price-groups.html">Manage groups</a></p>
+      </form>`;
+    document.getElementById('f').onsubmit = (e) => {
+      e.preventDefault();
+      const next = {};
+      shops.forEach((l) => { next[l.code] = e.target[l.code]?.value || ''; });
+      writeLs(KEY, next);
+      toast('Location price groups saved');
+    };
+  }
+  paint();
+</script>
+</body>
+</html>

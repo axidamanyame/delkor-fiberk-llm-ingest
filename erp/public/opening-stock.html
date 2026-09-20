@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Opening Stock — Operations Hub</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, esc, actMenu } from './js/ls-rows.js';
+  import { KEYS, SEED_PRODUCTS } from './js/catalog-seed.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { filterBySidebar, SCOPE_EVENT } from './js/scope.js';
+  import { subsidiaryLabel } from './js/entity-scope.js';
+  import { peelWrite } from './js/account-rules.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const want = new URLSearchParams(location.search).get('product') || '';
+
+  async function paint() {
+    const all = await loadRows('products', KEYS.products, SEED_PRODUCTS);
+    const rows = filterBySidebar(all || []);
+    window.__dfProductRows = all || [];
+    app.innerHTML = `
+      ${pageChrome('Opening Stock')}
+      <div class="ult-card" data-tbl="opening" data-ls="df_products">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th><th>SKU</th><th>Name</th><th>Subsidiary</th>
+            <th>Location</th><th>Opening qty</th><th>Unit cost</th>
+          </tr></thead>
+          <tbody>${rows.map((p) => `<tr data-id="${esc(p.id)}" ${want && String(p.id) === want ? 'data-focus="1"' : ''}>
+            <td>${actMenu(p.id, [
+              { label: 'View' },
+              { href: `/product-form.html?id=${encodeURIComponent(p.id)}`, label: 'Edit' },
+              { href: `/product-stock-history.html?id=${encodeURIComponent(p.id)}`, label: 'History' },
+            ])}</td>
+            <td>${esc(p.sku || '')}</td>
+            <td>${esc(p.name || '')}</td>
+            <td>${esc(subsidiaryLabel(p.subsidiary_code))}</td>
+            <td>${esc(p.location_name || p.location_code || '')}</td>
+            <td><input data-qty="${esc(p.id)}" type="number" min="0" step="1" value="${Number(p.opening_stock ?? p.current_stock ?? p.stock ?? 0)}" style="width:90px" /></td>
+            <td>${Number(p.cost_price || p.unit_cost || 0).toFixed(2)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="7" style="text-align:center">No products</td></tr>'}</tbody>
+        </table></div>
+        <p style="margin-top:12px"><button type="button" class="ult-btn" id="save-open">Save opening quantities</button></p>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="opening"]'), { title: 'Opening Stock', storageKey: 'opening-stock', skipFilters: true });
+    document.getElementById('save-open').onclick = async () => {
+      if (!(await confirmAction('Save opening stock quantities?'))) return;
+      let n = 0;
+      for (const inp of app.querySelectorAll('[data-qty]')) {
+        const id = inp.dataset.qty;
+        const qty = Number(inp.value || 0);
+        const p = rows.find((r) => String(r.id) === String(id));
+        if (!p) continue;
+        p.opening_stock = qty;
+        p.current_stock = qty;
+        p.stock = qty;
+        try { await peelWrite('products', { opening_stock: qty, current_stock: qty, stock: qty }, { id }); n += 1; }
+        catch { /* local */ n += 1; }
+      }
+      try { localStorage.setItem(KEYS.products, JSON.stringify(all)); } catch { /* ignore */ }
+      ackResult(true, 'Saved ' + n + ' SKU(s).');
+    };
+    const focus = app.querySelector('tr[data-focus]');
+    if (focus) focus.scrollIntoView({ block: 'center' });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

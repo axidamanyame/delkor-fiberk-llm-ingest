@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Journal Entry — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { getActiveLocation, formLocOptions, SCOPE_EVENT } from './js/scope.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { OPERATING_SUBSIDIARIES } from './js/supabaseClient.js';
+  import {
+    accNav, esc, loadAccounts, loadJournals, scopeAccounts, saveRow, KEYS, accountOpts,
+    currentSubCode, nextRef, uid, ensureDemoBooks,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const editId = q.get('id');
+  const viewOnly = q.get('view') === '1';
+  const who = session?.user?.email || session?.profile?.full_name || 'Admin';
+  let existing = null;
+  let accounts = [];
+  let lines = [{ id: uid(), account_id: '', debit: '', credit: '', note: '' }, { id: uid(), account_id: '', debit: '', credit: '', note: '' }];
+
+  function nowDate() { return new Date().toISOString().slice(0, 10); }
+
+  async function boot() {
+    await ensureDemoBooks();
+    accounts = scopeAccounts(await loadAccounts());
+    const all = await loadJournals();
+    if (editId) {
+      existing = all.find((r) => String(r.id) === String(editId)) || null;
+      if (existing?.lines?.length) lines = existing.lines.map((l) => ({ ...l, id: l.id || uid() }));
+    }
+    paint();
+  }
+
+  function totals() {
+    return {
+      debit: lines.reduce((s, l) => s + Number(l.debit || 0), 0),
+      credit: lines.reduce((s, l) => s + Number(l.credit || 0), 0),
+    };
+  }
+
+  function paint() {
+    const ro = viewOnly ? 'disabled' : '';
+    const t = totals();
+    const bal = Math.abs(t.debit - t.credit) < 0.005;
+    const title = viewOnly ? 'View journal entry' : (editId ? 'Edit journal entry' : 'Add journal entry');
+    app.innerHTML = `
+      ${accNav('je')}
+      <h1>${esc(title)}</h1>
+      <form id="je-form" class="st-card">
+        <div class="st-grid4">
+          <label class="fld">Date:*
+            <input id="jdt" type="date" ${ro} value="${esc((existing?.journal_date || nowDate()).slice(0, 10))}" />
+          </label>
+          <label class="fld">Reference No:
+            <input id="jref" ${ro} value="${esc(existing?.ref_no || '')}" placeholder="Auto if empty" />
+          </label>
+          <label class="fld">Subsidiary:*
+            <select id="jsub" ${ro}>
+              ${OPERATING_SUBSIDIARIES.map((s) => `<option value="${esc(s.code)}" ${(existing?.subsidiary_code || currentSubCode()) === s.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Business Location:
+            <select id="jloc" ${ro}>${formLocOptions(existing?.location_code || getActiveLocation() || '', { includeVirtual: true, placeholder: 'Please Select' })}</select>
+          </label>
+        </div>
+        <label class="fld">Additional notes:
+          <textarea id="jnote" rows="2" ${ro}>${esc(existing?.note || existing?.narration || '')}</textarea>
+        </label>
+        <div class="ult-table-wrap je-lines" style="margin-top:12px"><table class="ult-table line-tbl">
+          <thead><tr><th>Account</th><th>Debit</th><th>Credit</th><th>Note</th><th data-nosort="1"></th></tr></thead>
+          <tbody>
+            ${lines.map((ln, i) => `<tr>
+              <td><select data-i="${i}" data-k="account_id" ${ro}>${accountOpts(accounts, ln.account_id, 'Please Select')}</select></td>
+              <td><input data-i="${i}" data-k="debit" type="number" step="0.01" min="0" ${ro} value="${esc(ln.debit)}" /></td>
+              <td><input data-i="${i}" data-k="credit" type="number" step="0.01" min="0" ${ro} value="${esc(ln.credit)}" /></td>
+              <td><input data-i="${i}" data-k="note" ${ro} value="${esc(ln.note || '')}" /></td>
+              <td>${viewOnly ? '' : `<button type="button" data-rm="${i}">×</button>`}</td>
+            </tr>`).join('')}
+          </tbody>
+          <tfoot><tr>
+            <td class="tot">Total</td>
+            <td class="tot">${fmt(t.debit)}</td>
+            <td class="tot">${fmt(t.credit)}</td>
+            <td colspan="2" class="${bal ? '' : 'je-unbal'}">${bal ? 'Balanced' : 'Debit and credit must match'}</td>
+          </tr></tfoot>
+        </table></div>
+        ${viewOnly ? '' : `<p><button type="button" class="ult-btn ult-btn-outline" id="add-line">+ Add line</button></p>`}
+        <div class="st-save">
+          ${viewOnly
+            ? `<a class="ult-add" href="/accounting-journal-form.html?id=${esc(editId)}">Edit</a>
+               <a class="ult-btn ult-btn-outline" href="/accounting-journal.html">Back</a>`
+            : `<button type="submit">${editId ? 'Update' : 'Save'}</button>
+               <a class="ult-btn ult-btn-outline" href="/accounting-journal.html" style="margin-left:8px">Cancel</a>`}
+        </div>
+      </form>`;
+
+    app.querySelectorAll('[data-k]').forEach((el) => {
+      el.addEventListener('change', () => {
+        const i = Number(el.dataset.i);
+        lines[i][el.dataset.k] = el.value;
+        if (el.dataset.k === 'debit' && Number(el.value)) lines[i].credit = '';
+        if (el.dataset.k === 'credit' && Number(el.value)) lines[i].debit = '';
+        paint();
+      });
+    });
+    app.querySelectorAll('[data-rm]').forEach((b) => {
+      b.onclick = () => { lines.splice(Number(b.dataset.rm), 1); if (!lines.length) lines.push({ id: uid(), account_id: '', debit: '', credit: '', note: '' }); paint(); };
+    });
+    app.querySelector('#add-line')?.addEventListener('click', () => { lines.push({ id: uid(), account_id: '', debit: '', credit: '', note: '' }); paint(); });
+    app.querySelector('#je-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const t2 = totals();
+      if (Math.abs(t2.debit - t2.credit) > 0.005 || !t2.debit) {
+        toast('Journal must balance and have a total', 'error');
+        return;
+      }
+      const used = lines.filter((l) => l.account_id && (Number(l.debit) || Number(l.credit)));
+      if (used.length < 2) { toast('Add at least two account lines', 'error'); return; }
+      const ok = await confirmAction(editId ? 'Update journal entry?' : 'Save journal entry?', `Debit ${fmt(t2.debit)} / Credit ${fmt(t2.credit)}`);
+      if (!ok) return;
+      const all = await loadJournals();
+      const ref = document.getElementById('jref').value.trim() || nextRef('journal', all);
+      const loc = document.getElementById('jloc').value;
+      await saveRow('journals', KEYS.journals, {
+        ...(existing || {}),
+        id: existing?.id,
+        journal_date: document.getElementById('jdt').value,
+        ref_no: ref,
+        note: document.getElementById('jnote').value,
+        added_by: existing?.added_by || who,
+        subsidiary_code: document.getElementById('jsub').value || currentSubCode(),
+        location_code: loc,
+        agent_id: '',
+        lines: used.map((l) => ({
+          ...l,
+          account: accounts.find((a) => String(a.id) === String(l.account_id))?.name || '',
+          debit: Number(l.debit || 0),
+          credit: Number(l.credit || 0),
+        })),
+        total: t2.debit,
+        status: 'posted',
+      });
+      toast(editId ? 'Journal updated' : 'Journal saved');
+      location.assign('/accounting-journal.html');
+    });
+  }
+
+  window.addEventListener(SCOPE_EVENT, () => { if (!editId) boot(); });
+  boot();
+</script>
+</body>
+</html>

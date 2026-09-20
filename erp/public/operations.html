@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operations flow — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { getActiveLocation } from './js/scope.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const TYPES = [
+      ['purchase','Purchases','received adds stock; ordered/pending does not'],
+      ['purchase_return','Purchase returns','stock leaves the shop back to supplier'],
+      ['debit_note','Debit notes','supplier balance after a purchase return'],
+      ['transfer','Stock transfers','completed: out of From, into To. Inter-co goes via Operations Hub'],
+      ['adjustment','Stock adjustments','normal count or abnormal damage — qty can be negative'],
+      ['quotation','Quotations','price only, no stock move'],
+      ['draft','Drafts / held tills','not final — stock stays'],
+      ['sale','Sales / POS','final deducts stock at the location'],
+      ['sell_return','Sell returns','stock returns to the selling location'],
+      ['shipment','Shipments','online sale handed to Delkor last-mile'],
+    ];
+    let tab = new URLSearchParams(location.search).get('t') || 'purchase';
+
+    function inScope(d) {
+      const sub = getActiveSubsidiary()?.code || 'group';
+      const loc = getActiveLocation();
+      if (sub && sub !== 'group' && d.subsidiary_code && d.subsidiary_code !== sub && d.subsidiary_code !== 'group') return false;
+      if (loc && d.location_code && d.location_code !== loc) return false;
+      return true;
+    }
+
+    async function load() {
+      const { data, error } = await supabase.from('ops_documents').select('*').order('doc_date', { ascending: false }).limit(400);
+      if (error) { app.innerHTML = pageChrome('Operations') + `<p class="ult-alert">${error.message} — run sql/72_ops_flow.sql</p>`; return; }
+      const docs = (data || []).filter(inScope);
+      const mine = docs.filter(d => d.doc_type === tab);
+      const { data: lines } = await supabase.from('ops_lines').select('*').in('doc_id', mine.map(d => d.id).concat(['00000000-0000-0000-0000-000000000000']));
+      app.innerHTML = `
+        ${pageChrome('Operations flow','Purchase → stock → transfer (via virtual warehouse) → adjustment → sale. Header subsidiary/location filters this list.')}
+        <div class="ult-card">
+          <div class="ult-tabs" style="flex-wrap:wrap">
+            ${TYPES.map(([k,l]) => `<button class="ult-tab ${tab===k?'active':''}" data-t="${k}">${l}</button>`).join('')}
+          </div>
+          <p class="ult-muted">${(TYPES.find(t=>t[0]===tab)||[])[2]||''}</p>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Date</th><th>No</th><th>Status</th><th>Subsidiary</th><th>Location</th><th>Partner / route</th><th>Amount</th><th>Notes</th></tr></thead>
+            <tbody>${mine.map(d => `<tr>
+              <td>${d.doc_date||''}</td><td><strong>${d.doc_no}</strong></td>
+              <td>${d.status}</td><td>${d.subsidiary_code||''}</td><td>${d.location_code||''}</td>
+              <td>${d.partner_name||''} ${d.from_wh?`<div class="ult-muted">${d.from_wh} → ${d.to_wh||''}</div>`:''}</td>
+              <td>${fmt(d.total_amount)}</td><td>${d.notes||''}</td>
+            </tr>
+            ${(lines||[]).filter(l=>l.doc_id===d.id).map(l=>`<tr><td></td><td colspan="7" class="ult-muted">${l.sku} · ${l.product_name} × ${l.quantity}</td></tr>`).join('')}`).join('') || '<tr><td colspan="8">No documents in this scope. Switch Delkor-Fiberk Group in the sidebar to see every company.</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>`;
+      app.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; history.replaceState({},'', '?t='+tab); load(); });
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Report</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:#111}.page h1{margin:0;font-size:22px}
+    .sub{margin:0 0 12px;font-size:13px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:12px}
+    .filt-toggle{width:100%;text-align:left;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;margin-bottom:10px}
+    .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button,.filters select{border:1px solid #111;background:#fff;color:#111;border-radius:8px;padding:5px 10px;font-size:12px}
+    table.ult-table th,table.ult-table td{color:#111;white-space:nowrap}
+    table.ult-table tfoot td{background:#d1d5db;font-weight:800}
+    .tabs a{padding:10px 8px;text-decoration:none;color:#3d4f66;font-weight:600}
+    .tabs a.on{color:#1d4ed8;border-bottom:2px solid #1d4ed8}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pager button{border:1px solid #111;background:#fff;padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff}
+    .act-btn{color:#0284c7;border:1px solid #7dd3fc;background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, locationsFor, filterAgentHtml, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { displaySku } from './js/sku-lifecycle.js';
+  import { subscribeStock } from './js/inventory-sync.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let showFilt = false;
+  const F = { type:'', category:'', brand:'', unit:'', tax:'', loc:'', nosell:false, woo:false };
+
+  async function load() {
+    const [{ data: remote }, { data: lines }, { data: xfer }, { data: adj }] = await Promise.all([
+      supabase.from('products').select('*').order('name').limit(4000),
+      supabase.from('sales_order_lines').select('product_id,sku,quantity').limit(8000),
+      supabase.from('stock_transfers').select('product_id,quantity').limit(2000),
+      supabase.from('stock_adjustments').select('product_id,quantity').limit(2000),
+    ]);
+    const local = await loadRows('products', KEYS.products, []);
+    const products = (local && local.length) ? local : (remote || []);
+    const sold = {}, moved = {}, adjusted = {};
+    (lines || []).forEach((l) => { const k = l.product_id || l.sku; if (k) sold[k] = (sold[k]||0) + Number(l.quantity||0); });
+    (xfer || []).forEach((l) => { if (l.product_id) moved[l.product_id] = (moved[l.product_id]||0) + Number(l.quantity||0); });
+    (adj || []).forEach((l) => { if (l.product_id) adjusted[l.product_id] = (adjusted[l.product_id]||0) + Number(l.quantity||0); });
+
+    let rows = filterBySidebar(products || []);
+    if (F.type) rows = rows.filter((p) => String(p.product_type || 'simple') === F.type);
+    if (F.category) rows = rows.filter((p) => p.category === F.category);
+    if (F.brand) rows = rows.filter((p) => p.brand === F.brand);
+    if (F.unit) rows = rows.filter((p) => (p.unit || 'pcs') === F.unit);
+    if (F.tax) rows = rows.filter((p) => String(p.tax || p.tax_name || '') === F.tax);
+    F.loc = getActiveLocation();
+    if (F.loc) rows = rows.filter((p) => (p.location_code || '') === F.loc);
+    if (F.nosell) rows = rows.filter((p) => p.not_for_selling === true);
+    if (F.woo) rows = rows.filter((p) => p.woocommerce_enabled === true);
+    const uniq = (vals) => [...new Set(vals.filter(Boolean))];
+    const opt = (arr, cur) => arr.map((v) => `<option ${cur===v?'selected':''}>${esc(v)}</option>`).join('');
+    const shops = locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true });
+    const locOpts = shops.map((l) => `<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('');
+
+    const enriched = rows.map((p) => {
+      const qty = Number(p.stock ?? p.current_stock ?? p.current_stock_value ?? 0);
+      const cost = Number(p.cost_price || p.purchase_price || 0);
+      const sell = Number(p.selling_price || 0);
+      const costVal = qty * cost;
+      const sellVal = qty * sell;
+      return {
+        ...p,
+        qty,
+        sell,
+        costVal,
+        sellVal,
+        profit: sellVal - costVal,
+        sold: sold[p.id] || sold[p.sku] || 0,
+        moved: moved[p.id] || 0,
+        adjusted: adjusted[p.id] || 0,
+        locName: findLocation(p.location_code)?.name || p.location_name || p.location_code || '',
+      };
+    });
+
+    app.innerHTML = `
+      <h1>Products <span class="sub">Manage your products</span></h1>
+      <p class="sub">${esc(scopeCaption())}</p>
+      <button type="button" class="filt-toggle" id="filt-tog">▾ Filters</button>
+      <div class="card" id="filt-box" ${showFilt?'':'hidden'}>
+        <div class="filters">
+          <div>Product Type:<br><select id="f-type"><option value="">All</option>
+            <option value="simple" ${F.type==='simple'?'selected':''}>Single</option>
+            <option value="variable" ${F.type==='variable'?'selected':''}>Variable</option>
+            <option value="combo" ${F.type==='combo'?'selected':''}>Combo</option></select></div>
+          <div>Category:<br><select id="f-cat"><option value="">All</option>${opt(uniq(rows.map(p=>p.category)), F.category)}</select></div>
+          <div>Unit:<br><select id="f-unit"><option value="">All</option>${opt(uniq(rows.map(p=>p.unit||'pcs')), F.unit)}</select></div>
+          <div>Tax:<br><select id="f-tax"><option value="">All</option>${opt(uniq(rows.map(p=>p.tax||p.tax_name)), F.tax)}</select></div>
+          <div>Brand:<br><select id="f-brand"><option value="">All</option>${opt(uniq(rows.map(p=>p.brand)), F.brand)}</select></div>
+          <div>Business Location:<br><select id="f-loc" data-scope-loc="sale" data-empty-label="All"><option value="">All</option>${locOpts}</select></div>
+          ${filterAgentHtml()}
+          <div>
+            <label><input type="checkbox" id="f-nosell" ${F.nosell?'checked':''}/> Not for selling</label><br>
+            <label><input type="checkbox" id="f-woo" ${F.woo?'checked':''}/> Woocommerce enabled</label>
+          </div>
+        </div>
+      </div>
+      <div class="card" data-tbl="stock">
+        <div class="tabs" style="border-bottom:1px solid #e5e7eb;margin-bottom:12px">
+          <a href="/products.html">All Products</a>
+          <a class="on" href="/stock.html">Stock Report</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>200</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th><th>SKU</th><th>Hub catalog</th><th>Move key</th><th>Product</th><th>Variation</th><th>Category</th><th>Subcategory</th><th>Location</th>
+            <th>Unit Selling Price</th><th>Current stock</th>
+            <th>Current Stock Value (By purchase price)</th>
+            <th>Current Stock Value (By sale price)</th>
+            <th>Potential profit</th>
+            <th>Total unit sold</th>
+            <th>Total Unit Transferred</th>
+            <th>Total Unit Adjusted</th>
+            <th>Custom Field1</th><th>Custom Field2</th><th>Custom Field3</th><th>Custom Field4</th>
+          </tr></thead>
+          <tbody>${enriched.map((p) => `<tr>
+            <td><a class="act-btn" href="/product-stock-history.html?id=${p.id}">History</a></td>
+            <td>${esc(displaySku(p))}</td>
+            <td>${esc(p.catalog_sku || '—')}</td>
+            <td>${esc(p.movement_key || '—')}</td>
+            <td>${esc(p.name)}</td>
+            <td>${esc(p.variation || '')}</td>
+            <td>${esc(p.category)}</td>
+            <td>${esc(p.subcategory || '—')}</td>
+            <td>${esc(p.locName)}</td>
+            <td>${fmt(p.sell)}</td>
+            <td>${p.qty}</td>
+            <td>${fmt(p.costVal)}</td>
+            <td>${fmt(p.sellVal)}</td>
+            <td>${fmt(p.profit)}</td>
+            <td>${p.sold}</td>
+            <td>${p.moved}</td>
+            <td>${p.adjusted}</td>
+            <td>${esc(p.custom_field_1||'')}</td>
+            <td>${esc(p.custom_field_2||'')}</td>
+            <td>${esc(p.custom_field_3||'')}</td>
+            <td>${esc(p.custom_field_4||'')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="21" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          <tfoot><tr><td colspan="9" style="text-align:right">Total:</td>
+            <td></td><td>${enriched.reduce((a,p)=>a+p.qty,0)}</td>
+            <td>${fmt(enriched.reduce((a,p)=>a+p.costVal,0))}</td>
+            <td>${fmt(enriched.reduce((a,p)=>a+p.sellVal,0))}</td>
+            <td>${fmt(enriched.reduce((a,p)=>a+p.profit,0))}</td>
+            <td>${enriched.reduce((a,p)=>a+p.sold,0)}</td>
+            <td>${enriched.reduce((a,p)=>a+p.moved,0)}</td>
+            <td>${enriched.reduce((a,p)=>a+p.adjusted,0)}</td>
+            <td colspan="4"></td></tr></tfoot>
+        </table></div>
+        <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="stock"]'), { title: 'Stock Report', storageKey: 'stock-report' });
+    document.getElementById('filt-tog').onclick = () => { showFilt = !showFilt; load(); };
+    const bindF = () => {
+      F.type = document.getElementById('f-type').value;
+      F.category = document.getElementById('f-cat').value;
+      F.unit = document.getElementById('f-unit').value;
+      F.tax = document.getElementById('f-tax').value;
+      F.brand = document.getElementById('f-brand').value;
+      F.loc = document.getElementById('f-loc').value;
+      F.nosell = document.getElementById('f-nosell').checked;
+      F.woo = document.getElementById('f-woo').checked;
+      load();
+
+  /* Live stock_levels: repaint when another till or branch moves stock.
+     Coalesced so a burst of row changes triggers one reload. */
+  let stockTimer = null;
+  subscribeStock(supabase, {
+    onChange: () => {
+      clearTimeout(stockTimer);
+      stockTimer = setTimeout(() => { load().catch(() => {}); }, 600);
+    },
+  });
+    };
+    ['f-type','f-cat','f-unit','f-tax','f-brand','f-loc','f-nosell','f-woo'].forEach((id) => { document.getElementById(id).onchange = bindF; });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

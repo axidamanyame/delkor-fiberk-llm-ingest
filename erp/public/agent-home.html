@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent home</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  const session = await mountUltimateShell();
+  const app = document.getElementById('app');
+  const uid = session.user.id;
+  const mail = (session.user.email || '').toLowerCase();
+  const [leads, sales, agent] = await Promise.all([
+    supabase.from('crm_leads').select('id,name,phone,status,assigned_to').limit(200),
+    supabase.from('sales_orders').select('id,reference,total_amount,commission_amount,agent_email,sold_by').limit(400),
+    supabase.from('sales_commission_agents').select('*').or(`email.eq.${session.user.email},user_id.eq.${uid}`).maybeSingle(),
+  ]);
+  const myLeads = (leads.data || []).filter((l) => String(l.assigned_to||'').toLowerCase() === uid.toLowerCase() || String(l.assigned_to||'').toLowerCase() === mail);
+  const mySales = (sales.data || []).filter((s) => String(s.agent_email||'').toLowerCase() === mail || String(s.sold_by||'') === uid);
+  const comm = mySales.reduce((a,s)=>a+Number(s.commission_amount||0),0);
+  app.innerHTML = `
+    <h1>Agent floor</h1>
+    <p>${agent.data?.full_name || session.user.email} · rate ${agent.data?.commission_percent ?? '—'}%</p>
+    <p><a class="ult-btn ult-btn-primary" href="/till-login.html">Open register</a></p>
+    <div class="ult-card"><b>My commission (loaded)</b> ${fmt(comm)} · <b>Leads</b> ${myLeads.length}</div>
+    <div class="ult-card"><h3>My leads</h3>${myLeads.map((l)=>`<p>${l.name||l.phone} · ${l.status||'new'}</p>`).join('') || '<p>None assigned</p>'}</div>`;
+</script>
+</body></html>

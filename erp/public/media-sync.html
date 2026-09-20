@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Media Sync — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { deskHow } from './js/desk-manual.js';
+  import { counts } from './js/media-sync.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  let c = { products: 0, missing: 0, frankoLocked: 0, failed: 0, hosted: 0 };
+  try { c = await counts(); } catch (e) { console.warn(e); }
+  app.innerHTML = `
+    ${pageChrome('Supplier Media Sync', 'Franko photos in your Supabase bucket — not testing.frankotrading.com')}
+    ${deskHow('media', 'How this desk works')}
+    <div class="ult-kpis">
+      <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">On Franko CDN</div><div class="ult-kpi-value">${c.frankoLocked}</div></div></div>
+      <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">No image</div><div class="ult-kpi-value">${c.missing}</div></div></div>
+      <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Linked this device</div><div class="ult-kpi-value">${c.hosted || 0}</div></div></div>
+      <div class="ult-kpi"><div class="ult-kpi-body"><div class="ult-kpi-label">Failed syncs</div><div class="ult-kpi-value">${c.failed}</div></div></div>
+    </div>
+    <p class="ops-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <a class="ult-btn ult-btn-primary" href="/franko-sync.html">Franko Sync</a>
+      <a class="ult-btn ult-btn-outline" href="/missing-images.html">Missing images</a>
+      <a class="ult-btn ult-btn-outline" href="/sync-logs.html">Sync logs</a>
+    </p>
+    <p class="sub">The till will not call testing.frankotrading.com. Import the photos Franko sent, or link files already in <code>product-images/franko</code>.</p>
+  `;
+</script>
+</body>
+</html>

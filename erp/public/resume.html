@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Opening…</title>
+  <script>
+    (function () {
+      function read(k) {
+        try { if (localStorage.getItem(k)) return localStorage.getItem(k); } catch (e) {}
+        try { if (sessionStorage.getItem(k)) return sessionStorage.getItem(k); } catch (e) {}
+        try {
+          var m = document.cookie.match(new RegExp('(?:^|; )' + k + '=([^;]*)'));
+          return m ? decodeURIComponent(m[1]) : '';
+        } catch (e) { return ''; }
+      }
+      var raw = read('df_auth');
+      var logged = false;
+      try {
+        var s = JSON.parse(raw || '{}');
+        var demo = s && (s.access_token === 'preview-demo' || String(s.user && s.user.id || '').indexOf('00000000-0000-4000') === 0);
+        var live = /\.grok\.me$/i.test(location.hostname || '');
+        logged = !!(s && s.user && s.user.id && s.access_token && (!demo || !live));
+      } catch (e) {}
+      var last = read('df_last_path') || '';
+      if (logged && last && last.indexOf('login') < 0 && last.indexOf('resume') < 0) {
+        location.replace(last);
+        return;
+      }
+      location.replace(logged ? '/dashboard.html' : '/login.html');
+    })();
+  </script>
+</head>
+<body>
+  <p style="font-family:system-ui;padding:24px;color:#64748b">Opening your last screen…</p>
+</body>
+</html>

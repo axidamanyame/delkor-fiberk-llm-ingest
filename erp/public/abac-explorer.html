@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ABAC Explorer — Axidigetek</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 22px; margin: 0 0 6px; }
+    .sub { color: #5b6b80; font-size: 13px; margin: 0 0 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 16px; }
+    .card h2 { margin: 0 0 10px; font-size: 14px; color: #93c5fd; }
+    label { display: block; font-size: 11px; color: #5b6b80; margin: 8px 0 4px; }
+    input, select {
+      width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid #475569;
+      background: #0f172a; color: #f1f5f9; font: inherit; font-size: 13px;
+    }
+    button {
+      margin-top: 14px; padding: 10px 16px; border: none; border-radius: 8px;
+      background: #2563eb; color: #fff; font-weight: 700; cursor: pointer; font: inherit;
+    }
+    .allow { background: #064e3b; border: 1px solid #10b981; color: #6ee7b7; padding: 12px; border-radius: 8px; margin-top: 12px; }
+    .deny { background: #450a0a; border: 1px solid #ef4444; color: #fca5a5; padding: 12px; border-radius: 8px; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #334155; }
+    th { color: #5b6b80; }
+    .ok { color: #34d399; }
+    .no { color: #f87171; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #334155; font-size: 11px; margin-right: 6px; }
+    a { color: #93c5fd; }
+    pre { background: #020617; padding: 12px; border-radius: 8px; overflow: auto; font-size: 11px; color: #cbd5e1; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Attribute-Based Access Explorer</h1>
+    <p class="sub">
+      RBAC answers “what can this <em>role</em> do?” · ABAC answers “can <em>this user</em>, with <em>these attributes</em>, do <em>this action</em> on <em>this record</em> right now?”
+      <br /><a href="/dashboard.html">← Dashboard</a>
+    </p>
+
+    <div id="who" class="card" style="margin-bottom:14px">Loading subject…</div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1. Action &amp; resource attributes</h2>
+        <label>Action</label>
+        <select id="action">
+          <option value="view">view</option>
+          <option value="create">create / finalize</option>
+          <option value="view_purchase_price">view_purchase_price</option>
+          <option value="pos_finalize">pos_finalize</option>
+          <option value="approve">approve</option>
+        </select>
+        <label>RBAC permission pre-check (optional)</label>
+        <select id="perm">
+          <option value="">(none)</option>
+          <option value="sell.add">sell.add</option>
+          <option value="purchase.view">purchase.view</option>
+          <option value="product.view_purchase_price">product.view_purchase_price</option>
+          <option value="product.view">product.view</option>
+        </select>
+        <label>Resource subsidiary_code</label>
+        <select id="res_sub">
+          <option value="">(none)</option>
+          <option value="bnpl">bnpl</option>
+          <option value="fiberk">fiberk</option>
+          <option value="delkor">delkor</option>
+          <option value="hq">hq</option>
+        </select>
+        <label>Resource total_amount (GH₵)</label>
+        <input id="amount" type="number" value="12000" />
+        <label>Discount %</label>
+        <input id="disc" type="number" value="0" />
+        <label>Sale type</label>
+        <select id="sale_type">
+          <option value="cash">cash</option>
+          <option value="bnpl">bnpl / hire_purchase</option>
+        </select>
+        <label><input type="checkbox" id="biz" /> Enforce business hours on pos_finalize</label>
+        <button type="button" id="run">Evaluate policies</button>
+      </div>
+
+      <div class="card">
+        <h2>2. Decision</h2>
+        <div id="result"><p style="color:#5b6b80">Click Evaluate</p></div>
+        <table>
+          <thead><tr><th>Policy</th><th>Result</th><th>Reason</th></tr></thead>
+          <tbody id="decisions"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>How ABAC fits Axidigetek</h2>
+      <p style="font-size:13px;line-height:1.55;color:#cbd5e1">
+        <span class="pill">Subject</span> profile: role, subsidiary_code, warehouse, max_discount_pct, max_sale_amount<br />
+        <span class="pill">Resource</span> sales_order.subsidiary_code, total_amount, sale_type<br />
+        <span class="pill">Environment</span> hour, channel=pos<br />
+        <span class="pill">Action</span> create, view_purchase_price, pos_finalize
+      </p>
+      <pre>// In POS checkout:
+import { loadSubject, decide } from './js/abac.js';
+await loadSubject();
+const d = decide({
+  action: 'create',
+  permission: 'sell.add',
+  resource: {
+    total_amount: total,
+    discount_percent: 0,
+    subsidiary_code: 'fiberk',
+    sale_type: 'cash',
+  },
+  env: { channel: 'pos' },
+});
+if (!d.allow) { alert(d.reason); return; }</pre>
+    </div>
+  </div>
+
+  <script type="module">
+    import { loadSubject, decide, getSubject } from './js/abac.js';
+
+    const subject = await loadSubject();
+    const who = document.getElementById('who');
+    if (!subject) throw new Error('auth');
+
+    who.innerHTML = `
+      <h2 style="margin:0 0 8px;font-size:14px;color:#93c5fd">Current subject (you)</h2>
+      <div style="font-size:13px;line-height:1.6">
+        <strong>${subject.fullName}</strong> · role <code>${subject.role}</code>
+        ${subject.isAdmin ? ' · <span class="ok">Admin bypass</span>' : ''}<br />
+        subsidiary: <code>${subject.attrs.subsidiary_code || '—'}</code>
+        · warehouse: <code>${subject.attrs.warehouse_id || '—'}</code><br />
+        max discount: <code>${subject.attrs.max_discount_pct}%</code>
+        · max sale: <code>GH₵ ${subject.attrs.max_sale_amount}</code>
+        · all subsidiaries: <code>${subject.attrs.can_see_all_subsidiaries}</code>
+      </div>
+      <p style="font-size:12px;color:#5b6b80;margin:8px 0 0">Set attributes on <code>profiles</code> (run sql/03_abac_attributes.sql) then re-login.</p>
+    `;
+
+    document.getElementById('run').onclick = () => {
+      const d = decide({
+        action: document.getElementById('action').value,
+        permission: document.getElementById('perm').value || undefined,
+        resource: {
+          subsidiary_code: document.getElementById('res_sub').value || null,
+          total_amount: Number(document.getElementById('amount').value) || 0,
+          discount_percent: Number(document.getElementById('disc').value) || 0,
+          sale_type: document.getElementById('sale_type').value,
+        },
+        env: {
+          channel: 'pos',
+          enforce_business_hours: document.getElementById('biz').checked,
+        },
+      });
+
+      const box = document.getElementById('result');
+      box.className = d.allow ? 'allow' : 'deny';
+      box.innerHTML = `<strong>${d.allow ? 'ALLOW' : 'DENY'}</strong><br />${d.reason}`;
+
+      document.getElementById('decisions').innerHTML = (d.decisions || []).map(x => `
+        <tr>
+          <td><code>${x.id}</code></td>
+          <td class="${x.allow ? 'ok' : 'no'}">${x.allow ? 'allow' : 'DENY'}</td>
+          <td>${x.reason}</td>
+        </tr>`).join('') || '<tr><td colspan="3">No policy returned an opinion</td></tr>';
+    };
+  </script>
+</body>
+</html>

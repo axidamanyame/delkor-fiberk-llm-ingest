@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { BUSINESS_LOCATIONS } from './js/scope.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const m = new URLSearchParams(location.search).get('m') || 'invoice';
+
+    async function load() {
+      if (m === 'tax') return taxPage();
+      if (m === 'invoice') return invoicePage();
+      if (m === 'barcode') return barcodePage();
+      if (m === 'printers') return printerPage();
+      app.innerHTML = pageChrome('Settings') + '<p>Unknown settings page.</p>';
+    }
+
+    async function taxPage() {
+      const { data, error } = await supabase.from('tax_rates').select('*').order('rate', { ascending: false });
+      app.innerHTML = pageChrome('Tax Rates', 'Ghana VAT stack. POS default rate is also in Business Settings → Tax.') +
+        `<div class="ult-card">
+          ${error?`<p class="ult-alert">${error.message} — run sql/90_settings.sql</p>`:''}
+          <div style="text-align:right;margin-bottom:10px"><button class="ult-btn ult-btn-primary" id="add">+ Add rate</button></div>
+          <table class="ult-table"><thead><tr><th>Name</th><th>Rate %</th><th>Inclusive</th><th>Default</th><th></th></tr></thead>
+          <tbody>${(data||[]).map(t=>`<tr>
+            <td>${t.name}</td><td>${t.rate}</td>
+            <td>${t.inclusive?'Yes':'No'}</td>
+            <td>${t.is_default?'Yes':''}</td>
+            <td><button class="ult-btn ult-btn-sm del" data-id="${t.id}">Delete</button></td>
+          </tr>`).join('')||'<tr><td colspan="5">No rates</td></tr>'}</tbody></table>
+          <p class="ult-muted">Statutory stack: VAT 15% + NHIL 2.5% + GETFund 2.5% + COVID levy 1%. Till currently applies VAT 15% as order tax.</p>
+        </div>`;
+      document.getElementById('add').onclick = async () => {
+        const name = prompt('Rate name', 'VAT 15%');
+        if (!name) return;
+        const rate = Number(prompt('Percent', '15')) || 0;
+        const { error: e } = await supabase.from('tax_rates').insert({ name, rate, inclusive: false });
+        if (e) alert(e.message); else load();
+      };
+      document.querySelectorAll('.del').forEach((b) => {
+        b.onclick = async () => {
+          if (!(await confirmAction('Delete this rate?', 'This cannot be undone.'))) return;
+          await supabase.from('tax_rates').delete().eq('id', b.dataset.id);
+          load();
+        };
+      });
+    }
+
+    async function invoicePage() {
+      const { data, error } = await supabase.from('invoice_settings').select('*').eq('id',1).maybeSingle();
+      const s = data || {};
+      app.innerHTML = pageChrome('Invoice Settings', 'Numbering, layout and footer printed on sales, credit and repair invoices.') +
+        `<div class="ult-card">${error?`<p class="ult-alert">${error.message}</p>`:''}
+        <div class="ult-form-grid">
+          <div class="ult-field"><label>Prefix</label><input id="pfx" value="${s.prefix||'INV'}" /></div>
+          <div class="ult-field"><label>Next number</label><input id="nxt" type="number" value="${s.next_no||1001}" /></div>
+          <div class="ult-field"><label>Currency</label><input id="cur" value="${s.currency||'GHS'}" /></div>
+          <div class="ult-field"><label>Default tax label</label><input id="tax" value="${s.tax_name||'VAT 15%'}" /></div>
+          <div class="ult-field"><label>Layout</label>
+            <select id="lay">
+              <option value="classic">Classic 80mm / A4</option>
+              <option value="detailed">Detailed (item SKU + tax)</option>
+              <option value="compact">Compact</option>
+            </select>
+          </div>
+          <div class="ult-field"><label>Show logo</label>
+            <select id="logo"><option value="true">Yes</option><option value="false">No</option></select>
+          </div>
+          <div class="ult-field" style="grid-column:1/-1"><label>Footer (returns policy, GRA note)</label>
+            <textarea id="ft" rows="3">${s.footer||'Goods once sold are returnable within 7 days with receipt.\\nDelkor-Fiberk ERP V1.0'}</textarea>
+          </div>
+        </div>
+        <p style="margin-top:14px"><button class="ult-btn ult-btn-primary" id="sv">Save</button></p></div>`;
+      if (s.layout) document.getElementById('lay').value = s.layout;
+      document.getElementById('logo').value = s.show_logo === false ? 'false' : 'true';
+      document.getElementById('sv').onclick = async () => {
+        const row = {
+          id: 1, prefix: pfx.value, next_no: +nxt.value, currency: cur.value,
+          tax_name: tax.value, footer: ft.value, layout: lay.value,
+          show_logo: logo.value === 'true', show_tax: true,
+        };
+        let { error: e } = await supabase.from('invoice_settings').upsert(row);
+        if (e) {
+          delete row.layout; delete row.show_logo; delete row.show_tax;
+          const r2 = await supabase.from('invoice_settings').upsert(row);
+          e = r2.error;
+        }
+        alert(e ? e.message : 'Saved');
+      };
+    }
+
+    async function barcodePage() {
+      const { data, error } = await supabase.from('barcode_settings').select('*').eq('id',1).maybeSingle();
+      const s = data || {};
+      app.innerHTML = pageChrome('Barcode Settings', 'Print Labels uses CODE128 of AXI/FIB/DEL/BNP SKUs. IMEI/serial print as extra lines on phone labels.') +
+        `<div class="ult-card">${error?`<p class="ult-alert">${error.message}</p>`:''}
+        <div class="ult-form-grid">
+          <div class="ult-field"><label>Symbology</label>
+            <select id="sym"><option>CODE128</option><option>EAN13</option><option>QR</option></select></div>
+          <div class="ult-field"><label>Labels per row</label><input id="lpr" type="number" value="${s.labels_per_row||3}" /></div>
+          <div class="ult-field"><label>Paper</label>
+            <select id="paper"><option>50x25</option><option>40x30</option><option>A4 sheet</option></select></div>
+        </div>
+        <p><label><input type="checkbox" id="sn" ${s.show_name!==false?'checked':''}> Name</label>
+           <label><input type="checkbox" id="sp" ${s.show_price!==false?'checked':''}> Price</label>
+           <label><input type="checkbox" id="ss" ${s.show_sku!==false?'checked':''}> SKU</label></p>
+        <p><button class="ult-btn ult-btn-primary" id="sv">Save</button>
+           <a class="ult-btn ult-btn-outline" href="/print-labels.html">Print labels</a></p></div>`;
+      if (s.symbology) document.getElementById('sym').value = s.symbology;
+      if (s.paper) document.getElementById('paper').value = s.paper;
+      document.getElementById('sv').onclick = async () => {
+        const { error: e } = await supabase.from('barcode_settings').upsert({
+          id:1, symbology:sym.value, labels_per_row:+lpr.value, paper: paper.value,
+          show_name:sn.checked, show_price:sp.checked, show_sku:ss.checked
+        });
+        alert(e?e.message:'Saved');
+      };
+    }
+
+    async function printerPage() {
+      const { data, error } = await supabase.from('receipt_printers').select('*').order('name');
+      app.innerHTML = pageChrome('Receipt Printers', 'One 80mm till printer per location. Browser print is the default until ESC/POS is wired.') +
+        `<div class="ult-card">${error?`<p class="ult-alert">${error.message}</p>`:''}
+        <div style="text-align:right;margin-bottom:10px"><button class="ult-btn ult-btn-primary" id="add">+ Add printer</button></div>
+        <table class="ult-table"><thead><tr><th>Name</th><th>Location</th><th>Connection</th><th>Paper</th><th>Copies</th><th></th></tr></thead>
+        <tbody>${(data||[]).map(p=>`<tr>
+          <td>${p.name}</td><td>${p.location_code||''}</td><td>${p.connection||'browser'}</td>
+          <td>${p.paper||'80mm'}</td><td>${p.copies||1}</td>
+          <td><button class="ult-btn ult-btn-sm del" data-id="${p.id}">Delete</button></td>
+        </tr>`).join('')||'<tr><td colspan="6">No printers — add one per shop.</td></tr>'}</tbody></table></div>`;
+      document.getElementById('add').onclick = async () => {
+        const name = prompt('Printer name', 'Shop 80mm');
+        if (!name) return;
+        const loc = prompt('Location code', BUSINESS_LOCATIONS[0]?.code || 'FIB-SHOP');
+        const { error: e } = await supabase.from('receipt_printers').insert({
+          name, location_code: loc, connection: 'browser', paper: '80mm', copies: 1,
+        });
+        if (e) alert(e.message); else load();
+      };
+      document.querySelectorAll('.del').forEach((b) => {
+        b.onclick = async () => {
+          if (!(await confirmAction('Remove this printer?', 'This cannot be undone.'))) return;
+          await supabase.from('receipt_printers').delete().eq('id', b.dataset.id);
+          load();
+        };
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>

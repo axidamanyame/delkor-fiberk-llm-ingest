@@ -1,0 +1,2 @@
+Drop grok-conversations.json here after you download it from accounts.x.ai/data.
+See ../CHAT-EXPORT.md

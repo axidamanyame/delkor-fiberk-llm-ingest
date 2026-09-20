@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notification log — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { getAccess, loadAccess } from './js/rbac.js';
+  import { isHqRole, isOwnerRole } from './js/access-rules.js';
+  import { bindTable } from './js/home-tables.js';
+  import { actMenu, esc } from './js/ls-rows.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { pullAllNotices, listAllNotices, markNoticeRead, deleteNotice } from './js/inbox.js';
+  import { promptDeleteKey } from './js/delete-guard.js';
+
+  const session = await mountUltimateShell();
+  const app = document.getElementById('app');
+  const ctx = await loadAccess() || getAccess();
+  const role = ctx?.roleName || session?.user?.user_metadata?.role || session?.user?.user_metadata?.role_name || '';
+  const hq = !!(ctx?.isAdmin || isHqRole(role) || isOwnerRole(role) || isHqRole(ctx?.roleName) || isOwnerRole(ctx?.roleName));
+  let filter = new URLSearchParams(location.search).get('f') || 'all';
+
+  function when(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? String(iso).replace('T', ' ').slice(0, 16) : d.toLocaleString();
+  }
+
+  async function paint() {
+    filter = new URLSearchParams(location.search).get('f') || 'all';
+    if (!hq) {
+      app.innerHTML = pageChrome('Notification log', 'Company-wide notice history')
+        + `<div class="ult-card"><p>This log is for Founder, Owner, and HQ Admin. Personal notices stay on the bell.</p>
+           <p><a href="/dashboard.html">Back to home</a></p></div>`;
+      return;
+    }
+    await pullAllNotices();
+    let rows = listAllNotices();
+    if (filter === 'unread') rows = rows.filter((n) => !n.read);
+    if (filter === 'read') rows = rows.filter((n) => n.read);
+    if (filter === 'access-key') rows = rows.filter((n) => n.kind === 'access-key');
+    if (filter === 'sale') rows = rows.filter((n) => n.kind === 'sale');
+
+    const tab = (id, label) =>
+      `<a class="ult-btn ${filter === id ? 'ult-btn-primary' : 'ult-btn-outline'}" href="/notification-log.html?f=${id}">${label}</a>`;
+
+    app.innerHTML = pageChrome('Notification log', 'Every notice the company has sent. The header bell stays personal and can stay at 0.')
+      + `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          ${tab('all', 'All')}
+          ${tab('unread', 'Unread')}
+          ${tab('read', 'Read')}
+          ${tab('access-key', 'Access keys')}
+          ${tab('sale', 'Sales')}
+        </div>
+        <div class="ult-card" data-tbl="notices">
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th>When</th><th>To</th><th>Kind</th><th>Title</th><th>Message</th><th>Status</th><th data-nosort="1">Actions</th>
+            </tr></thead>
+            <tbody>${rows.map((n) => `<tr data-id="${esc(n.id)}">
+              <td>${esc(when(n.created_at))}</td>
+              <td>${esc(n.email || n.user_id || '—')}</td>
+              <td>${esc(n.kind || 'notice')}</td>
+              <td>${esc(n.title || 'Notice')}</td>
+              <td>${esc(String(n.body || '').slice(0, 120))}</td>
+              <td>${n.read ? 'Read' : 'Unread'}</td>
+              <td>${actMenu(n.id, [
+                { act: 'view', label: 'View' },
+                ...(n.read ? [] : [{ act: 'read', label: 'Mark read' }]),
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="7" style="text-align:center">No notifications have been sent yet.</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>`;
+
+    bindTable(app.querySelector('[data-tbl="notices"]'), {
+      title: 'Notification log',
+      storageKey: 'df_inbox',
+      table: 'app_notifications',
+      key: 'df_inbox',
+      onDone: paint,
+    });
+
+    app.querySelectorAll('[data-act]').forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        const id = btn.dataset.id;
+        const row = rows.find((r) => String(r.id) === String(id));
+        if (!row) return;
+        if (btn.dataset.act === 'view') {
+          const wrap = document.createElement('div');
+          wrap.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px';
+          wrap.innerHTML = `<div style="background:#fff;color:#111;border-radius:12px;max-width:480px;width:100%;padding:22px">
+            <h3 style="margin:0 0 8px">${esc(row.title || 'Notice')}</h3>
+            <p style="margin:0 0 6px;font-size:13px;color:#3d4f66">${esc(when(row.created_at))} · ${esc(row.kind || 'notice')} · ${row.read ? 'Read' : 'Unread'}</p>
+            <p style="margin:0 0 8px"><strong>To:</strong> ${esc(row.email || '—')}</p>
+            <p style="white-space:pre-wrap">${esc(row.body || '')}</p>
+            ${row.meta?.key ? `<p><strong>Key:</strong> <code>${esc(row.meta.key)}</code></p>` : ''}
+            ${row.href ? `<p><a href="${esc(row.href)}">${esc(row.href)}</a></p>` : ''}
+            <button type="button" class="ult-btn" id="nl-close">Close</button>
+          </div>`;
+          document.body.appendChild(wrap);
+          wrap.querySelector('#nl-close').onclick = () => wrap.remove();
+          wrap.onclick = (ev) => { if (ev.target === wrap) wrap.remove(); };
+          return;
+        }
+        if (btn.dataset.act === 'read') {
+          markNoticeRead(id);
+          ackResult(true, 'Marked read.');
+          paint();
+          return;
+        }
+        if (btn.dataset.act === 'del') {
+          if (!(await confirmAction('Delete this notification?', 'It is removed from the company log.'))) return;
+          const keyed = await promptDeleteKey('Delete access key required');
+          if (!keyed) return;
+          await deleteNotice(id);
+          ackResult(true, 'Notification deleted.');
+          paint();
+        }
+      };
+    });
+  }
+
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  paint();
+</script>
+</body>
+</html>

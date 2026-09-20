@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notification Templates — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .nt-page h1{margin:0 0 16px}
+    .nt-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px 20px;margin:0 0 18px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+    .nt-card h3{margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a}
+    .nt-tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid #e2e8f0;margin:0 0 16px}
+    .nt-tabs button{background:none;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font:inherit;font-weight:700;font-size:14px;color:#334155;cursor:pointer}
+    .nt-tabs button.on{color:#0f172a;border-bottom-color:#1d4ed8}
+    .nt-pane{display:none}
+    .nt-pane.on{display:block}
+    .nt-tags{font-size:13px;color:#475569;line-height:1.7;margin:0 0 16px}
+    .nt-tags strong{display:block;color:#0f172a;margin-bottom:6px}
+    .nt-tags code,.nt-tag{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#1e3a5f;background:#f1f5f9;border-radius:4px;padding:1px 4px;cursor:pointer}
+    .nt-tags p{margin:0 0 4px}
+    .nt-field{margin:0 0 14px}
+    .nt-field label{display:block;font-size:13px;font-weight:700;margin:0 0 6px;color:#0f172a}
+    .nt-field input[type=text],.nt-field input[type=email],.nt-field textarea{
+      width:100%;border:1px solid #cbd5e1;border-radius:4px;padding:8px 10px;font:inherit;background:#fff;color:#0f172a
+    }
+    .nt-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:720px){.nt-2{grid-template-columns:1fr}}
+    .nt-checks{display:flex;flex-wrap:wrap;gap:16px 22px;margin:8px 0 6px;font-size:14px;color:#0f172a}
+    .nt-checks label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+    .nt-hint{font-size:12px;color:#64748b;margin:0}
+    .nt-sms-warn{background:#fb923c;color:#1c1917;font-weight:700;padding:10px 14px;border-radius:4px;margin:12px 0 0}
+    .nt-save-wrap{display:flex;justify-content:center;padding:8px 0 24px}
+    .nt-save{background:#f43f5e;color:#fff;border:0;border-radius:8px;padding:12px 40px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 6px 14px rgba(244,63,94,.28)}
+    .nt-save:hover{background:#e11d48}
+    .nt-ok{text-align:center;color:#047857;font-weight:700;min-height:1.2em}
+    .tox-tinymce{border-radius:4px !important}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { NOTIF_GROUPS, loadNotifTemplates, saveNotifTemplates } from './js/calendar.js';
+  import { esc } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const app = document.getElementById('app');
+  const data = loadNotifTemplates();
+  const active = Object.fromEntries(NOTIF_GROUPS.map((g) => [g.title, g.tabs[0].id]));
+  let lastField = null;
+  const TINY_BASE = 'https://cdn.jsdelivr.net/npm/tinymce@5.10.9';
+
+  function loadTiny() {
+    if (window.tinymce) return Promise.resolve(window.tinymce);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = TINY_BASE + '/tinymce.min.js';
+      s.onload = () => resolve(window.tinymce);
+      s.onerror = () => reject(new Error('editor'));
+      document.head.appendChild(s);
+    });
+  }
+
+  function harvestEditors() {
+    try { window.tinymce?.triggerSave?.(); } catch { /* ignore */ }
+    app.querySelectorAll('[data-k]').forEach((el) => {
+      const [id, key] = el.dataset.k.split('.');
+      data[id] = data[id] || {};
+      data[id][key] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+  }
+
+  async function mountEditor(id) {
+    const sel = `#nt-email-${id}`;
+    if (!document.querySelector(sel)) return;
+    try {
+      const tiny = await loadTiny();
+      tiny.remove(sel);
+      tiny.init({
+        selector: sel,
+        base_url: TINY_BASE,
+        suffix: '.min',
+        height: 280,
+        menubar: 'file edit view insert format tools table help',
+        plugins: 'lists link image table paste wordcount',
+        toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media | preview | forecolor backcolor',
+        branding: true,
+        statusbar: true,
+        convert_urls: false,
+        setup: (ed) => {
+          ed.on('change keyup', () => {
+            data[id] = data[id] || {};
+            data[id].email_body = ed.getContent();
+          });
+        },
+      });
+    } catch {
+      /* textarea stays */
+    }
+  }
+
+  function tagHtml(tags) {
+    const lines = Array.isArray(tags) ? tags : [tags];
+    return `<div class="nt-tags"><strong>Available Tags:</strong>${lines.map((line) =>
+      `<p>${String(line).split(/,\s*/).map((t) => {
+        const tok = t.trim();
+        if (!tok) return '';
+        return `<span class="nt-tag" data-tag="${esc(tok)}">${esc(tok)}</span>`;
+      }).join(', ')}</p>`
+    ).join('')}</div>`;
+  }
+
+  function pane(tab, on) {
+    const t = data[tab.id] || {};
+    const ledger = !!tab.ledger;
+    return `<div class="nt-pane ${on ? 'on' : ''}" data-pane="${tab.id}">
+      ${tagHtml(tab.tags)}
+      <div class="nt-field"><label>Email Subject:</label>
+        <input type="text" data-k="${tab.id}.subject" value="${esc(t.subject || '')}" placeholder="Email Subject" /></div>
+      <div class="nt-2">
+        <div class="nt-field"><label>CC:</label><input type="text" data-k="${tab.id}.cc" value="${esc(t.cc || '')}" placeholder="CC" /></div>
+        <div class="nt-field"><label>BCC:</label><input type="text" data-k="${tab.id}.bcc" value="${esc(t.bcc || '')}" placeholder="BCC" /></div>
+      </div>
+      <div class="nt-field"><label>Email Body:</label>
+        <textarea id="nt-email-${tab.id}" data-k="${tab.id}.email_body" rows="8">${esc(t.email_body || '')}</textarea></div>
+      ${ledger ? '' : `
+      <div class="nt-field"><label>SMS Body:</label>
+        <textarea data-k="${tab.id}.sms_body" rows="4">${esc(t.sms_body || '')}</textarea></div>
+      <div class="nt-field"><label>Whatsapp Text:</label>
+        <textarea data-k="${tab.id}.whatsapp_text" rows="4" placeholder="Whatsapp Text">${esc(t.whatsapp_text || '')}</textarea></div>
+      <div class="nt-checks">
+        <label><input type="checkbox" data-k="${tab.id}.auto_send" ${t.auto_send ? 'checked' : ''} /> Auto Send Email</label>
+        <label><input type="checkbox" data-k="${tab.id}.auto_send_sms" ${t.auto_send_sms ? 'checked' : ''} /> Auto Send SMS</label>
+        <label><input type="checkbox" data-k="${tab.id}.auto_send_whatsapp" ${t.auto_send_whatsapp ? 'checked' : ''} /> Auto send Whatsapp notification</label>
+      </div>
+      ${tab.hint ? `<p class="nt-hint">${esc(tab.hint)}</p>` : ''}
+      <div class="nt-sms-warn">Business logo will not work in SMS:</div>`}
+    </div>`;
+  }
+
+  function paint() {
+    try { window.tinymce?.remove?.(); } catch { /* ignore */ }
+    app.innerHTML = `
+      <div class="nt-page">
+        <h1>Notification Templates</h1>
+        ${NOTIF_GROUPS.map((g) => `
+          <div class="nt-card">
+            <h3>${esc(g.title)}</h3>
+            <div class="nt-tabs">
+              ${g.tabs.map((t) => `<button type="button" class="${active[g.title] === t.id ? 'on' : ''}" data-g="${esc(g.title)}" data-tab="${t.id}">${esc(t.label)}</button>`).join('')}
+            </div>
+            ${g.tabs.map((t) => pane(t, active[g.title] === t.id)).join('')}
+          </div>`).join('')}
+        <p class="nt-ok" id="nt-msg"></p>
+        <div class="nt-save-wrap"><button type="button" class="nt-save" id="nt-save">Save</button></div>
+      </div>`;
+
+    app.querySelectorAll('[data-tab]').forEach((b) => {
+      b.onclick = () => {
+        harvestEditors();
+        active[b.dataset.g] = b.dataset.tab;
+        const card = b.closest('.nt-card');
+        card.querySelectorAll('.nt-tabs button').forEach((x) => x.classList.toggle('on', x === b));
+        card.querySelectorAll('.nt-pane').forEach((p) => p.classList.toggle('on', p.dataset.pane === b.dataset.tab));
+        mountEditor(b.dataset.tab);
+      };
+    });
+    app.querySelectorAll('[data-k]').forEach((el) => {
+      const apply = () => {
+        const [id, key] = el.dataset.k.split('.');
+        data[id] = data[id] || {};
+        data[id][key] = el.type === 'checkbox' ? el.checked : el.value;
+      };
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+      el.addEventListener('focus', () => { lastField = el; });
+    });
+    app.querySelectorAll('[data-tag]').forEach((el) => {
+      el.onclick = () => {
+        const tok = el.dataset.tag;
+        const ed = window.tinymce?.activeEditor;
+        if (ed && !ed.isHidden()) {
+          ed.insertContent(tok);
+          data[activeEditorId()] = data[activeEditorId()] || {};
+          data[activeEditorId()].email_body = ed.getContent();
+          return;
+        }
+        const target = lastField && lastField.tagName !== 'INPUT' ? lastField : app.querySelector('.nt-pane.on textarea');
+        if (!target || target.type === 'checkbox') return;
+        const start = target.selectionStart ?? target.value.length;
+        target.value = target.value.slice(0, start) + tok + target.value.slice(target.selectionEnd ?? start);
+        target.dispatchEvent(new Event('input'));
+        target.focus();
+      };
+    });
+    app.querySelector('#nt-save').onclick = () => {
+      harvestEditors();
+      saveNotifTemplates(data);
+      const msg = app.querySelector('#nt-msg');
+      msg.textContent = 'Templates saved.';
+      setTimeout(() => { msg.textContent = ''; }, 2200);
+    };
+    Object.values(active).forEach((id) => mountEditor(id));
+  }
+
+  function activeEditorId() {
+    const pane = app.querySelector('.nt-pane.on');
+    return pane?.dataset.pane || '';
+  }
+
+  paint();
+</script>
+</body>
+</html>

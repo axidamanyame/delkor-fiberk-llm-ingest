@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Category — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect } from './js/entity-scope.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadFormRow, fillForm, readLs } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const id = new URLSearchParams(location.search).get('id');
+  const app = document.getElementById('app');
+  let row = { name: '', code: '', description: '', parent_id: '' };
+  const cats = readLs(CAT_KEYS.categories, []) || [];
+  if (id) {
+    row = (await loadFormRow('categories', CAT_KEYS.categories, id)) || cats.find((c) => String(c.id) === String(id)) || row;
+  }
+  const parents = (cats.length ? cats : []).filter((c) => !c.parent_id && String(c.id) !== String(id));
+  app.innerHTML = `
+    <h1>${id ? 'Edit' : 'Add'} Category</h1>
+    <form id="f" class="ult-card" style="max-width:640px">
+      ${subsidiarySelect(row.subsidiary_code || '')}
+      <label class="fld">Category:* <input name="name" required value="${row.name || ''}" /></label>
+      <label class="fld">Category Code: <input name="code" value="${row.code || row.short_code || ''}" /></label>
+      <label class="fld">Parent:
+        <select name="parent_id">
+          <option value="">None</option>
+          ${parents.map((c) => `<option value="${c.id}" ${String(row.parent_id)===String(c.id)?'selected':''}>${c.name}</option>`).join('')}
+        </select>
+      </label>
+      <label class="fld">Description: <textarea name="description" rows="3">${row.description || ''}</textarea></label>
+      <p>
+        <button class="ult-btn ult-btn-primary" type="submit">Save</button>
+        <a class="ult-btn ult-btn-outline" href="/categories.html">Cancel</a>
+      </p>
+    </form>`;
+  fillForm(document.getElementById('f'), row);
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction(id ? 'Update this category?' : 'Save this category?'))) return;
+    const fd = new FormData(e.target);
+    const body = {
+      name: fd.get('name').trim(),
+      code: (fd.get('code') || '').trim() || null,
+      parent_id: fd.get('parent_id') || null,
+      description: (fd.get('description') || '').trim() || null,
+    };
+    try { stampScope(body, e.target); } catch (ex) { return toast(ex.message, 'error'); }
+    const q = id
+      ? await supabase.from('categories').update(body).eq('id', id)
+      : await supabase.from('categories').insert(body);
+    if (q.error) return toast(q.error.message, 'error');
+    toast('Category saved');
+    location.assign('/categories.html');
+  };
+</script>
+</body>
+</html>

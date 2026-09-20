@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Purchases</title>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const id = q.get('id') || '';
+    location.replace(id ? '/purchase-form.html?id=' + encodeURIComponent(id) : '/purchase-orders.html');
+  </script>
+</head>
+<body>Opening purchase…</body>
+</html>

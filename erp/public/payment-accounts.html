@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption, getActiveLocation, findLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import {
+    payNav, esc, ensurePayBooks, loadPayAccounts, loadPayTypes, loadFlows, loadPayments,
+    scopePay, accountBalance, typeName, typeParentName, detailsText, payBanner,
+    modalShell, currentSubCode, subLabel, locFor, PAY_KEYS, saveRow, deleteRow, uid,
+    unlinkedPayments, tableBar, tableFoot,
+  } from './js/pay-accounts.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  let tab = q.get('tab') === 'types' ? 'types' : 'accounts';
+  let status = 'Active';
+  let createdBy = '';
+  let modal = null;
+
+  function detailsRows(pairs) {
+    const rows = (pairs || []).slice();
+    while (rows.length < 6) rows.push(['', '']);
+    return rows.slice(0, 6);
+  }
+
+  function accountModal(existing, types) {
+    const d = detailsRows(existing?.account_details);
+    const body = `
+      <input type="hidden" id="pa-edit-id" value="${esc(existing?.id || '')}" />
+      <label class="fld">Name:* <input id="pa-name" required value="${esc(existing?.name || '')}" placeholder="Name" /></label>
+      <label class="fld">Account Number:* <input id="pa-num" required value="${esc(existing?.account_number || '')}" placeholder="Account Number" /></label>
+      <label class="fld">Account Type:
+        <select id="pa-type">
+          <option value="">Please Select</option>
+          ${types.map((t) => `<option value="${esc(t.id)}" ${existing?.account_type_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
+        </select>
+      </label>
+      <label class="fld">Opening Balance: <input id="pa-open" type="number" step="0.01" value="${esc(existing?.opening_balance ?? 0)}" /></label>
+      <div class="fld">Account details:
+        <table class="det-tbl"><thead><tr><th>Label</th><th>Value</th></tr></thead>
+          <tbody>${d.map((r, i) => `<tr><td><input data-dk="${i}" value="${esc(r[0] || '')}" /></td><td><input data-dv="${i}" value="${esc(r[1] || '')}" /></td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <label class="fld">Note: <textarea id="pa-note" rows="3" placeholder="Note">${esc(existing?.note || '')}</textarea></label>`;
+    return modalShell(existing ? 'Edit Account' : 'Add Account', body, `<button type="button" class="btn-save" id="pa-save">Save</button><button type="button" class="btn-close" data-close>Close</button>`);
+  }
+
+  function typeModal(existing, types) {
+    const body = `
+      <input type="hidden" id="pt-edit-id" value="${esc(existing?.id || '')}" />
+      <label class="fld">Name:* <input id="pt-name" required value="${esc(existing?.name || '')}" placeholder="Name" /></label>
+      <label class="fld">Parent account type:
+        <select id="pt-parent">
+          <option value="">Please Select</option>
+          ${types.filter((t) => t.id !== existing?.id).map((t) => `<option value="${esc(t.id)}" ${existing?.parent_id === t.id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}
+        </select>
+      </label>`;
+    return modalShell(existing ? 'Edit account type' : 'Add account type', body, `<button type="button" class="btn-save" id="pt-save">Save</button><button type="button" class="btn-close" data-close>Close</button>`);
+  }
+
+  async function paint() {
+    await ensurePayBooks();
+    const types = await loadPayTypes();
+    const accounts = scopePay(await loadPayAccounts());
+    const flows = scopePay(await loadFlows());
+    const payments = scopePay(await loadPayments());
+    const users = [...new Set(accounts.map((a) => a.added_by).filter(Boolean))];
+    let rows = accounts.slice();
+    if (status === 'Active') rows = rows.filter((a) => a.status !== 'Closed' && !a.is_closed);
+    if (status === 'Closed') rows = rows.filter((a) => a.status === 'Closed' || a.is_closed);
+    if (createdBy) rows = rows.filter((a) => a.added_by === createdBy);
+    const tot = rows.reduce((s, a) => s + accountBalance(a, flows), 0);
+    const unlink = unlinkedPayments(payments).length;
+
+    const accTable = `
+      <div style="display:flex;gap:10px;align-items:center;margin:0 0 12px;flex-wrap:wrap">
+        <select id="f-status">
+          <option value="Active" ${status === 'Active' ? 'selected' : ''}>Active</option>
+          <option value="Closed" ${status === 'Closed' ? 'selected' : ''}>Closed</option>
+          <option value="All" ${status === 'All' ? 'selected' : ''}>All</option>
+        </select>
+        <select id="f-user"><option value="">All</option>${users.map((u) => `<option ${createdBy === u ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select>
+        <div class="grow"></div>
+        <button type="button" class="ult-add" id="btn-add">+ Add</button>
+      </div>
+      ${tableBar()}
+      <div class="ult-table-wrap"><table class="ult-table loc-table">
+        <thead><tr>
+          <th data-nosort="1">Action</th>
+          <th>Name</th><th>Account Type</th><th>Account Sub Type</th><th>Account Number</th>
+          <th>Note</th><th>Balance</th><th>Account details</th><th>Added By</th><th>Subsidiary</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map((a) => `<tr>
+            <td>${actMenu(a.id, [
+              { href: `/account-cash-flow.html?account=${encodeURIComponent(a.id)}`, label: 'Ledger' },
+              { href: `/deposit.html?account=${encodeURIComponent(a.id)}`, label: 'Deposit' },
+              { href: `/fund-transfer.html?from=${encodeURIComponent(a.id)}`, label: 'Fund Transfer' },
+              { act: 'edit-acc', label: 'Edit' },
+              { act: 'toggle-acc', label: (a.is_closed || a.status === 'Closed') ? 'Activate' : 'Close' },
+              { act: 'del-acc', label: 'Delete' },
+            ])}</td>
+            <td>${esc(a.name)}</td>
+            <td>${esc(typeParentName(types, a.account_type_id))}</td>
+            <td>${esc(typeName(types, a.account_type_id))}</td>
+            <td>${esc(a.account_number || '')}</td>
+            <td>${esc(a.note || '')}</td>
+            <td>${fmt(accountBalance(a, flows))}</td>
+            <td>${esc(detailsText(a.account_details))}</td>
+            <td>${esc(a.added_by || '')}</td>
+            <td>${esc(subLabel(a.subsidiary_code))}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="10">No data available in table</td></tr>'}
+        </tbody>
+        <tfoot><tr><td colspan="5"><strong>Total:</strong></td><td><strong>${fmt(tot)}</strong></td><td colspan="4"></td></tr></tfoot>
+      </table></div>${tableFoot()}`;
+
+    const typeTable = `
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px"><button type="button" class="ult-add" id="btn-add">+ Add</button></div>
+      ${tableBar()}
+      <div class="ult-table-wrap"><table class="ult-table loc-table">
+        <thead><tr><th>Name</th><th>Parent account type</th><th data-nosort="1">Action</th></tr></thead>
+        <tbody>
+          ${types.map((t) => `<tr>
+            <td>${esc(t.name)}</td>
+            <td>${esc(typeName(types, t.parent_id) || '—')}</td>
+            <td>${actMenu(t.id, [
+              { act: 'edit-type', label: 'Edit' },
+              { act: 'del-type', label: 'Delete' },
+            ])}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>${tableFoot()}`;
+
+    app.innerHTML = `
+      ${payNav('list')}
+      <div class="acc-top">
+        <div>
+          <h1>Finance</h1>
+          <p class="sub">Cash, bank and MoMo accounts · ${esc(scopeCaption())}</p>
+        </div>
+      </div>
+      ${payBanner(unlink)}
+      <div class="home-card">
+        <div class="acc-inner-tabs">
+          <a class="${tab === 'accounts' ? 'on' : ''}" href="/payment-accounts.html">Accounts</a>
+          <a class="${tab === 'types' ? 'on' : ''}" href="/payment-accounts.html?tab=types">Account Types</a>
+        </div>
+        ${tab === 'types' ? typeTable : accTable}
+      </div>
+      ${modal || ''}`;
+
+    bindTable(app, { title: tab === 'types' ? 'Account Types' : 'Finance', storageKey: 'pa-' + tab });
+    app.querySelector('#f-status')?.addEventListener('change', (e) => { status = e.target.value; paint(); });
+    app.querySelector('#f-user')?.addEventListener('change', (e) => { createdBy = e.target.value; paint(); });
+    app.querySelector('#btn-add')?.addEventListener('click', () => {
+      modal = tab === 'types' ? typeModal(null, types) : accountModal(null, types);
+      paint();
+    });
+    app.querySelectorAll('[data-act="edit-acc"]').forEach((b) => {
+      b.onclick = () => {
+        const row = accounts.find((a) => String(a.id) === String(b.dataset.id));
+        modal = accountModal(row, types);
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="edit-type"]').forEach((b) => {
+      b.onclick = () => {
+        const row = types.find((t) => String(t.id) === String(b.dataset.id));
+        modal = typeModal(row, types);
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="toggle-acc"]').forEach((b) => {
+      b.onclick = async () => {
+        const row = accounts.find((a) => String(a.id) === String(b.dataset.id));
+        const closing = !(row.is_closed || row.status === 'Closed');
+        const ok = await confirmAction(closing ? 'Close this account?' : 'Activate this account?');
+        if (!ok) return;
+        await saveRow('payment_accounts', PAY_KEYS.accounts, { ...row, is_closed: closing, status: closing ? 'Closed' : 'Active' });
+        toast(closing ? 'Account closed' : 'Account activated');
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="del-acc"]').forEach((b) => {
+      b.onclick = async () => {
+        const ok = await confirmAction('Delete this account?', 'This cannot be undone.');
+        if (!ok) return;
+        await deleteRow('payment_accounts', PAY_KEYS.accounts, b.dataset.id);
+        toast('Account deleted');
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="del-type"]').forEach((b) => {
+      b.onclick = async () => {
+        const ok = await confirmAction('Delete this account type?');
+        if (!ok) return;
+        await deleteRow('account_types', PAY_KEYS.types, b.dataset.id);
+        toast('Type deleted');
+        paint();
+      };
+    });
+    app.querySelector('#pay-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'pay-modal' || e.target.dataset.close !== undefined) { modal = null; paint(); }
+    });
+    app.querySelector('#pa-save')?.addEventListener('click', async () => {
+      const name = document.getElementById('pa-name').value.trim();
+      const num = document.getElementById('pa-num').value.trim();
+      if (!name || !num) { toast('Name and account number are required', 'error'); return; }
+      const details = [];
+      for (let i = 0; i < 6; i++) {
+        const k = document.querySelector(`[data-dk="${i}"]`)?.value.trim();
+        const v = document.querySelector(`[data-dv="${i}"]`)?.value.trim();
+        if (k || v) details.push([k, v]);
+      }
+      const editId = document.getElementById('pa-edit-id')?.value || '';
+      const existing = editId ? accounts.find((a) => String(a.id) === String(editId)) : null;
+      let sub = existing?.subsidiary_code || currentSubCode();
+      if (sub === 'group') sub = 'fiberk';
+      const loc = existing?.location_code || getActiveLocation() || locFor(sub)?.code || '';
+      const locRow = findLocation(loc);
+      await saveRow('payment_accounts', PAY_KEYS.accounts, {
+        ...(existing || {}),
+        id: existing?.id || uid(),
+        name,
+        account_number: num,
+        account_type_id: document.getElementById('pa-type').value,
+        opening_balance: Number(document.getElementById('pa-open').value || 0),
+        note: document.getElementById('pa-note').value.trim(),
+        account_details: details,
+        added_by: existing?.added_by || session?.user?.user_metadata?.full_name || session?.user?.email || '',
+        status: existing?.status || 'Active',
+        is_closed: existing?.is_closed || false,
+        subsidiary_code: sub,
+        location_code: loc,
+        location_name: existing?.location_name || locRow?.name || '',
+      });
+      toast('Account saved');
+      modal = null;
+      paint();
+    });
+    app.querySelector('#pt-save')?.addEventListener('click', async () => {
+      const name = document.getElementById('pt-name').value.trim();
+      if (!name) { toast('Name is required', 'error'); return; }
+      const editId = document.getElementById('pt-edit-id')?.value || '';
+      const existing = editId ? types.find((t) => String(t.id) === String(editId)) : null;
+      await saveRow('account_types', PAY_KEYS.types, {
+        ...(existing || {}),
+        id: existing?.id || uid(),
+        name,
+        parent_id: document.getElementById('pt-parent').value,
+      });
+      toast('Account type saved');
+      modal = null;
+      paint();
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

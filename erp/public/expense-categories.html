@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expense Categories — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, deleteRow, esc, actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { CAT_SEED } from './js/expense-data.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+
+  async function paint() {
+    const all = await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+    const rows = all.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const parentName = (id) => all.find((c) => c.id === id)?.name || '';
+    app.innerHTML = `
+      <h1>Expense Categories <span class="sub">Manage your expense categories</span></h1>
+      <section class="home-card loc-list-card" data-tbl="ec">
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Category name</th>
+            <th>Category code</th>
+            <th>Parent</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-view="/expense-category-form.html?id=${esc(r.id)}&view=1">
+              <td>${actMenu(r.id, [
+                { href: `/expense-category-form.html?id=${r.id}&view=1`, label: 'View' },
+                { href: `/expense-category-form.html?id=${r.id}`, label: 'Edit' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+              <td>${esc(r.name)}</td>
+              <td>${esc(r.code || '')}</td>
+              <td>${esc(parentName(r.parent_id))}</td>
+            </tr>`).join('')}
+            <tr data-dummy="1"><td colspan="4" style="text-align:center">No data available in table</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <span data-tbl-pager></span>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="ec"]'), { title: 'Expense Categories', storageKey: 'expense-cats' });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        const kids = rows.filter((r) => r.parent_id === b.dataset.id);
+        if (kids.length && !(await confirmAction('Delete this category?', 'Sub-categories stay unless you delete them too.'))) return;
+        else if (!kids.length && !(await confirmAction('Delete this category?', 'This cannot be undone.'))) return;
+        await deleteRow('expense_categories', 'df_expense_categories', b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

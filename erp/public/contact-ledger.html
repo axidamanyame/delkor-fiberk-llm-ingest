@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact ledger</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading ledger…</main>
+  <script type="module">
+    import { supabase, fmt } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { buildLedger, postPayment } from './js/contact-rules.js';
+    import { confirmAction } from './js/confirm-action.js';
+    import { getActiveSubsidiary } from './js/supabaseClient.js';
+    import { getActiveLocation } from './js/scope.js';
+
+    await mountUltimateShell();
+    const q = new URLSearchParams(location.search);
+    const kind = q.get('kind') === 'supplier' ? 'supplier' : 'customer';
+    const id = q.get('id');
+    const app = document.getElementById('app');
+    const table = kind === 'supplier' ? 'suppliers' : 'customers';
+    const { data: party } = await supabase.from(table).select('*').eq('id', id).maybeSingle();
+    if (!party) {
+      app.innerHTML = '<p>Contact not found in this company scope.</p>';
+      throw new Error('missing');
+    }
+    const ledger = await buildLedger(kind, party, {});
+    const lines = ledger.lines || [];
+    app.innerHTML = `
+      <h1>${kind === 'supplier' ? 'Supplier' : 'Customer'} ledger</h1>
+      <p>${party.name || ''} · Due ${fmt(ledger.due)} · Advance ${fmt(ledger.advance)}</p>
+      <p><a href="/${kind === 'supplier' ? 'suppliers' : 'customers'}.html">Back to list</a></p>
+      <div class="ult-card">
+        <table class="ult-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>In</th><th>Out</th><th>Note</th></tr></thead>
+          <tbody>${lines.map((L) => `<tr>
+            <td>${L.date || ''}</td>
+            <td>${L.type || ''}</td>
+            <td>${L.ref || ''}</td>
+            <td>${L.debit ? fmt(L.debit) : ''}</td>
+            <td>${L.credit ? fmt(L.credit) : ''}</td>
+            <td>${L.note || ''}</td>
+          </tr>`).join('') || '<tr><td colspan="6">No movements</td></tr>'}</tbody>
+        </table>
+      </div>
+      <form id="pay" class="ult-card" style="margin-top:16px;max-width:480px">
+        <h3>Record payment</h3>
+        <label>Amount</label><input name="amount" type="number" step="0.01" required />
+        <label>Method</label><select name="method"><option value="cash">Cash</option><option value="momo">MoMo</option><option value="bank">Bank</option><option value="card">Card</option></select>
+        <label>Note</label><input name="note" />
+        <p><button type="submit" class="ult-btn ult-btn-primary">Save payment</button></p>
+      </form>`;
+    document.getElementById('pay').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Post this payment?', 'Writes to the ledger for this contact only.'))) return;
+      const fd = new FormData(e.target);
+      const res = await postPayment({
+        kind,
+        partyId: party.id,
+        partyName: party.name,
+        amount: fd.get('amount'),
+        method: fd.get('method'),
+        note: fd.get('note'),
+        subsidiary: getActiveSubsidiary()?.code,
+        location: getActiveLocation() || null,
+      });
+      if (res.error) return alert(res.error.message);
+      location.reload();
+    };
+  </script>
+</body>
+</html>

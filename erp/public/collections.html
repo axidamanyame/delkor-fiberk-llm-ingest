@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Collections — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { loadArrears, listPromises, listEscalations, listCalls, fmt } from './js/collections.js';
+  await mountUltimateShell();
+  let arrears = [], ptp = [], esc = [], calls = [];
+  try {
+    [arrears, ptp, esc, calls] = await Promise.all([loadArrears(), listPromises(), listEscalations(), listCalls()]);
+  } catch (e) { console.warn(e); }
+  const overdue = arrears.filter((c) => c.balance > 0);
+  const legal = arrears.filter((c) => c.status === 'legal');
+  const openPtp = ptp.filter((p) => p.status !== 'kept' && p.status !== 'cancelled');
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Collections', 'Queues, promises, escalations, and call work.')}
+    <div class="ult-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+      <div><strong>${overdue.length}</strong><div class="ult-muted">In arrears</div></div>
+      <div><strong>${openPtp.length}</strong><div class="ult-muted">Open promises</div></div>
+      <div><strong>${esc.filter(e=>!e.resolved).length}</strong><div class="ult-muted">Open escalations</div></div>
+      <div><strong>${calls.length}</strong><div class="ult-muted">Logged calls</div></div>
+      <div><strong>${legal.length}</strong><div class="ult-muted">Legal</div></div>
+    </div>
+    <p style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+      <a class="ult-btn" href="/collections-home.html">Easybuy desk</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-accounts.html">Accounts in arrears</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-aging.html">Aging</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-calls.html">Call logs</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-promises.html">Promise-to-pay</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-plans.html">Payment plans</a>
+      <a class="ult-btn ult-btn-outline" href="/collections-escalations.html">Escalations</a>
+    </p>`;
+</script>
+</body>
+</html>

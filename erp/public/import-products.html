@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Import Products — Delkor-Fiberk ERP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { renderImporter } from './js/import-kit.js';
+    import { saveRow } from './js/ls-rows.js';
+    import { KEYS } from './js/catalog-seed.js';
+    import { getActiveSubsidiary } from './js/supabaseClient.js';
+    import { getActiveLocation } from './js/scope.js';
+
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+
+    renderImporter(app, {
+      title: 'Import Products',
+      subtitle: 'Catalogue rows for the selected company and location. Existing SKUs are updated, new ones are created.',
+      backHref: '/products.html',
+      keyField: 'sku',
+      templateName: 'products-template',
+      fields: [
+        { key: 'name', label: 'Product name', required: true, aliases: ['product', 'item', 'description'], sample: 'Oraimo Powerbank 20000mAh' },
+        { key: 'sku', label: 'SKU', required: true, aliases: ['code', 'item code', 'barcode'], sample: 'ORA-PB-20K' },
+        { key: 'category', label: 'Category', aliases: ['cat', 'group'], sample: 'Accessories' },
+        { key: 'brand', label: 'Brand', aliases: ['make'], sample: 'Oraimo' },
+        { key: 'unit', label: 'Unit', aliases: ['uom'], sample: 'pcs' },
+        { key: 'cost_price', label: 'Cost price', type: 'number', aliases: ['cost', 'purchase price', 'buying price'], sample: '180' },
+        { key: 'selling_price', label: 'Selling price', type: 'number', aliases: ['price', 'retail', 'sell'], sample: '260' },
+        { key: 'stock', label: 'Opening stock', type: 'number', aliases: ['qty', 'quantity', 'on hand'], sample: '24' },
+        { key: 'alert_quantity', label: 'Alert quantity', type: 'number', aliases: ['reorder level', 'min qty'], sample: '5' },
+        { key: 'tax', label: 'Tax', aliases: ['vat', 'tax rate'], sample: '' },
+      ],
+      save: async (rows) => {
+        const sub = getActiveSubsidiary()?.code || '';
+        const loc = getActiveLocation() || '';
+        let n = 0;
+        for (const r of rows) {
+          await saveRow('products', KEYS.products, { ...r, subsidiary_code: sub, location_code: loc, source: 'import' });
+          n += 1;
+        }
+        return { ok: true, n };
+      },
+    });
+  </script>
+</body>
+</html>

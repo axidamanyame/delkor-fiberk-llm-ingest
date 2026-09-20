@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Import Users — Delkor-Fiberk ERP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { renderImporter } from './js/import-kit.js';
+    import { saveRow } from './js/ls-rows.js';
+    import { KEYS } from './js/catalog-seed.js';
+    import { getActiveSubsidiary } from './js/supabaseClient.js';
+
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+
+    renderImporter(app, {
+      title: 'Import Users',
+      subtitle: 'Staff records only. Importing a user does not create a login — invite them from System → Users once the row is in.',
+      backHref: '/users.html',
+      keyField: 'email',
+      templateName: 'users-template',
+      fields: [
+        { key: 'name', label: 'Full name', required: true, aliases: ['staff name', 'employee'], sample: 'Adwoa Boateng' },
+        { key: 'email', label: 'Email', required: true, type: 'email', sample: 'adwoa@delkorfiberk.com' },
+        { key: 'role', label: 'Role', aliases: ['position', 'access level'], sample: 'Cashier' },
+        { key: 'mobile', label: 'Mobile', type: 'phone', aliases: ['phone'], sample: '0201234567' },
+        { key: 'office', label: 'Office', aliases: ['branch', 'location', 'shop'], sample: 'Madina Branch' },
+        { key: 'department', label: 'Department', aliases: ['dept'], sample: 'Sales' },
+        { key: 'designation', label: 'Designation', aliases: ['job title', 'title'], sample: 'Sales Associate' },
+        { key: 'salary', label: 'Basic salary', type: 'number', aliases: ['basic', 'pay'], sample: '1800' },
+        { key: 'start_date', label: 'Start date', type: 'date', aliases: ['joined', 'hire date'], sample: '2026-01-06' },
+      ],
+      save: async (rows) => {
+        const sub = getActiveSubsidiary()?.code || '';
+        let n = 0;
+        for (const r of rows) {
+          await saveRow('users', KEYS.users, { ...r, subsidiary_code: sub, source: 'import' });
+          n += 1;
+        }
+        return { ok: true, n };
+      },
+    });
+  </script>
+</body>
+</html>

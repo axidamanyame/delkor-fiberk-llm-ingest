@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orientation — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .or-wrap { max-width: 860px; margin: 0 auto; }
+    .or-card { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:18px 20px; margin:0 0 14px; }
+    .or-card h2 { margin:0 0 8px; font-size:16px; }
+    .or-card p, .or-card li { color:#334155; line-height:1.5; font-size:14px; }
+    .or-status { padding:12px 14px; border-radius:12px; margin:0 0 14px; font-weight:650; }
+    .or-status.wait { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
+    .or-status.key { background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; }
+    .or-status.mail { background:#f0fdf4; border:1px solid #86efac; color:#166534; font-weight:600; }
+    .or-key { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .or-key input { flex:1; min-width:180px; height:44px; padding:8px 12px; border:1px solid #c7d2fe; border-radius:8px; font:inherit; letter-spacing:.08em; text-transform:uppercase; }
+    .or-key button { height:44px; padding:0 16px; border:0; border-radius:8px; background:#4f46e5; color:#fff; font-weight:700; cursor:pointer; }
+    .or-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width: 720px) { .or-grid { grid-template-columns:1fr; } }
+    .or-co { border:1px solid #e2e8f0; border-radius:10px; padding:12px; background:#f8fafc; }
+    .or-co strong { display:block; margin-bottom:4px; }
+    .or-co span { font-size:13px; color:#64748b; }
+    #df-onboard-cap { position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:100000; background:#0f172a; color:#fff; padding:10px 18px; border-radius:999px; font:700 14px Inter,sans-serif; box-shadow:0 8px 24px rgba(0,0,0,.28); max-width:92vw; text-align:center; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading orientation…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { findUser, isGated, unlockWithKey, hydrateUser, issueAccessAndNotify, homeAfterUnlock } from './js/access-gate.js';
+  import { pullNotices, listNotices } from './js/inbox.js';
+  import { listOutbox } from './js/staff-mail.js';
+  import { ackResult } from './js/confirm-action.js';
+  import { formatError, logError } from './js/error-codes.js';
+  import { resetAccess } from './js/rbac.js';
+
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const app = document.getElementById('app');
+  await hydrateUser(session);
+  await pullNotices(session.user?.email);
+  let me = findUser(session);
+  const onboard = new URLSearchParams(location.search).get('onboard');
+
+  function caption(text) {
+    let el = document.getElementById('df-onboard-cap');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'df-onboard-cap';
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+  }
+
+  function paint() {
+    me = findUser(session);
+    const gated = isGated(me);
+    const waitingKey = gated && me?.status === 'keyed' && me?.access_key;
+    const waitingAdmin = gated && !waitingKey;
+    const mail = listOutbox(me?.email || session.user?.email)[0];
+    const email = me?.email || session.user?.email || '';
+    const role = me?.role || me?.role_name || 'Staff';
+    app.innerHTML = `
+      ${pageChrome('Employee orientation', gated ? 'Read this before you receive an access key.' : 'Access is complete.')}
+      <div class="or-wrap">
+        ${waitingAdmin ? `<div class="or-status wait">Your registration is with an administrator. They will assign a role and send the access key to your notification bell and to <strong>${email}</strong>. Until then you can only use this page and My Profile.</div>` : ''}
+        ${waitingKey ? `<div class="or-status key">Your role is ready: <strong>${role}</strong>. Enter the access key below.</div>` : ''}
+        ${mail && gated ? `<div class="or-status mail">Email copy queued to ${mail.to} — subject: ${mail.subject}</div>` : ''}
+        ${!gated ? `<div class="or-status key">Access completed. You are signed in as <strong>${role}</strong>.</div>
+          <p style="margin:0 0 14px"><a class="or-key" href="${homeAfterUnlock(me)}" style="display:inline-flex;text-decoration:none"><button type="button">Open Home</button></a></p>` : ''}
+
+        ${gated ? `<div class="or-card" id="key-card">
+          <h2>Enter your access key</h2>
+          <p>Head-office jobs receive an <strong>HO-</strong> key and open the group dashboard. All other jobs receive an <strong>OP-</strong> key and open the till or field floor.</p>
+          <form class="or-key" id="key-form">
+            <input id="access_key" name="access_key" autocomplete="off" placeholder="HO-XXXX-XXXX or OP-XXXX-XXXX" required />
+            <button type="submit">Unlock access</button>
+          </form>
+        </div>` : ''}
+
+        <div class="or-card">
+          <h2>Welcome to Delkor-Fiberk</h2>
+          <p>DELKOR-FIBERK is the growing company behind Ghana's retail, logistics, and hire purchase business. Staff work either in the Operations Hub (group specialists) or in an operating company.</p>
+        </div>
+        <div class="or-card">
+          <h2>The companies</h2>
+          <div class="or-grid">
+            <div class="or-co"><strong>Operations Hub</strong><span>Default warehouse. Goods sit here until a store or agent receives them.</span></div>
+            <div class="or-co"><strong>FIBERK</strong><span>Electronics — Fiberk Shop (FIB-SHOP).</span></div>
+            <div class="or-co"><strong>AXIDIGETEK</strong><span>eCommerce — Online Store (AXI-ONLINE).</span></div>
+            <div class="or-co"><strong>DELKOR LOGISTICS</strong><span>Logistics — Furniture Market (DEL-FURN).</span></div>
+            <div class="or-co"><strong>BUYNOWPAYSLATER</strong><span>Hire purchase — BNPL Field Sales and BNPL Online Shop.</span></div>
+            <div class="or-co"><strong>Operations Hub</strong><span>Physical stock for every company until it is transferred out.</span></div>
+          </div>
+        </div>
+        <div class="or-card">
+          <h2>Field Ops</h2>
+          <p>Agents on the left, customers on the right. Field work is strongest at BNPL Field Sales. Catalogue, collections, and visits follow the agent you are assigned.</p>
+        </div>
+        <div class="or-card">
+          <h2>What you do next</h2>
+          <ol>
+            <li>Open <a href="/profile.html">My Profile</a> and complete More Informations and Bank Details.</li>
+            <li>Wait for an administrator to review your account and assign a role.</li>
+            <li>You will receive an access key in the notification bell and by email. Head office: HO-XXXX-XXXX. Operations: OP-XXXX-XXXX.</li>
+            <li>Enter that key in the box above. You land on the dashboard that matches the key.</li>
+          </ol>
+          <p>Support: support@delkorfiberk.com · 054 644 3323</p>
+        </div>
+      </div>`;
+    app.querySelector('#key-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      submitKey(app.querySelector('#access_key')?.value || '');
+    });
+  }
+
+  async function submitKey(typed) {
+    me = findUser(session);
+    const res = await unlockWithKey(me, typed);
+    if (!res.ok) {
+      logError('GATE_KEY', { email: me?.email, detail: res.reason });
+      ackResult(false, formatError('GATE_KEY'));
+      return false;
+    }
+    try { resetAccess(); } catch { /* ignore */ }
+    me = res.user;
+    ackResult(true, 'Access completed. Opening your home…');
+    const dest = res.home || homeAfterUnlock(res.user);
+    setTimeout(() => { location.replace(dest); }, 400);
+    return true;
+  }
+
+  paint();
+
+  if (onboard === '1') {
+    caption('Step 1 — Kwame is on orientation, waiting for admin review');
+    setTimeout(async () => {
+      caption('Step 2 — Admin assigns Cashier and issues an access key');
+      const issued = await issueAccessAndNotify(findUser(session), 'Cashier', 'r-cash');
+      paint();
+      caption('Step 3 — Key ' + issued.key + ' sent to the bell and emailed to ' + (me?.email || ''));
+      setTimeout(() => {
+        document.getElementById('hdr-bell')?.click();
+        caption('Step 4 — Notification bell: role + key. Same copy went to email.');
+        setTimeout(() => {
+          const modal = document.getElementById('ult-modal');
+          const keyBtn = modal?.querySelector('[data-kind="access-key"]');
+          if (keyBtn) keyBtn.click();
+          else {
+            if (modal) { modal.hidden = true; modal.innerHTML = ''; }
+            const box = document.getElementById('access_key');
+            if (box) box.value = issued.key;
+          }
+          caption('Step 5 — Key copied from the bell into Orientation');
+          document.getElementById('access_key')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            caption('Step 6 — Unlocking the ERP as Cashier');
+            submitKey(issued.key);
+          }, 1800);
+        }, 3200);
+      }, 1600);
+    }, 1800);
+  }
+</script>
+</body>
+</html>

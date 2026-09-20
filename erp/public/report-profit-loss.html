@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profit / Loss Report — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/sandbox.css" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { bootReport } from './js/report-boot.js';
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    await bootReport('profit-loss');
+  </script>
+</body>
+</html>

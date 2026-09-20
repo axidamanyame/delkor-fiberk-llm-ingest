@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Franko Sync — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { deskHow } from './js/desk-manual.js';
+  import { esc } from './js/ls-rows.js';
+  import {
+    listBrokenFranko, linkIfHosted, importFiles, productPhoto, frankoFilename,
+  } from './js/media-sync.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+
+  async function paint() {
+    const rows = await listBrokenFranko().catch(() => []);
+    app.innerHTML = `
+      ${pageChrome('Franko Sync', `${rows.length} catalogue photos still point at testing.frankotrading.com`)}
+      ${deskHow('media', 'How this desk works')}
+      <p class="sub">Photos are already in the Supabase <code>product-images/franko</code> bucket. The till rewrites every Franko URL to that bucket (spaces → underscores, same as the original importer). Import is only for a file that is missing from the bucket.</p>
+      <div class="ops-toolbar">
+        <div class="ops-actions">
+          <label class="ult-btn ult-btn-primary">Import Franko photos
+            <input id="files" type="file" accept="image/*" multiple hidden />
+          </label>
+          <button type="button" class="ult-btn ult-btn-outline" id="link">Link any already in the bucket</button>
+          <a class="ult-btn ult-btn-outline" href="/media-sync.html">Media dashboard</a>
+          <a class="ult-btn ult-btn-outline" href="/missing-images.html">Missing images</a>
+        </div>
+      </div>
+      <p id="out" class="ult-muted"></p>
+      <div class="ult-card"><table class="ult-table">
+        <thead><tr><th></th><th>SKU</th><th>Name</th><th>Franko file</th><th></th></tr></thead>
+        <tbody>${rows.map((r) => {
+          const fn = frankoFilename(r.image_url || r.catalog_image_url);
+          const host = productPhoto({ ...r, pos_image_ready: true });
+          return `<tr>
+            <td>${host ? `<img src="${esc(host)}" alt="" style="width:40px;height:40px;object-fit:contain" onerror="this.style.display='none'">` : ''}</td>
+            <td>${esc(r.sku || '')}</td>
+            <td>${esc(r.name || '')}</td>
+            <td style="max-width:280px;word-break:break-all">${esc(fn)}</td>
+            <td><button type="button" class="ult-btn ult-btn-outline" data-link="${esc(r.sku || r.id)}">Link</button></td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="5">No products still locked on the Franko test CDN.</td></tr>'}</tbody>
+      </table></div>`;
+
+    const out = app.querySelector('#out');
+    app.querySelector('#files').onchange = async (e) => {
+      const files = e.target.files;
+      if (!files?.length) return;
+      out.textContent = `Uploading ${files.length} files…`;
+      const res = await importFiles(files, rows);
+      out.textContent = `Saved ${res.saved} to the bucket · failed ${res.failed}. POS will use the hosted URL.`;
+      await paint();
+    };
+    app.querySelector('#link').onclick = async () => {
+      let ok = 0, miss = 0;
+      for (const r of rows.slice(0, 80)) {
+        const res = await linkIfHosted(r);
+        if (res.ok) ok += 1; else miss += 1;
+        out.textContent = `Checked ${ok + miss} — linked ${ok}, still need a file ${miss}`;
+      }
+      await paint();
+    };
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-link]');
+      if (!b) return;
+      const r = rows.find((x) => String(x.sku || x.id) === b.dataset.link);
+      if (!r) return;
+      const res = await linkIfHosted(r);
+      out.textContent = res.ok ? `Linked ${r.sku}` : (res.error || 'Not in the bucket yet — import the file.');
+    };
+  }
+  paint();
+</script>
+</body>
+</html>

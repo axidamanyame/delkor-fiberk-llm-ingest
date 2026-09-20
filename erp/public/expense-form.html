@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add Expense — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .exp-save{display:block;margin:22px auto 8px;background:#6d28d9;color:#fff;border:0;border-radius:10px;padding:12px 42px;font-weight:700;cursor:pointer}
+    .due-line{text-align:right;font-weight:700;margin-top:10px;padding-top:10px;border-top:1px solid var(--ult-border);color:var(--ult-text)}
+    .info{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#0ea5e9;color:#fff;font-size:11px;font-weight:700;margin-left:4px;cursor:help}
+    .file-row{display:flex;align-items:center;gap:8px}
+    .browse-btn{background:#2563eb;color:#fff;border:0;border-radius:4px;padding:7px 12px;font-size:12px;font-weight:700}
+    .hint{font-size:12px;color:var(--ult-text);font-weight:400}
+    .recur-grid{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:12px 18px;align-items:end}
+    @media(max-width:900px){.recur-grid{grid-template-columns:1fr}}
+    .int-split{display:flex;gap:0}
+    .int-split input{border-radius:6px 0 0 6px}
+    .int-split select{border-radius:0 6px 6px 0;width:120px}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { findLocation, formLocOptions, defaultFormLocation } from './js/scope.js';
+  import { loadRows, saveRow, esc } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { CAT_SEED, PAY_METHODS, ACCOUNT_SEED, parentsOf, childrenOf, catByName, nextExpenseRef, payStatus } from './js/expense-data.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const who = session?.profile?.full_name || session?.user?.email || 'Admin';
+
+  function nowLocal() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function tip(t) { return `<span class="info" title="${esc(t)}">i</span>`; }
+
+  const [cats, expenses, taxes, accounts] = await Promise.all([
+    loadRows('expense_categories', 'df_expense_categories', CAT_SEED),
+    loadRows('expenses', 'df_expenses', []),
+    loadRows('tax_rates', 'df_tax_rates', [{ id: 'vat', name: 'VAT', amount: 15 }, { id: 'none', name: 'None', amount: 0 }]),
+    loadRows('payment_accounts', 'df_payment_accounts', ACCOUNT_SEED),
+  ]);
+  let row = { expense_date: nowLocal(), paid_on: nowLocal(), location_code: defaultFormLocation(''), payment_method: 'cash', payment_account: 'None', paid_amount: 0, total_amount: 0 };
+  if (id) {
+    row = expenses.find((r) => String(r.id) === String(id)) || row;
+    if (!row.id) {
+      const { data } = await supabase.from('expenses').select('*').eq('id', id).maybeSingle();
+      if (data) row = data;
+    }
+  }
+  const { data: profiles } = await supabase.from('profiles').select('id,full_name,email').limit(200);
+  const { data: customers } = await supabase.from('customers').select('id,name,contact_code').limit(400);
+  const { data: suppliers } = await supabase.from('suppliers').select('id,name,contact_code').limit(400);
+  const users = profiles || [];
+  const contacts = [
+    ...(customers || []).map((c) => ({ id: c.id, name: c.full_name || c.name, kind: 'Customer' })),
+    ...(suppliers || []).map((c) => ({ id: c.id, name: c.full_name || c.name, kind: 'Supplier' })),
+  ];
+  const dis = view ? 'disabled' : '';
+  const d = (k, v = '') => esc(row[k] ?? v);
+
+  function subOpts(parentName, selected) {
+    const p = catByName(cats, parentName);
+    const kids = p ? childrenOf(cats, p.id) : [];
+    return `<option value="">Please Select</option>` + kids.map((c) => `<option ${selected===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
+  }
+
+  app.innerHTML = `
+    <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} Expense</h1>
+    <form id="f">
+      <section class="sell-card">
+        <div class="sell-grid">
+          <label class="fld">Business Location:*
+            <select name="location_code" ${dis} required>${formLocOptions(row.location_code, { includeVirtual: false, allSubsidiaries: true })}</select>
+          </label>
+          <label class="fld">Expense Title:<input name="title" ${dis} value="${d('title')}" placeholder="Expense Title"></label>
+          <label class="fld">Payment To:<input name="payment_to" ${dis} value="${d('payment_to')}" placeholder="Payment To"></label>
+          <label class="fld">Expense Category:
+            <select name="category" ${dis}>
+              <option value="">Please Select</option>
+              ${parentsOf(cats).map((c) => `<option ${row.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Sub category:
+            <select name="sub_category" ${dis}>${subOpts(row.category, row.sub_category)}</select>
+          </label>
+          <label class="fld">Reference No:
+            <input name="reference_no" ${dis} value="${d('reference_no')}" placeholder="">
+            <span class="hint">Leave empty to autogenerate</span>
+          </label>
+          <label class="fld">Date:*
+            <input name="expense_date" type="datetime-local" ${dis} required value="${d('expense_date', nowLocal())}">
+          </label>
+          <label class="fld">Expense for: ${tip('Staff member this expense is related to. None = shop expense.')}
+            <select name="expense_for" ${dis}>
+              <option value="">None</option>
+              ${users.map((u) => `<option value="${esc(u.full_name || u.email)}" ${(row.expense_for)===(u.full_name||u.email)?'selected':''}>${esc(u.full_name || u.email)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Expense for contact:
+            <select name="contact_name" ${dis}>
+              <option value="">Please Select</option>
+              ${contacts.map((c) => `<option ${row.contact_name===c.name?'selected':''}>${esc(c.kind)} — ${esc(c.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Attach Document:
+            <span class="file-row">
+              <input name="document_name" ${dis} value="${d('document_name')}" placeholder="No file chosen" readonly>
+              ${view ? '' : `<label class="browse-btn">Browse…<input type="file" id="doc" accept=".pdf,.csv,.zip,.doc,.docx,.jpeg,.jpg,.png" hidden></label>`}
+            </span>
+            <span class="hint">Max File size: 5MB · pdf, csv, zip, doc, docx, jpeg, jpg, png</span>
+          </label>
+          <label class="fld">Applicable Tax:
+            <select name="tax" ${dis}>
+              <option value="">None</option>
+              ${taxes.map((t) => `<option ${row.tax===t.name?'selected':''}>${esc(t.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Total amount:*
+            <input name="total_amount" type="number" min="0" step="0.01" ${dis} required value="${d('total_amount', row.amount || 0)}" placeholder="Total amount">
+          </label>
+          <label class="fld" style="grid-column:1 / span 1">Expense note:
+            <textarea name="note" rows="4" ${dis}>${d('note')}</textarea>
+          </label>
+          <label class="chk" style="align-self:end">${tip('Mark when this is money coming back in, not going out.')}
+            <input type="checkbox" name="is_refund" ${dis} ${row.is_refund ? 'checked' : ''}> Is refund?
+          </label>
+        </div>
+      </section>
+
+      <section class="sell-card" id="recur-card" ${row.is_refund ? 'hidden' : ''}>
+        <div class="recur-grid">
+          <label class="chk">${tip('Creates the same expense again on the interval you set.')}
+            <input type="checkbox" name="is_recurring" ${dis} ${row.is_recurring ? 'checked' : ''}> Is Recurring?
+          </label>
+          <label class="fld">Recurring interval:*
+            <span class="int-split">
+              <input name="recur_interval" type="number" min="1" ${dis} value="${d('recur_interval')}">
+              <select name="recur_interval_type" ${dis}>
+                ${['days','months','years'].map((t) => `<option value="${t}" ${ (row.recur_interval_type||'days')===t?'selected':'' }>${t[0].toUpperCase()+t.slice(1)}</option>`).join('')}
+              </select>
+            </span>
+          </label>
+          <label class="fld">No. of Repetitions:
+            <input name="recur_repetitions" type="number" min="0" ${dis} value="${d('recur_repetitions')}">
+            <span class="hint">If blank expense will be generated infinite times</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="sell-card">
+        <h3 style="margin:0 0 12px">Add payment</h3>
+        <div class="sell-grid">
+          <label class="fld">Amount:*
+            <input name="paid_amount" type="number" min="0" step="0.01" ${dis} required value="${d('paid_amount', 0)}">
+          </label>
+          <label class="fld">Paid on:*
+            <input name="paid_on" type="datetime-local" ${dis} required value="${d('paid_on', nowLocal())}">
+          </label>
+          <label class="fld">Payment Method:*
+            <select name="payment_method" ${dis} required>
+              ${PAY_METHODS.map(([k,l]) => `<option value="${k}" ${ (row.payment_method||'cash')===k?'selected':'' }>${l}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Paid from:
+            <select name="payment_account" ${dis}>
+              ${accounts.map((a) => `<option ${ (row.payment_account||'None')===a.name?'selected':'' }>${esc(a.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld" style="grid-column:1 / -1">Payment note:
+            <textarea name="payment_note" rows="3" ${dis}>${d('payment_note')}</textarea>
+          </label>
+        </div>
+        <div class="due-line">Payment due: <span id="due">0.00</span></div>
+      </section>
+
+      ${view
+        ? `<p style="text-align:center"><a class="ult-btn ult-btn-primary" href="/expense-form.html?id=${esc(row.id)}">Edit</a> <a class="ult-btn ult-btn-outline" href="/expenses.html">Close</a></p>`
+        : `<button class="exp-save" type="submit">Save</button>
+           <p style="text-align:center"><a href="/expenses.html">Close</a></p>`}
+      <p id="err" style="color:#b91c1c;text-align:center"></p>
+    </form>`;
+
+  const f = document.getElementById('f');
+  const dueEl = document.getElementById('due');
+  function paintDue() {
+    const tot = Number(f.total_amount.value || 0);
+    const paid = Number(f.paid_amount.value || 0);
+    dueEl.textContent = (tot - paid).toFixed(2);
+  }
+  paintDue();
+  f.total_amount?.addEventListener('input', paintDue);
+  f.paid_amount?.addEventListener('input', paintDue);
+  f.category?.addEventListener('change', () => {
+    f.sub_category.innerHTML = subOpts(f.category.value, '');
+  });
+  f.is_refund?.addEventListener('change', () => {
+    document.getElementById('recur-card').hidden = f.is_refund.checked;
+    if (f.is_refund.checked) f.is_recurring.checked = false;
+  });
+  document.getElementById('doc')?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast('File must be under 5MB', 'error'); e.target.value = ''; return; }
+    f.document_name.value = file.name;
+  });
+
+  if (!view) f.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction(row.id ? 'Update this expense?' : 'Save this expense?', 'It is stamped to the shop on this form.'))) return;
+    const fd = new FormData(f);
+    const loc = findLocation(fd.get('location_code'));
+    if (!loc) { document.getElementById('err').textContent = 'Pick a business location.'; return; }
+    const total = Number(fd.get('total_amount') || 0);
+    const paid = Number(fd.get('paid_amount') || 0);
+    const body = {
+      id: row.id,
+      location_code: loc.code,
+      subsidiary_code: loc.subsidiary,
+      title: fd.get('title') || null,
+      payment_to: fd.get('payment_to') || null,
+      category: fd.get('category') || null,
+      sub_category: fd.get('sub_category') || null,
+      reference_no: fd.get('reference_no') || nextExpenseRef(expenses),
+      expense_date: fd.get('expense_date'),
+      expense_for: fd.get('expense_for') || null,
+      contact_name: fd.get('contact_name') || null,
+      document_name: fd.get('document_name') || null,
+      tax: fd.get('tax') || null,
+      total_amount: total,
+      amount: total,
+      note: fd.get('note') || null,
+      is_refund: f.is_refund.checked,
+      is_recurring: f.is_refund.checked ? false : f.is_recurring.checked,
+      recur_interval: Number(fd.get('recur_interval') || 0) || null,
+      recur_interval_type: fd.get('recur_interval_type') || 'days',
+      recur_repetitions: fd.get('recur_repetitions') || null,
+      paid_amount: paid,
+      paid_on: fd.get('paid_on'),
+      payment_method: fd.get('payment_method'),
+      payment_account: fd.get('payment_account'),
+      payment_note: fd.get('payment_note') || null,
+      payment_status: payStatus(total, paid),
+      added_by: who,
+    };
+    await saveRow('expenses', 'df_expenses', body);
+    toast('Expense saved');
+    location.href = '/expenses.html';
+  };
+</script>
+</body>
+</html>

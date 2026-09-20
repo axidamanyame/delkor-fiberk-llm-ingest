@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Product Catalog</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    .page h1{margin:0;font-size:22px}
+    .sub{color:#3d4f66;font-size:14px}
+    .desk-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+    #filt-box.filter-panel{width:100%;max-width:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;box-shadow:0 0 4px rgba(0,0,0,.08);margin:0 0 12px;padding:0}
+    #filt-box > summary{padding:10px 14px;font-weight:700;cursor:pointer;list-style:none}
+    #filt-box .filt-drop-body{padding:8px 14px 10px}
+    #filt-box .fp-row{display:grid;gap:10px 12px;margin:0 0 10px;width:100%}
+    #filt-box .fp-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    #filt-box .fp-row-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    #filt-box .fp-row-8{grid-template-columns:repeat(8,minmax(0,1fr))}
+    #filt-box .fp-row-end{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-wrap:nowrap}
+    #filt-box .fp-field{min-width:0}
+    #filt-box .fp-field label{display:block;font-weight:500;font-size:13px;margin:0 0 4px;color:#334155}
+    #filt-box .fp-field select,#filt-box .fp-field input[type=date]{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:6px;padding:0 10px;background:#fff;font-size:13px;box-sizing:border-box}
+    #filt-box .fp-checks{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+    #filt-box .fp-checks label,#filt-box .filt-check{display:inline-flex !important;flex-direction:row !important;align-items:center;gap:6px;font-weight:500;font-size:13px;margin:0;white-space:nowrap;height:auto;padding:0}
+    #filt-box .fp-checks input{width:16px !important;height:16px !important;min-width:16px !important;min-height:16px !important;margin:0 !important;padding:0 !important;border:1px solid #475569 !important;border-radius:3px !important;accent-color:#2563eb}
+    #filt-box .fp-actions{display:flex;gap:8px;margin-left:auto}
+    #filt-box .fp-actions button,#filt-box .fp-actions summary{height:36px;padding:0 14px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-weight:600}
+    #filt-box .filt-hq{position:relative}
+    #filt-box .filt-hq summary{list-style:none;background:#2563eb;color:#fff;border-color:#1d4ed8}
+    #filt-box .filt-hq-list{position:absolute;right:0;top:110%;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;display:grid;gap:6px;min-width:220px;z-index:20;box-shadow:0 8px 24px rgba(15,23,42,.12)}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+    .bar input{height:36px;border:1px solid var(--ult-border);border-radius:8px;padding:6px 10px;min-width:240px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:14px;padding:12px;min-height:240px;position:relative;cursor:pointer}
+    .card img,.ph{width:100%;height:120px;object-fit:contain;background:var(--ult-card-2);border-radius:8px;border:1px solid var(--ult-border)}
+    .ph{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}
+    .name{font-weight:700;margin-top:8px;font-size:13px;line-height:1.3}
+    .meta{font-size:12px;color:#475569;margin-top:4px}
+    .price{color:#1d4ed8;font-weight:700;font-size:13px;margin-top:6px}
+    .card .cat-edit{margin-top:8px;height:30px;padding:0 10px;border:1px solid #7dd3fc;background:#fff;color:#0284c7;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer}
+    .cat-peek{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:80;display:flex;align-items:center;justify-content:center;padding:18px}
+    .cat-peek-card{background:var(--ult-card);color:var(--ult-text);border-radius:16px;max-width:640px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(15,23,42,.28)}
+    .cat-peek-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ult-border)}
+    .cat-peek-h h2{margin:0;font-size:18px}
+    .cat-peek-h button{border:0;background:#e2e8f0;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer}
+    .cat-peek-b{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:16px}
+    .cat-peek-b img,.cat-ph{width:180px;height:180px;object-fit:contain;background:var(--ult-card-2);border:1px solid var(--ult-border);border-radius:12px}
+    .cat-ph{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}
+    .cat-peek-b label{display:block;font-weight:700;font-size:12px;margin:8px 0 4px}
+    .cat-peek-b input,.cat-peek-b textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px;font:inherit;box-sizing:border-box}
+    .cat-peek-b textarea{min-height:90px;resize:vertical}
+    .cat-peek-f{display:flex;gap:8px;padding:0 16px 16px;justify-content:flex-end}
+    .cat-peek-f button{height:36px;padding:0 14px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-weight:700;cursor:pointer}
+    .cat-peek-f .save{background:#2563eb;color:#fff;border-color:#1d4ed8}
+    .cat-note{font-size:12px;color:#64748b;margin:6px 0 0}
+    @media(max-width:900px){
+      #filt-box .fp-row-3,#filt-box .fp-row-4,#filt-box .fp-row-8{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:640px){.cat-peek-b{grid-template-columns:1fr}}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading catalog…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { fmt, supabase } from './js/supabaseClient.js';
+  import { esc, writeLs, saveRow } from './js/ls-rows.js';
+  import { hostedProductImage, loadCatalogPhotos, uploadProductPhoto } from './js/product-images.js';
+  import { statusChip, isInventoryItem } from './js/inventory-book.js';
+  import { deskHow } from './js/desk-manual.js';
+  import { deskJumpBar } from './js/desk-chrome.js';
+  import { liveDeskRows } from './js/fiberk-silo.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { filterBySidebar, SCOPE_EVENT } from './js/scope.js';
+  import { wrapFilters } from './js/home-tables.js';
+  import { alignStoreFields } from './js/catalog-merch.js';
+  import { ackResult } from './js/confirm-action.js';
+  import {
+    emptyProductFilters, loadFiltBar, saveFiltBar,
+    productFilterPanelHtml, applyProductFilters,
+    readProductFilterDom, bindProductFilterDom,
+  } from './js/product-filters.js';
+
+  await mountUltimateShell();
+  await loadCatalogPhotos();
+  let catalogRows = [];
+  try {
+    catalogRows = await liveDeskRows('products');
+  } catch { catalogRows = []; }
+  if (!catalogRows.length) {
+    try {
+      const acc = [];
+      for (let from = 0; from < 8000; from += 1000) {
+        const { data, error } = await supabase.from('products').select('*').range(from, from + 999);
+        if (error || !data?.length) break;
+        acc.push(...data);
+        if (data.length < 1000) break;
+      }
+      catalogRows = acc;
+    } catch { /* keep empty */ }
+  }
+  catalogRows = (catalogRows || []).map(alignStoreFields);
+  if (catalogRows.length) {
+    try { writeLs(KEYS.products, catalogRows); } catch { /* quota */ }
+  }
+
+  const app = document.getElementById('app');
+  const params = new URLSearchParams(location.search);
+  const F = emptyProductFilters();
+  F.q = params.get('q') || '';
+  F.brand = params.get('brand') || '';
+  F.listings = params.get('listings') === '1';
+  let filtBar = loadFiltBar();
+  let showFilt = false;
+  let editId = '';
+  let busy = false;
+
+  function rowById(id) {
+    return (catalogRows || []).find((r) => String(r.id) === String(id)) || null;
+  }
+
+  function patchRow(id, patch) {
+    catalogRows = (catalogRows || []).map((r) => String(r.id) === String(id) ? alignStoreFields({ ...r, ...patch }) : r);
+    try { writeLs(KEYS.products, catalogRows); } catch { /* quota */ }
+  }
+
+  async function saveListing(id, patch) {
+    const cur = rowById(id);
+    if (!cur) throw new Error('Listing not found');
+    const next = { ...cur, ...patch, id, updated_at: new Date().toISOString() };
+    const remote = {
+      image_url: next.image_url || null,
+      catalog_image_url: next.catalog_image_url || next.image_url || null,
+      description: next.description || '',
+      brand: next.brand || null,
+      model: next.model || next.model_number || null,
+      color: next.color || next.colour || null,
+      size: next.size || null,
+    };
+    let { error } = await supabase.from('products').update(remote).eq('id', id);
+    if (error) {
+      const slim = { image_url: remote.image_url, description: remote.description, brand: remote.brand, model: remote.model };
+      ({ error } = await supabase.from('products').update(slim).eq('id', id));
+    }
+    if (error) await saveRow('products', KEYS.products, next);
+    patchRow(id, next);
+  }
+
+  function editorHtml(p) {
+    if (!p) return '';
+    const img = hostedProductImage(p.catalog_image_url || p.image_url, p);
+    return `<div class="cat-peek" id="cat-peek">
+      <div class="cat-peek-card">
+        <div class="cat-peek-h">
+          <h2>${esc(p.name || 'Listing')}</h2>
+          <button type="button" id="cat-x" aria-label="Close">×</button>
+        </div>
+        <div class="cat-peek-b">
+          <div>
+            ${img ? `<img src="${esc(img)}" alt="">` : '<div class="cat-ph">No photo</div>'}
+            <button type="button" class="cat-edit" id="cat-photo" style="width:100%;margin-top:8px">Upload photo</button>
+            <p class="cat-note">From this computer. Stored with the SKU on the company catalog.</p>
+          </div>
+          <div>
+            <div class="meta">${esc(p.sku || '')}</div>
+            <label>Brand</label><input id="e-brand" value="${esc(p.brand || '')}" />
+            <label>Model</label><input id="e-model" value="${esc(p.model || p.model_number || '')}" />
+            <label>Color</label><input id="e-color" value="${esc(p.color || p.colour || '')}" />
+            <label>Size / storage</label><input id="e-size" value="${esc(p.size || '')}" />
+            <label>Description</label>
+            <textarea id="e-desc">${esc(p.description || '')}</textarea>
+          </div>
+        </div>
+        <div class="cat-peek-f">
+          <button type="button" id="cat-x2">Cancel</button>
+          <button type="button" class="save" id="cat-save">Save listing</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function paint() {
+    const scoped = filterBySidebar(catalogRows || []);
+    let rows = applyProductFilters(scoped, F);
+    if (F.listings) rows = rows.filter((p) => !isInventoryItem(p));
+    const editing = editId ? rowById(editId) : null;
+    app.innerHTML = `
+      <div class="desk-head">
+        <h1>Product Catalog ${deskHow('prod-catalog')}</h1>
+        ${deskJumpBar()}
+      </div>
+      ${productFilterPanelHtml({
+        F,
+        scoped,
+        filtBar,
+        open: showFilt,
+        extraChecks: `<label class="filt-check"><input type="checkbox" id="f-listings" ${F.listings ? 'checked' : ''}/> Listings only</label>`,
+      })}
+      <div class="bar">
+        <input id="q" placeholder="Search name, SKU, brand" value="${esc(F.q)}" />
+        <span class="sub">${rows.length.toLocaleString()} shown</span>
+      </div>
+      <div class="grid">
+        ${rows.slice(0, 400).map((p) => {
+          const img = hostedProductImage(p.catalog_image_url || p.image_url, p);
+          return `<article class="card" data-open="${esc(p.id)}">
+            ${img ? `<img src="${esc(img)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'No photo'}))" />` : '<div class="ph">No photo</div>'}
+            <div class="name">${esc(p.name || 'Untitled')}</div>
+            <div class="meta">${esc(p.sku || '—')} · ${esc(p.brand || '')}</div>
+            <div class="meta">${esc(p.category || '')}${p.subcategory ? ' / ' + esc(p.subcategory) : ''}</div>
+            <div class="price">${fmt(p.selling_price || p.sell)} · ${Number(p.stock ?? p.current_stock ?? 0)} on hand</div>
+            <div style="margin-top:6px">${statusChip(p)}</div>
+            <button type="button" class="cat-edit" data-open="${esc(p.id)}">Edit listing</button>
+          </article>`;
+        }).join('') || '<p class="sub">No products to show.</p>'}
+      </div>
+      ${rows.length > 400 ? `<p class="sub">Showing first 400 of ${rows.length.toLocaleString()}. Use filters to narrow.</p>` : ''}
+      ${editing ? editorHtml(editing) : ''}
+    `;
+    wrapFilters(app);
+    document.getElementById('filt-box')?.addEventListener('toggle', (e) => {
+      showFilt = !!e.target.open;
+    });
+    bindProductFilterDom(() => {
+      readProductFilterDom(F);
+      paint();
+    });
+    document.getElementById('filt-clear')?.addEventListener('click', () => {
+      Object.assign(F, emptyProductFilters());
+      paint();
+    });
+    app.querySelectorAll('[data-filt-key]').forEach((box) => {
+      box.onchange = () => {
+        filtBar[box.getAttribute('data-filt-key')] = box.checked;
+        saveFiltBar(filtBar);
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-open]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        editId = el.getAttribute('data-open');
+        paint();
+      });
+    });
+    document.getElementById('cat-x')?.addEventListener('click', () => { editId = ''; paint(); });
+    document.getElementById('cat-x2')?.addEventListener('click', () => { editId = ''; paint(); });
+    document.getElementById('cat-peek')?.addEventListener('click', (e) => {
+      if (e.target.id === 'cat-peek') { editId = ''; paint(); }
+    });
+    document.getElementById('cat-photo')?.addEventListener('click', () => {
+      const inp = document.getElementById('cat-file');
+      if (inp) { inp.value = ''; inp.click(); }
+    });
+    document.getElementById('cat-save')?.addEventListener('click', async () => {
+      if (busy || !editId) return;
+      busy = true;
+      try {
+        await saveListing(editId, {
+          brand: document.getElementById('e-brand')?.value || '',
+          model: document.getElementById('e-model')?.value || '',
+          color: document.getElementById('e-color')?.value || '',
+          size: document.getElementById('e-size')?.value || '',
+          description: document.getElementById('e-desc')?.value || '',
+        });
+        ackResult(true, 'Listing saved');
+        paint();
+      } catch (ex) {
+        ackResult(false, String(ex?.message || ex || 'Could not save listing'));
+      } finally { busy = false; }
+    });
+  }
+
+  const file = document.createElement('input');
+  file.type = 'file';
+  file.accept = 'image/*';
+  file.id = 'cat-file';
+  file.hidden = true;
+  document.body.appendChild(file);
+  file.addEventListener('change', async () => {
+    const chosen = file.files && file.files[0];
+    if (!chosen || !editId) return;
+    if (busy) return;
+    busy = true;
+    try {
+      const url = await uploadProductPhoto(chosen, rowById(editId) || {});
+      await saveListing(editId, { image_url: url, catalog_image_url: url });
+      ackResult(true, 'Photo saved to catalog');
+      paint();
+    } catch (ex) {
+      ackResult(false, String(ex?.message || ex || 'Photo did not upload. Run sql/112 if Storage is locked.'));
+    } finally { busy = false; }
+  });
+
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

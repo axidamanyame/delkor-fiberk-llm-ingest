@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import Sales</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page h1{margin:0 0 8px;font-size:22px;color:#111}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin-top:12px}
+    code{background:#f3f4f6;padding:2px 6px;border-radius:4px}
+    #err{color:#b91c1c}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect, locationSelect } from './js/entity-scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { tableFromFile } from './js/read-table.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <h1>Import Sales</h1>
+    <p>CSV columns: <code>date, invoice_no, customer, sku, qty, unit_price, payment_status</code></p>
+    <form id="f" class="card">
+      ${subsidiarySelect('')}
+      ${locationSelect('', '')}
+      <label>CSV file<br><input type="file" id="file" accept=".csv,.tsv,.txt,.json,.xls,.xlsx,.ods,.html,.pdf,.png,.jpg,.jpeg" required /></label>
+      <p style="margin-top:14px">
+        <button class="ult-btn ult-btn-primary" type="submit">Import</button>
+        <a href="/sales-orders.html">Back to All sales</a>
+      </p>
+      <p id="err"></p>
+      <div id="out"></div>
+    </form>`;
+  /* Was a newline/comma split that mangled any quoted field. read-table gives
+     a clean matrix from CSV, TSV, Excel, JSON, HTML, PDF or a photo; this keeps
+     the header-keyed row shape the import loop below expects. */
+  function rowsFromTable(table) {
+    const head = (table.header || []).map((h) => String(h || '').trim().toLowerCase());
+    return (table.rows || []).map((cells) => {
+      const o = {};
+      head.forEach((h, i) => { o[h] = String(cells[i] ?? '').trim(); });
+      return o;
+    }).filter((o) => Object.values(o).some(Boolean));
+  }
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('err');
+    err.textContent = '';
+    const file = document.getElementById('file').files[0];
+    if (!file) return;
+    if (!(await confirmAction('Import these sales?', 'Each row becomes a sale on the selected subsidiary.'))) return;
+    const rows = rowsFromTable(await tableFromFile(file));
+    let ok = 0, fail = 0;
+    const scope = {};
+    try { stampScope(scope, e.target); } catch (ex) { err.textContent = ex.message; return; }
+    delete scope.agent_id;
+    for (const r of rows) {
+      const body = {
+        ...scope,
+        order_date: r.date || new Date().toISOString().slice(0,10),
+        reference: r.invoice_no || r.invoice || ('IMP-' + Date.now().toString().slice(-6) + ok),
+        customer_name: r.customer || r.customer_name || 'Walk-in',
+        status: 'final',
+        payment_status: r.payment_status || 'paid',
+        total_amount: Number(r.qty || 1) * Number(r.unit_price || r.price || 0),
+        amount_paid: 0,
+        notes: r.sku ? ('SKU ' + r.sku) : null,
+      };
+      body.amount_paid = body.payment_status === 'paid' ? body.total_amount : 0;
+      const q = await supabase.from('sales_orders').insert(body);
+      if (q.error) fail += 1; else ok += 1;
+    }
+    document.getElementById('out').innerHTML = `<p>Imported ${ok} sale(s). ${fail ? fail + ' failed.' : ''}</p>`;
+  };
+</script>
+</body>
+</html>

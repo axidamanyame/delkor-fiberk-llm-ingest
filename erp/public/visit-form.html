@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Visit — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import {
+    fetchAgentsForScope, getActiveAgent, getActiveLocation, BNPL_FIELD_LOCATION,
+    findLocation, SCOPE_EVENT,
+  } from './js/scope.js';
+  import { loadRows, saveRow, esc } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadBizSettings, fieldOpsAllowed } from './js/settings-store.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const editId = q.get('id');
+  const viewOnly = q.get('view') === '1';
+  const who = session?.user?.email || session?.profile?.full_name || 'Admin';
+
+  function today() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }
+
+  async function boot() {
+    const biz = await loadBizSettings();
+    if (!fieldOpsAllowed(biz, 'field_flow_visits')) {
+      app.innerHTML = `<h1>Field Visit</h1><p class="sub">Visits are closed. Open them in <a href="/settings.html?tab=fieldops">Business Settings → Field Ops</a>.</p>`;
+      return;
+    }
+    const [all, agents, customers] = await Promise.all([
+      loadRows('visits', 'df_visits', []),
+      fetchAgentsForScope('bnpl', BNPL_FIELD_LOCATION),
+      fieldOpsAllowed(biz, 'field_flow_customers') ? loadRows('customers', KEYS.customers, []) : Promise.resolve([]),
+    ]);
+    const existing = editId ? all.find((r) => String(r.id) === String(editId)) : null;
+    const loc = findLocation(getActiveLocation() || BNPL_FIELD_LOCATION);
+    const agentId = existing?.agent_id || getActiveAgent() || '';
+    const ro = viewOnly ? 'disabled' : '';
+    const fieldCustomers = (customers || []).filter((c) =>
+      !c.location_code || String(c.location_code).toUpperCase() === BNPL_FIELD_LOCATION
+      || String(c.subsidiary_code || '').toLowerCase() === 'bnpl');
+
+    app.innerHTML = `
+      <h1>${viewOnly ? 'View' : (editId ? 'Edit' : 'Add')} Field Visit</h1>
+      <p class="sub">Logged against BNPL Field Sales. Agents pick this book from the left menu.</p>
+      <form id="visit_form">
+        <div class="st-card">
+          <div class="st-grid3">
+            <label class="fld">Date:*
+              <input id="dt" type="date" ${ro} required value="${esc((existing?.visit_date || today()).toString().slice(0, 10))}" />
+            </label>
+            <label class="fld">Agent:
+              <select id="agent" ${ro}>
+                <option value="">All / unassigned</option>
+                ${agents.map((a) => `<option value="${esc(a.id)}" ${String(a.id) === String(agentId) ? 'selected' : ''}>${esc(a.full_name || a.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label class="fld">Status:*
+              <select id="st" ${ro}>
+                ${[['planned', 'Planned'], ['done', 'Done'], ['follow_up', 'Follow-up'], ['cancelled', 'Cancelled']].map(([v, l]) =>
+                  `<option value="${v}" ${(existing?.status || 'planned') === v ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </label>
+            <label class="fld">Customer / Place:*
+              <input id="place" list="custs" ${ro} required placeholder="Name or place visited" value="${esc(existing?.customer_name || existing?.place || '')}" />
+              <datalist id="custs">${fieldCustomers.map((c) => `<option value="${esc(c.name || c.full_name || '')}"></option>`).join('')}</datalist>
+            </label>
+            <label class="fld">Purpose:
+              <select id="purpose" ${ro}>
+                ${[['visit', 'Visit'], ['collection', 'Collection'], ['sale', 'Sale / demo'], ['follow_up', 'Follow-up'], ['onboard', 'Onboard agent']].map(([v, l]) =>
+                  `<option value="${v}" ${(existing?.purpose || 'visit') === v ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </label>
+            <label class="fld">Location
+              <input value="${esc(loc?.name || 'BNPL Field Sales')}" disabled />
+            </label>
+          </div>
+          <label class="fld" style="margin-top:12px">Notes
+            <textarea id="notes" rows="3" ${ro} placeholder="What happened on this visit">${esc(existing?.notes || '')}</textarea>
+          </label>
+          <div class="st-save">
+            ${viewOnly
+              ? `<a class="ult-btn ult-btn-outline" href="/visits.html">Close</a>`
+              : `<button type="submit">Save</button> <a class="ult-btn ult-btn-outline" href="/visits.html">Cancel</a>`}
+          </div>
+        </div>
+      </form>`;
+
+    const form = document.getElementById('visit_form');
+    if (form && !viewOnly) form.onsubmit = async (e) => {
+      e.preventDefault();
+      const place = document.getElementById('place').value.trim();
+      if (!place) { toast('Customer / place is required', 'error'); return; }
+      if (!(await confirmAction('Save this visit?', 'It is written to the BNPL Field Sales visit book.'))) return;
+      const ag = agents.find((a) => String(a.id) === String(document.getElementById('agent').value));
+      await saveRow('visits', 'df_visits', {
+        id: existing?.id,
+        visit_date: document.getElementById('dt').value,
+        agent_id: ag?.id || '',
+        agent_name: ag?.full_name || ag?.name || '',
+        customer_name: place,
+        place,
+        purpose: document.getElementById('purpose').value,
+        status: document.getElementById('st').value,
+        notes: document.getElementById('notes').value || '',
+        location_code: BNPL_FIELD_LOCATION,
+        location_name: 'BNPL Field Sales',
+        subsidiary_code: 'bnpl',
+        added_by: who,
+      });
+      toast('Visit saved');
+      location.assign('/visits.html');
+    };
+  }
+  boot();
+  window.addEventListener(SCOPE_EVENT, () => { if (!editId) boot(); });
+</script>
+</body>
+</html>

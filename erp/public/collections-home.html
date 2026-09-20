@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Collections — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/collections-ops.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading Collections…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { loadBook, paintHome } from './js/collections-home.js';
+  import { workAlerts, alertBanner } from './js/call-alerts.js';
+  await mountUltimateShell();
+  const { accounts, calls } = await loadBook();
+  let box = { callbacks: 0, due: 0, items: [] };
+  try { box = await workAlerts(); } catch { /* ignore */ }
+  paintHome(document.getElementById('app'), {
+    accounts,
+    calls,
+    banner: alertBanner(box),
+    chrome: pageChrome('Collections'),
+  });
+</script>
+</body>
+</html>

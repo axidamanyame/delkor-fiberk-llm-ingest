@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Discount</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page h1{margin:0 0 14px;font-size:22px;color:var(--ult-text)}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:20px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px}
+    .fld{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+    .fld input,.fld select,.fld textarea{font-weight:400;padding:8px 10px;border:1px solid var(--ult-border);border-radius:6px}
+    #err{color:#b91c1c}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect, locationSelect } from './js/entity-scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { loadFormRow, fillForm } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const id = new URLSearchParams(location.search).get('id');
+  const app = document.getElementById('app');
+  let row = { discount_type: 'percentage', is_active: true, value: 0 };
+  if (id) row = (await loadFormRow('discounts', 'df_discounts', id)) || row;
+  const v = (k) => row[k] ?? '';
+  app.innerHTML = `
+    <h1>${id?'Edit':'Add'} Discount</h1>
+    <form id="f" class="card">
+      <div class="grid">
+        ${subsidiarySelect(row.subsidiary_code||'')}
+        ${locationSelect(row.subsidiary_code||'', row.location_code||'')}
+        <label class="fld">Name*<input name="name" required value="${v('name')}" /></label>
+        <label class="fld">Type
+          <select name="discount_type">
+            <option value="percentage" ${row.discount_type==='percentage'?'selected':''}>Percentage</option>
+            <option value="fixed" ${row.discount_type==='fixed'?'selected':''}>Fixed amount</option>
+          </select>
+        </label>
+        <label class="fld">Value*<input name="value" type="number" step="0.01" required value="${v('value')||0}" /></label>
+        <label class="fld">Starts<input name="starts_at" type="date" value="${String(v('starts_at')).slice(0,10)}" /></label>
+        <label class="fld">Ends<input name="ends_at" type="date" value="${String(v('ends_at')).slice(0,10)}" /></label>
+        <label class="fld" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="is_active" ${row.is_active!==false?'checked':''}/> Active</label>
+        <label class="fld" style="grid-column:1/-1">Note<textarea name="note">${v('note')}</textarea></label>
+      </div>
+      <p style="margin-top:16px">
+        <button class="ult-btn ult-btn-primary" type="submit">Save</button>
+        <a class="ult-btn ult-btn-outline" href="/discounts.html">Cancel</a>
+      </p>
+      <p id="err"></p>
+    </form>`;
+  fillForm(document.getElementById('f'), row);
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Save this discount?'))) return;
+    const fd = new FormData(e.target);
+    const body = {
+      name: fd.get('name'),
+      discount_type: fd.get('discount_type'),
+      value: Number(fd.get('value')||0),
+      starts_at: fd.get('starts_at') || null,
+      ends_at: fd.get('ends_at') || null,
+      is_active: !!e.target.is_active.checked,
+      note: fd.get('note') || null,
+    };
+    try { stampScope(body, e.target); } catch (ex) { document.getElementById('err').textContent = ex.message; return; }
+    delete body.agent_id;
+    const q = id
+      ? await supabase.from('discounts').update(body).eq('id', id)
+      : await supabase.from('discounts').insert(body);
+    if (q.error) { document.getElementById('err').textContent = q.error.message; return; }
+    location.assign('/discounts.html');
+  };
+</script>
+</body>
+</html>

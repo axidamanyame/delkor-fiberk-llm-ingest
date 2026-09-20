@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trial Balance — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import {
+    payNav, esc, ensurePayBooks, loadPayAccounts, loadFlows, loadPaySales, loadPayPurchases,
+    scopePay, accountBalance, dues, locOptions, byLoc, filtersCard, bindFilt,
+    printReport, currentSubCode, companyOf, fmtDate,
+  } from './js/pay-accounts.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const today = new Date().toISOString().slice(0, 10);
+  const F = { loc: '', date: today };
+
+  async function paint() {
+    await ensurePayBooks();
+    const accounts = byLoc(scopePay(await loadPayAccounts()).filter((a) => !a.is_closed && a.status !== 'Closed'), F.loc);
+    const flows = byLoc(scopePay(await loadFlows()), F.loc);
+    const sales = byLoc(scopePay(await loadPaySales()), F.loc);
+    const purchases = byLoc(scopePay(await loadPayPurchases()), F.loc);
+    const due = dues(null, sales, purchases, null, F.date);
+    const bals = accounts.map((a) => ({ name: a.name, bal: accountBalance(a, flows, F.date) }));
+    const totDebit = due.customer + bals.filter((x) => x.bal >= 0).reduce((s, x) => s + x.bal, 0);
+    const totCredit = due.supplier + bals.filter((x) => x.bal < 0).reduce((s, x) => s + Math.abs(x.bal), 0);
+    const co = companyOf(getActiveSubsidiary()?.code || currentSubCode());
+    const blank = '';
+
+    const sheet = `
+      <table class="tb-sheet" id="tb-sheet">
+        <thead><tr><th>Trial Balance</th><th>Debit</th><th>Credit</th></tr></thead>
+        <tbody>
+          <tr><td>Supplier Due:</td><td></td><td>${fmt(due.supplier)}</td></tr>
+          <tr><td>Customer Due:</td><td>${fmt(due.customer)}</td><td></td></tr>
+          <tr><td colspan="3"><strong>Account Balances:</strong></td></tr>
+          ${bals.map((x) => x.bal < 0
+            ? `<tr><td class="indent">${esc(x.name)}:</td><td></td><td>${fmt(Math.abs(x.bal))}</td></tr>`
+            : `<tr><td class="indent">${esc(x.name)}:</td><td>${fmt(x.bal)}</td><td>${blank}</td></tr>`).join('')}
+          <tr class="tot"><td>Total</td><td>${fmt(totDebit)}</td><td>${fmt(totCredit)}</td></tr>
+        </tbody>
+      </table>`;
+
+    app.innerHTML = `
+      ${payNav('tb')}
+      <div class="acc-top">
+        <div>
+          <h1>Trial Balance</h1>
+          <p class="sub">${esc(scopeCaption())} · As of ${esc(fmtDate(F.date))}</p>
+        </div>
+      </div>
+      ${filtersCard(`
+        <label>Business Location:
+          <select id="f-loc">${locOptions(F.loc)}</select>
+        </label>
+        <label>Filter by date:
+          <input id="f-date" type="date" value="${esc(F.date)}" />
+        </label>
+      `)}
+      <div class="home-card">${sheet}
+        <div class="print-row"><button type="button" class="btn-print" id="btn-print">🖨 Print</button></div>
+      </div>`;
+
+    bindFilt(app);
+    app.querySelector('#f-loc').addEventListener('change', (e) => { F.loc = e.target.value; paint(); });
+    app.querySelector('#f-date').addEventListener('change', (e) => { F.date = e.target.value; paint(); });
+    app.querySelector('#btn-print').addEventListener('click', () => {
+      printReport(`${co.name} - Trial Balance - ${fmtDate(F.date)}`, sheet);
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

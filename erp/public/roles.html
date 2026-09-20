@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roles — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-table th:nth-child(1), .ult-table td:nth-child(1) { width:36px; }
+    .ult-table th:nth-child(2), .ult-table td:nth-child(2) { width:1%; white-space:nowrap; }
+    .ult-table th:nth-child(4), .ult-table td:nth-child(4),
+    .ult-table th:nth-child(5), .ult-table td:nth-child(5),
+    .ult-table th:nth-child(6), .ult-table td:nth-child(6) { text-align:right; width:11rem; }
+  </style>
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { bindTable } from './js/home-tables.js';
+    import { loadRows, actMenu } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_ROLES } from './js/catalog-seed.js';
+    import { loadAccess, can } from './js/rbac.js';
+    import { uniqueByName, canMutateRole, isSystemRoleName } from './js/role-guard.js';
+    import { displayRole, sameRole } from './js/access-rules.js';
+    import { applyStaffJob } from './js/staff-jobs.js';
+    import { countOn, materializePerms, visiblePermGroups } from './js/perm-catalog.js';
+    import { hydrateGrantsFromRows, effectiveMap, allModuleFlags } from './js/module-grants.js';
+    import { loadBizSettings, moduleOn } from './js/settings-store.js';
+    await mountUltimateShell();
+    await loadAccess();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+
+    async function loadUsers() {
+      const local = await loadRows('users', CAT_KEYS.users, []);
+      let remote = [];
+      try {
+        let q = await supabase.from('profiles').select('id, email, username, role, role_name, role_id, user_group');
+        if (q.error) q = await supabase.from('profiles').select('id, email, role, role_name, role_id, user_group');
+        if (Array.isArray(q.data)) remote = q.data;
+      } catch { /* local book is enough */ }
+      const seen = new Set();
+      const out = [];
+      [...remote, ...local].forEach((u) => {
+        const k = String(u.id || u.email || u.username || '');
+        if (k && seen.has(k)) return;
+        if (k) seen.add(k);
+        out.push(applyStaffJob(u));
+      });
+      return out;
+    }
+
+    function assignedCount(role, users) {
+      const id = String(role.id || '');
+      const code = String(role.code || '').trim().toLowerCase();
+      return users.filter((u) => {
+        const rid = String(u.role_id || '');
+        const rn = u.role_name || u.role || u.user_group || '';
+        return (id && rid === id)
+          || sameRole(rn, role.name)
+          || (code && String(rn).replace(/[\s_-]/g, '').toLowerCase() === code);
+      }).length;
+    }
+
+    function permTicks(role) {
+      const p = materializePerms(role.permissions, role.name);
+      const keys = [];
+      visiblePermGroups(role.name).forEach((g) => {
+        for (const list of [g.radios, g.radios2, g.radios3, g.perms]) {
+          if (list) list.forEach((x) => keys.push(x.key));
+        }
+      });
+      if (!keys.length) return countOn(p);
+      return keys.filter((k) => p[k]).length;
+    }
+
+    function moduleTicks(role, biz) {
+      const map = effectiveMap(biz, { roleName: role.name });
+      return allModuleFlags().filter(({ flag }) => moduleOn(biz, flag) && map[flag]).length;
+    }
+
+    async function load() {
+      const roles = uniqueByName(await loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES));
+      hydrateGrantsFromRows(roles, []);
+      const [users, biz] = await Promise.all([loadUsers(), loadBizSettings().catch(() => ({}))]);
+      const actor = (await import('./js/rbac.js')).getAccess()?.roleName;
+      roles.forEach((row) => {
+        row.users_assigned = assignedCount(row, users);
+        row.roles_assigned = permTicks(row);
+        row.modules_assigned = moduleTicks(row, biz);
+      });
+      const shown = roles.filter((row) => row.users_assigned > 0 && !isSystemRoleName(row.name));
+      let staffAssigned = 0;
+      let permAssigned = 0;
+      let modAssigned = 0;
+      shown.forEach((row) => {
+        staffAssigned += row.users_assigned;
+        permAssigned += row.roles_assigned;
+        modAssigned += row.modules_assigned;
+      });
+      app.innerHTML = `
+        <h1>Roles</h1>
+        <p class="sub">Only jobs that currently have someone in them, excluding Owner / HQ Admin / Founder / IT Director / Systems Developer (those are security or position, not this tick list). Users = people in the job. Roles assigned = permission ticks on Edit Role. Modules assigned = module ticks on Edit Role.</p>
+        <div class="card" data-tbl="roles" data-skip-totals="1">
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th data-nosort="1"><input type="checkbox" data-pick-all title="Select all" /></th>
+              <th data-nosort="1">Action</th>
+              <th>Roles</th>
+              <th>Number of users assigned</th>
+              <th>Number of roles assigned</th>
+              <th>Number of modules assigned</th>
+            </tr></thead>
+            <tbody>
+              ${shown.map((row) => {
+                const items = [{ label: 'View' }];
+                if (canMutateRole(actor, row.name) && can('role.edit')) items.push({ href: `/roles-edit.html?id=${row.id}`, label: 'Edit' });
+                if (canMutateRole(actor, row.name) && can('role.delete')) items.push({ act: 'del', label: 'Delete' });
+                return `<tr data-id="${esc(row.id)}">
+                  <td><input type="checkbox" data-pick="${esc(row.id)}" /></td>
+                  <td>${actMenu(row.id, items)}</td>
+                  <td>${esc(displayRole(row.name))}</td>
+                  <td>${row.users_assigned}</td>
+                  <td>${row.roles_assigned}</td>
+                  <td>${row.modules_assigned}</td>
+                </tr>`;
+              }).join('') || '<tr data-dummy="1"><td colspan="6" style="text-align:center">No roles currently have anyone assigned</td></tr>'}
+            </tbody>
+            <tfoot data-keep="1">
+              <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>${staffAssigned}</td>
+                <td>${permAssigned}</td>
+                <td>${modAssigned}</td>
+              </tr>
+            </tfoot>
+          </table></div>
+        </div>`;
+      window.__dfRoleRows = shown;
+      const host = app.querySelector('[data-tbl="roles"]');
+      bindTable(host, {
+        title: 'Roles',
+        storageKey: 'roles-v4',
+        skipFilters: true,
+        addHref: can('role.add') ? '/roles-edit.html?new=1' : '',
+      });
+      const table = host?.querySelector('table');
+      if (table) {
+        let foot = table.tFoot;
+        if (!foot) foot = table.createTFoot();
+        foot.setAttribute('data-keep', '1');
+        foot.innerHTML = `<tr><td></td><td></td><td></td><td>${staffAssigned}</td><td>${permAssigned}</td><td>${modAssigned}</td></tr>`;
+      }
+      app.querySelectorAll('[data-act="del"]').forEach((b) => {
+        b.onclick = async () => {
+          if (!(await confirmAction('Delete this role?', 'This cannot be undone.'))) return;
+          const { error } = await supabase.from('app_roles').delete().eq('id', b.dataset.id || b.dataset.del);
+          if (error) { ackResult(false, error.message); return; }
+          ackResult(true);
+          load();
+        };
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

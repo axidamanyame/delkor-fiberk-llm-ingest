@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account Report — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { toast } from './js/confirm-action.js';
+  import {
+    payNav, esc, ensurePayBooks, loadPayAccounts, loadPayments,
+    scopePay, accountSelect, filtersCard, bindFilt, tableBar, tableFoot,
+    modalShell, payBanner, unlinkedPayments, fmtDateTime, methodLabel,
+    sellDetailsHtml, packingSlipHtml, invoicePrintHtml, printReport, linkPayment,
+  } from './js/pay-accounts.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const year = new Date().getFullYear();
+  const q = new URLSearchParams(location.search);
+  const F = { account: '', from: `${year}-01-01`, to: `${year}-12-31`, unlinked: q.get('unlinked') === '1' };
+  let modal = null;
+
+  async function paint() {
+    await ensurePayBooks();
+    const accounts = scopePay(await loadPayAccounts()).filter((a) => !a.is_closed && a.status !== 'Closed');
+    let payments = scopePay(await loadPayments()).slice().sort((a, b) => {
+      const ua = a.account_id ? 1 : 0;
+      const ub = b.account_id ? 1 : 0;
+      if (ua !== ub) return ua - ub;
+      return String(b.paid_on || '').localeCompare(String(a.paid_on || ''));
+    });
+    const unlinkN = unlinkedPayments(payments).length;
+    if (F.unlinked) payments = unlinkedPayments(payments);
+    if (F.account) payments = payments.filter((p) => String(p.account_id) === String(F.account));
+    if (F.from) payments = payments.filter((p) => String(p.paid_on || '').slice(0, 10) >= F.from);
+    if (F.to) payments = payments.filter((p) => String(p.paid_on || '').slice(0, 10) <= F.to);
+
+    app.innerHTML = `
+      ${payNav('par')}
+      <div class="acc-top">
+        <div>
+          <h1>Account Report</h1>
+          <p class="sub">${esc(scopeCaption())}</p>
+        </div>
+      </div>
+      ${payBanner(unlinkN)}
+      ${filtersCard(`
+        <label>Account:
+          <select id="f-acc">${accountSelect(accounts, F.account, 'All')}</select>
+        </label>
+        <label>Date Range:
+          <span class="range-pair">
+            <input id="f-from" type="date" value="${esc(F.from)}" />
+            <input id="f-to" type="date" value="${esc(F.to)}" />
+          </span>
+        </label>
+      `)}
+      <div class="home-card">
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Date</th><th>Payment Ref No.</th><th>Invoice No./Ref. No.</th>
+            <th>Amount</th><th>Payment Type</th><th>Account</th><th>Description</th>
+            <th data-nosort="1">Action</th>
+          </tr></thead>
+          <tbody>
+            ${payments.map((p) => `<tr>
+              <td>${esc(fmtDateTime(p.paid_on))}</td>
+              <td>${esc(p.payment_ref_no || '')}</td>
+              <td><a href="#" class="inv-link" data-inv="${esc(p.id)}">${esc(p.invoice_no || '')}</a></td>
+              <td>${fmt(p.amount)}</td>
+              <td>${esc(p.type || '')}</td>
+              <td>${esc(p.account_name || '')}</td>
+              <td>${esc(p.details || '')}</td>
+              <td>${p.account_id ? '' : `<button type="button" class="btn-link-acc" data-link="${esc(p.id)}">Link Account</button>`}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="8">No data available in table</td></tr>'}
+          </tbody>
+        </table></div>
+        ${tableFoot()}
+      </div>
+      ${modal || ''}`;
+
+    bindFilt(app);
+    bindTable(app, { title: 'Account Report', storageKey: 'pay-par' });
+    app.querySelector('#f-acc').addEventListener('change', (e) => { F.account = e.target.value; paint(); });
+    app.querySelector('#f-from').addEventListener('change', (e) => { F.from = e.target.value; paint(); });
+    app.querySelector('#f-to').addEventListener('change', (e) => { F.to = e.target.value; paint(); });
+
+    app.querySelectorAll('[data-link]').forEach((b) => {
+      b.onclick = () => {
+        const p = payments.find((x) => String(x.id) === String(b.dataset.link));
+        modal = modalShell(
+          `Link Account - Payment Ref No.: - ${p?.payment_ref_no || ''}`,
+          `<input type="hidden" id="lk-id" value="${esc(p?.id || '')}" />
+           <label class="fld">Account:
+             <select id="lk-acc">${accountSelect(accounts, '', '')}</select>
+           </label>`,
+          `<button type="button" class="btn-save" id="lk-save">Save</button><button type="button" class="btn-close" data-close>Close</button>`
+        );
+        paint();
+      };
+    });
+
+    app.querySelectorAll('[data-inv]').forEach((a) => {
+      a.onclick = async (e) => {
+        e.preventDefault();
+        const p = payments.find((x) => String(x.id) === String(a.dataset.inv));
+        if (!p) return;
+        const isSell = String(p.type) === 'Sell';
+        modal = `<div class="pay-modal-bg" id="pay-modal">
+          <div class="pay-modal wide" role="dialog" aria-modal="true">
+            <div class="pay-modal-h"><h2>${esc(p.type || 'Sell')} Details ( Invoice No. : ${esc(p.invoice_no || '')} )</h2>
+              <button type="button" class="pay-modal-x" data-close>&times;</button></div>
+            <div class="pay-modal-b">${sellDetailsHtml(p)}</div>
+            <div class="pay-modal-f">
+              ${isSell ? `<button type="button" class="btn-pack" id="btn-pack">🖨 Packing Slip</button>` : ''}
+              <button type="button" class="btn-save" id="btn-inv">🖨 Print Invoice</button>
+              <button type="button" class="btn-close" data-close>Close</button>
+            </div>
+          </div>
+        </div>`;
+        await paint();
+        app.querySelector('#btn-pack')?.addEventListener('click', () => printReport('Packing Slip', packingSlipHtml(p)));
+        app.querySelector('#btn-inv')?.addEventListener('click', () => printReport(p.invoice_no || 'Invoice', invoicePrintHtml(p)));
+      };
+    });
+
+    app.querySelector('#pay-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'pay-modal' || e.target.dataset.close !== undefined) { modal = null; paint(); }
+    });
+    app.querySelector('#lk-save')?.addEventListener('click', async () => {
+      const id = document.getElementById('lk-id').value;
+      const accId = document.getElementById('lk-acc').value;
+      const p = payments.find((x) => String(x.id) === String(id)) || (await loadPayments()).find((x) => String(x.id) === String(id));
+      const acc = accounts.find((a) => String(a.id) === String(accId));
+      if (!p || !acc) { toast('Select an account', 'error'); return; }
+      await linkPayment(p, acc);
+      toast('Payment linked');
+      modal = null;
+      paint();
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

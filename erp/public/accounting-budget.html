@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { bindTable } from './js/home-tables.js';
+  import { bindHubTabs } from './js/hub-kit.js';
+  import {
+    accNav, esc, loadAccounts, loadBudgets, loadJournals, loadTransfers, scopeAccounts, scopeDocs,
+    TYPES, accountBalance, saveRow, KEYS, currentSubCode, ensureDemoBooks, seedDefaultAccounts, subLabel,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  let year = new URLSearchParams(location.search).get('year') || String(new Date().getFullYear());
+  let collapsed = new Set(['Asset', 'Liability', 'Equity']);
+
+  async function paint() {
+    await ensureDemoBooks();
+    let accounts = scopeAccounts(await loadAccounts());
+    if (!accounts.length) {
+      accounts = scopeAccounts(await seedDefaultAccounts());
+    }
+    const budgets = await loadBudgets();
+    const journals = scopeDocs(await loadJournals());
+    const transfers = scopeDocs(await loadTransfers());
+    const sub = currentSubCode();
+    const keyOf = (id, code) => `${year}:${code}:${id}`;
+    const bmap = {};
+    budgets.forEach((b) => { bmap[`${b.period}:${b.subsidiary_code}:${b.account_id}`] = b; });
+
+    const groups = TYPES.map((t) => ({
+      type: t,
+      rows: accounts.filter((a) => a.account_type === t),
+    })).filter((g) => g.rows.length);
+
+    app.innerHTML = `
+      ${accNav('budget')}
+      <div class="acc-top">
+        <div>
+          <h1>Budget</h1>
+          <p class="sub">${esc(scopeCaption())}</p>
+        </div>
+        <label class="fld" style="min-width:140px">Financial year
+          <input id="fy" type="number" min="2020" max="2100" value="${esc(year)}" />
+        </label>
+      </div>
+      <div class="home-card" data-tbl="budget">
+        <div class="ult-table-wrap"><table class="ult-table loc-table budget-tbl table-sticky">
+          <thead><tr>
+            <th>Account</th>
+            ${MONTHS.map((m) => `<th>${m}</th>`).join('')}
+            <th>Total</th>
+            <th>Actual</th>
+          </tr></thead>
+          ${groups.map((g) => {
+            const hide = collapsed.has(g.type);
+            return `<tbody class="${hide ? 'collapsed' : ''}" data-g="${esc(g.type)}">
+              <tr class="b-tog" data-fold="${esc(g.type)}"><td colspan="14"><strong>${hide ? '▸' : '▾'} ${esc(g.type)}</strong></td></tr>
+              ${g.rows.map((a) => {
+                const bcode = sub === 'group' ? (a.subsidiary_code || sub) : sub;
+                const b = bmap[keyOf(a.id, bcode)] || { months: Array(12).fill(0) };
+                const months = Array.isArray(b.months) ? b.months : Array(12).fill(0);
+                const tot = months.reduce((s, n) => s + Number(n || 0), 0);
+                const actual = accountBalance(a, journals, transfers, `${year}-01-01`, `${year}-12-31`);
+                return `<tr class="b-child" data-id="${esc(a.id)}">
+                  <td>${esc(a.name)}${sub === 'group' ? ` <span class="muted">· ${esc(subLabel(a.subsidiary_code))}</span>` : ''}</td>
+                  ${months.map((n, i) => `<td><input data-id="${esc(a.id)}" data-m="${i}" type="number" step="0.01" value="${esc(n || 0)}" style="width:72px" /></td>`).join('')}
+                  <td>${fmt(tot)}</td>
+                  <td>${fmt(actual)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>`;
+          }).join('') || '<tbody><tr data-dummy="1"><td colspan="14">No accounts in this scope.</td></tr></tbody>'}
+        </table></div>
+        <div class="st-save"><button type="button" class="ult-btn ult-btn-primary" id="save">Save</button></div>
+      </div>`;
+
+    bindHubTabs(app, (k) => {
+      const tab = (typeof k === 'string' ? { key: 'dash', href: '/accounting.html', ...({} ) } : k);
+      const href = ({
+        dash: '/accounting.html',
+        coa: '/accounting-coa.html',
+        je: '/accounting-journal.html',
+        xfer: '/accounting-transfer.html',
+        tx: '/accounting-transactions.html',
+        budget: '/accounting-budget.html',
+        reports: '/accounting-reports.html',
+        settings: '/accounting-settings.html',
+      })[k] || '/accounting.html';
+      if (k === 'budget') return;
+      if (typeof window.__dfOpenSpa === 'function') window.__dfOpenSpa(href);
+      else location.assign(href);
+    });
+    const box = app.querySelector('[data-tbl="budget"]');
+    if (box) {
+      try {
+        bindTable(box, {
+          title: 'Budget',
+          skipFilters: true,
+          addHref: '/accounting-account-form.html',
+        });
+      } catch { /* optional */ }
+    }
+
+    app.querySelector('#fy').onchange = (e) => {
+      year = e.target.value;
+      const u = new URL(location.href);
+      u.searchParams.set('year', year);
+      history.replaceState({ spa: u.pathname + u.search }, '', u.pathname + u.search);
+      paint();
+    };
+    app.querySelectorAll('[data-fold]').forEach((el) => {
+      el.onclick = () => {
+        const t = el.dataset.fold;
+        if (collapsed.has(t)) collapsed.delete(t); else collapsed.add(t);
+        paint();
+      };
+    });
+    app.querySelector('#save').onclick = async () => {
+      const ok = await confirmAction('Save budget?', `Financial year ${year}`);
+      if (!ok) return;
+      const byId = {};
+      app.querySelectorAll('input[data-id]').forEach((inp) => {
+        const id = inp.dataset.id;
+        byId[id] = byId[id] || Array(12).fill(0);
+        byId[id][Number(inp.dataset.m)] = Number(inp.value || 0);
+      });
+      for (const [account_id, months] of Object.entries(byId)) {
+        const acc = accounts.find((a) => String(a.id) === String(account_id));
+        const code = sub === 'group' ? (acc?.subsidiary_code || sub) : sub;
+        const prev = budgets.find((b) => b.period === year && String(b.account_id) === String(account_id) && b.subsidiary_code === code);
+        await saveRow('budgets', KEYS.budgets, {
+          ...(prev || {}),
+          id: prev?.id,
+          name: acc?.name || account_id,
+          period: year,
+          account_id,
+          months,
+          amount: months.reduce((s, n) => s + Number(n || 0), 0),
+          subsidiary_code: code,
+        });
+      }
+      toast('Budget saved');
+      paint();
+    };
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

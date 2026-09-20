@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Count / Audit — Operations Hub</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { readLs, saveRow, esc } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { OPS_HUB } from './js/scope.js';
+  import { peelWrite } from './js/account-rules.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const products = readLs(KEYS.products, []) || [];
+
+  app.innerHTML = `
+    ${pageChrome('Stock Count / Audit')}
+    <form id="count" class="ult-card" data-tbl="count" data-readonly="1">
+      <div class="ult-table-wrap"><table class="ult-table">
+        <thead><tr><th>SKU</th><th>Name</th><th>System qty</th><th>Counted</th></tr></thead>
+        <tbody>${products.slice(0, 200).map((p) => `<tr>
+          <td>${esc(p.sku || '')}</td>
+          <td>${esc(p.name || '')}</td>
+          <td>${Number(p.current_stock ?? p.stock ?? 0)}</td>
+          <td><input name="c-${esc(p.id)}" type="number" min="0" step="1" placeholder="—" style="width:90px" /></td>
+        </tr>`).join('') || '<tr data-dummy="1"><td colspan="4" style="text-align:center">No catalogue to count.</td></tr>'}</tbody>
+      </table></div>
+      <p style="margin-top:12px"><button type="submit" class="ult-btn">Post count</button></p>
+    </form>`;
+  bindTable(app.querySelector('[data-tbl="count"]'), { title: 'Stock Count', storageKey: 'stock-count', readonly: true });
+  document.getElementById('count').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const lines = [];
+    for (const p of products) {
+      const raw = fd.get('c-' + p.id);
+      if (raw === null || raw === '') continue;
+      const counted = Number(raw);
+      const sys = Number(p.current_stock ?? p.stock ?? 0);
+      const diff = counted - sys;
+      if (!diff) continue;
+      lines.push({ product_id: p.id, sku: p.sku, name: p.name, system: sys, counted, diff });
+    }
+    if (!lines.length) { ackResult(false, 'Enter at least one counted quantity that differs.'); return; }
+    if (!(await confirmAction('Post this count as a stock adjustment?', lines.length + ' SKU(s).'))) return;
+    const row = {
+      reference: 'CNT-' + Date.now().toString(36).toUpperCase(),
+      date: new Date().toISOString().slice(0, 10),
+      location_code: OPS_HUB.code,
+      location_name: OPS_HUB.name,
+      type: 'stock_count',
+      lines,
+      note: 'Physical count / audit',
+    };
+    await saveRow('stock_adjustments', 'df_stock_adjustments', row);
+    for (const l of lines) {
+      try { await peelWrite('products', { current_stock: l.counted, stock: l.counted }, { id: l.product_id }); } catch { /* local only */ }
+      const p = products.find((x) => x.id === l.product_id);
+      if (p) { p.current_stock = l.counted; p.stock = l.counted; }
+    }
+    try { localStorage.setItem(KEYS.products, JSON.stringify(products)); } catch { /* ignore */ }
+    ackResult(true, 'Count posted.');
+    location.href = '/stock-adjustments.html';
+  };
+</script>
+</body>
+</html>

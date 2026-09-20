@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Publish Easybuy book — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { ensureCollections, publishBook } from './js/collections-desk.js';
+  import { ackResult } from './js/confirm-action.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  await ensureCollections();
+  app.innerHTML = `
+    <h1 class="hub-h1">Publish Easybuy book</h1>
+    <p class="ult-lead">Writes the 151 hire-purchase accounts and 1,228 call-diary rows into the live Supabase tables so the book survives when this machine is off. CRM customers are not touched.</p>
+    <div class="ult-card" style="padding:18px">
+      <p>Run <code>113_collections_harden.sql</code> in the Supabase SQL editor first if publish reports a missing column.</p>
+      <p class="ult-muted" style="font-size:13px">Scripts <code>113_collections_harden.sql</code>, <code>114_easybuy_accounts.sql</code>, <code>115_easybuy_calls.sql</code> and <code>116_easybuy_ptps.sql</code> are not committed to <code>public/sql/</code> — ask the maintainer for them. The download links here pointed at files that were never shipped and returned 404.</p>
+      <button type="button" class="ult-btn ult-btn-primary" id="go">Publish to live database</button>
+      <p id="st" class="ult-muted" style="margin-top:12px"></p>
+    </div>`;
+  app.querySelector('#go').onclick = async () => {
+    const btn = app.querySelector('#go');
+    const st = app.querySelector('#st');
+    btn.disabled = true; btn.textContent = 'Publishing…';
+    st.textContent = 'Uploading accounts, then the call diary…';
+    try {
+      const r = await publishBook();
+      st.textContent = `Live: ${r.accounts} accounts · ${r.calls} calls.`;
+      ackResult(true, 'Easybuy book is on the server.');
+    } catch (e) {
+      st.textContent = e?.message || 'Publish failed. Run 113 first.';
+      ackResult(false, st.textContent);
+    }
+    btn.disabled = false; btn.textContent = 'Publish to live database';
+  };
+</script>
+</body>
+</html>

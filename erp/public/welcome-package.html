@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Welcome Package — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/staff-learn.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading welcome package…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { findUser } from './js/access-gate.js';
+  import { ackResult } from './js/confirm-action.js';
+
+  const session = await mountUltimateShell();
+  if (!session) throw new Error('auth');
+  const me = findUser(session);
+  const name = me?.full_name || session.user?.user_metadata?.full_name || session.user?.email || 'Colleague';
+  const email = me?.email || session.user?.email || '';
+  const KEY = 'df_welcome_pack';
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+  const save = (o) => localStorage.setItem(KEY, JSON.stringify(o));
+  const items = [
+    { id: 'read-orient', label: 'Read Orientation (companies, Field Ops, Virtual Warehouse)' },
+    { id: 'profile', label: 'Complete My Profile — More Informations and Bank Details' },
+    { id: 'key', label: 'Enter your access key when the administrator issues it' },
+    { id: 'train', label: 'Finish the Training modules (POS, catalogue, MoMo, field)' },
+    { id: 'support', label: 'Save support contacts: support@delkorfiberk.com · 054 644 3323' },
+  ];
+
+  const app = document.getElementById('app');
+  function paint() {
+    const done = load();
+    app.innerHTML = `
+      ${pageChrome('Welcome Package', 'Foundation pack for every new staff member.')}
+      <div class="or-wrap">
+        <div class="or-card">
+          <h2>Welcome, ${name}</h2>
+          <p>You have joined DELKOR-FIBERK — the growing company behind Ghana's retail, logistics, and hire purchase business. Until extra role access is switched on for you, this pack, Orientation, Training, Home, and My Profile are your working menus.</p>
+          <p>Registered email: <strong>${email}</strong></p>
+        </div>
+        <div class="or-card">
+          <h2>Your first-week checklist</h2>
+          ${items.map((it) => `<label class="learn-check"><input type="checkbox" data-id="${it.id}" ${done[it.id] ? 'checked' : ''}/><span>${it.label}</span></label>`).join('')}
+        </div>
+        <div class="or-card">
+          <h2>How the group is organised</h2>
+          <div class="or-grid">
+            <div class="or-co"><strong>Operations Hub</strong><span>Default warehouse. Goods sit here until a store or agent receives them.</span></div>
+            <div class="or-co"><strong>FIBERK</strong><span>Electronics — Fiberk Shop.</span></div>
+            <div class="or-co"><strong>AXIDIGETEK</strong><span>eCommerce — Online Store.</span></div>
+            <div class="or-co"><strong>DELKOR LOGISTICS</strong><span>Furniture Market.</span></div>
+            <div class="or-co"><strong>BUYNOWPAYSLATER</strong><span>Hire purchase — Market (Field) and Online Shop.</span></div>
+            <div class="or-co"><strong>Operations Hub</strong><span>Physical stock for every company until it is transferred out.</span></div>
+          </div>
+        </div>
+        <div class="or-card">
+          <h2>Conduct</h2>
+          <ul>
+            <li>Serve the customer in front of you. Cash, MoMo, and bank must match the till you are signed into.</li>
+            <li>Do not share your access key, POS PIN, or login.</li>
+            <li>Field agents: customers on the right, agents on the left. Record visits.</li>
+            <li>If a screen is wrong, stop and call support before posting a sale.</li>
+          </ul>
+        </div>
+        <div class="or-card">
+          <h2>Help</h2>
+          <p>IT / support: support@delkorfiberk.com · 054 644 3323</p>
+          <p>Your administrator assigns the rest of your role from HRM after this pack is complete.</p>
+        </div>
+      </div>`;
+    app.querySelectorAll('[data-id]').forEach((el) => {
+      el.onchange = () => {
+        const cur = load();
+        cur[el.dataset.id] = el.checked;
+        save(cur);
+        ackResult(true, el.checked ? 'Saved to your welcome pack.' : 'Unchecked.');
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

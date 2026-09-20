@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add a new contact — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    .page h1{font-size:22px;color:var(--ult-text)}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:20px;width:100%;box-sizing:border-box}
+    label{display:block;font-weight:700;margin:8px 0 4px;color:var(--ult-text)}
+    input,select{width:100%;border:1px solid var(--ult-border);border-radius:6px;padding:8px 10px;box-sizing:border-box;color:var(--ult-text)}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .span2{grid-column:span 2}
+    .span3{grid-column:span 3}
+    @media(max-width:900px){.grid,.grid-2{grid-template-columns:1fr 1fr}.span2,.span3{grid-column:span 2}}
+    .purple{background:#6d28d9;color:#fff;border:0;border-radius:999px;padding:8px 16px;font-weight:700;cursor:pointer}
+    .save{background:#6d28d9;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+    .close{background:#111;color:#fff;border:0;border-radius:8px;padding:10px 18px;text-decoration:none}
+    .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+    .person{border-top:1px solid var(--ult-border);padding-top:12px;margin-top:12px}
+    .hint{font-size:12px;color:var(--ult-text)}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { getActiveLocation } from './js/scope.js';
+    import { saveParty, loadCustomerGroups, groupFromSubsidiary, resolveCustomerGroup } from './js/contact-rules.js';
+    import { subsidiarySelect, locationSelect, stampScope, regionSelect, ghanaGps, ghanaRegion, stampGhanaAddress } from './js/entity-scope.js';
+    import { confirmAction } from './js/confirm-action.js';
+    import { loadFormRow, fillForm } from './js/ls-rows.js';
+    await mountUltimateShell();
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    const groups = await loadCustomerGroups().catch(() => []);
+    const { data: users } = await supabase.from('profiles').select('id,full_name,email').limit(200);
+    let row = { contact_type: 'customer', entity: 'individual', contact_persons: [{},{},{}] };
+    if (id) {
+      const found = await loadFormRow('customers', 'df_customers', id, ['df_suppliers']);
+      if (found) {
+        row = { ...row, ...found, contact_type: found.contact_type || 'customer' };
+      }
+    }
+    if (!row.group_name) row.group_name = resolveCustomerGroup(row, groups);
+    const v = (k, d='') => esc(row[k] ?? d);
+    const pv = (i, k) => esc((row.contact_persons[i] || {})[k] || '');
+
+    function personBlock(i) {
+      return `<div class="person">
+        <button type="button" class="purple" data-tog="p${i}">Add contact person ${i+1} ▾</button>
+        <div id="p${i}" hidden>
+          <div class="grid">
+            <div><label>Prefix:</label><input name="p${i}_prefix" value="${pv(i,'prefix')}" placeholder="Mr / Mrs / Miss" /></div>
+            <div class="span2"><label>First Name:*</label><input name="p${i}_first" value="${pv(i,'first')}" placeholder="First Name" /></div>
+            <div><label>Last Name:</label><input name="p${i}_last" value="${pv(i,'last')}" placeholder="Last Name" /></div>
+            <div class="span2"><label>Email:</label><input name="p${i}_email" value="${pv(i,'email')}" /></div>
+            <div class="span2"><label>Mobile Number:</label><input name="p${i}_mobile" value="${pv(i,'mobile')}" /></div>
+            <div class="span2"><label>Alternate contact number:</label><input name="p${i}_alt" value="${pv(i,'alt')}" /></div>
+            <div class="span2"><label>Family contact number:</label><input name="p${i}_family" value="${pv(i,'family')}" /></div>
+            <div class="span2"><label>Department:</label><input name="p${i}_dept" value="${pv(i,'dept')}" /></div>
+            <div class="span2"><label>Designation:</label><input name="p${i}_desig" value="${pv(i,'desig')}" /></div>
+            <div class="span2"><label>Sales Commission Percentage (%):</label><input name="p${i}_comm" type="number" step="0.01" value="${pv(i,'comm')}" /></div>
+            <div><label>&nbsp;</label><label style="font-weight:500"><input type="checkbox" name="p${i}_login" ${ (row.contact_persons[i]||{}).login ? 'checked':'' }/> Allow login</label></div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    app.innerHTML = `
+      <h1>${id ? 'Edit contact' : 'Add a new contact'}</h1>
+      <form id="f" class="card">
+        <div class="grid">
+          <div>
+            <label>Contact type:*</label>
+            <select name="contact_type">
+              <option value="customer" ${row.contact_type!=='supplier' && row.contact_type!=='both'?'selected':''}>Customers</option>
+              <option value="supplier" ${row.contact_type==='supplier'?'selected':''}>Suppliers</option>
+              <option value="both" ${row.contact_type==='both'?'selected':''}>Both</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <label style="font-weight:500"><input type="radio" name="entity" value="individual" ${row.entity!=='business'?'checked':''}/> Individual</label>
+            <label style="font-weight:500"><input type="radio" name="entity" value="business" ${row.entity==='business'?'checked':''}/> Business</label>
+          </div>
+          <div class="span2">
+            <label>Contact ID:</label>
+            <input name="contact_code" value="${v('contact_code')}" placeholder="Contact ID" />
+            <div class="hint">Leave empty to autogenerate</div>
+          </div>
+          <div class="span2"><label>First name</label><input name="first_name" value="${v('first_name')}" /></div>
+          <div class="span2"><label>Last name</label><input name="last_name" value="${v('last_name')}" /></div>
+          <div class="span2"><label>Business name</label><input name="business_name" value="${v('business_name') || v('name')}" /></div>
+          <div class="span2">
+            <label>Customer Group:</label>
+            <select name="group_name">
+              <option value="">None</option>
+              ${groups.map((g)=>`<option ${row.group_name===g.name?'selected':''}>${esc(g.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div><label>Mobile:*</label><input name="phone" required value="${v('phone') || v('mobile')}" placeholder="Mobile" /></div>
+          <div><label>Alternate contact number:</label><input name="alternate_number" value="${v('alternate_number')}" /></div>
+          <div><label>Landline:</label><input name="landline" value="${v('landline')}" /></div>
+          <div><label>Email:</label><input name="email" type="email" value="${v('email')}" /></div>
+          ${subsidiarySelect(row.subsidiary_code || getActiveSubsidiary()?.code)}
+          ${locationSelect(row.subsidiary_code || getActiveSubsidiary()?.code, row.location_code)}
+          <div class="span2">
+            <label>Assigned to:</label>
+            <select name="assigned_to">
+              <option value="">None</option>
+              ${(users||[]).map((u)=>`<option value="${u.id}" ${row.assigned_to===u.id?'selected':''}>${esc(u.full_name||u.email)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div style="text-align:center;margin:16px 0">
+          <button type="button" class="purple" id="more-btn">More Informations ▾</button>
+        </div>
+        <div id="more" ${id ? '' : 'hidden'}>
+          <div class="grid">
+            <div><label>Tax number:</label><input name="tax_number" value="${v('tax_number')}" /></div>
+            <div><label>Opening Balance:</label><input name="opening_balance" type="number" step="0.01" value="${v('opening_balance','0')}" /></div>
+            <div>
+              <label>Pay term:</label>
+              <div class="grid-2">
+                <input name="pay_term" value="${v('pay_term')}" placeholder="Pay term" />
+                <select name="pay_term_type">
+                  <option value="">Please Select</option>
+                  <option value="days" ${row.pay_term_type==='days'?'selected':''}>Days</option>
+                  <option value="months" ${row.pay_term_type==='months'?'selected':''}>Months</option>
+                </select>
+              </div>
+            </div>
+            <div><label>Credit Limit:</label><input name="credit_limit" type="number" step="0.01" value="${v('credit_limit')}" /><div class="hint">Keep blank for no limit</div></div>
+            <div class="span2"><label>Address line 1:</label><input name="address_line" value="${v('address_line')}" /></div>
+            <div class="span2"><label>Address line 2:</label><input name="address_line2" value="${v('address_line2')}" /></div>
+            <div><label>City:</label><input name="city" value="${v('city','Accra')}" /></div>
+            <div><label>Region:</label>${regionSelect(ghanaRegion(row) || 'Greater Accra')}</div>
+            <div><label>Digital Address:</label><input name="ghana_post_gps" value="${esc(ghanaGps(row))}" placeholder="e.g. GA-123-4567" /></div>
+            <div><label>Landmark:</label><input name="landmark" value="${v('landmark')}" /></div>
+            <div><label>Street name:</label><input name="street" value="${v('street')}" /></div>
+            <div><label>Building number:</label><input name="building" value="${v('building')}" /></div>
+            <div><label>Additional number/Secondary Number:</label><input name="additional_number" value="${v('additional_number')}" /></div>
+            ${[1,2,3,4,5,6,7,8,9,10].map((n)=>`<div><label>Custom Field ${n}:</label><input name="custom_field_${n}" value="${v('custom_field_'+n)}" /></div>`).join('')}
+            <div class="span3"><label>Shipping Address</label><input name="shipping_address" value="${v('shipping_address')}" placeholder="Search address" /></div>
+            <div><label>First name</label><input name="first_name" value="${v('first_name')}" /></div>
+            <div><label>Last name</label><input name="last_name" value="${v('last_name')}" /></div>
+            <div><label>Business name</label><input name="business_name" value="${v('business_name')}" /></div>
+            <div><label>Ghana Card</label><input name="ghana_card" value="${v('ghana_card')}" /></div>
+          </div>
+        </div>
+        <div style="text-align:center;margin:16px 0">
+          <button type="button" class="purple" id="people-btn">Add Contact Persons ▾</button>
+        </div>
+        <div id="people" hidden>
+          ${personBlock(0)}${personBlock(1)}${personBlock(2)}
+        </div>
+        <div class="foot">
+          <button type="submit" class="save">Save</button>
+          <a class="close" href="/customers.html">Close</a>
+        </div>
+      </form>
+      <p id="err"></p>`;
+
+    const tog = (btn, box) => { btn.onclick = () => { box.hidden = !box.hidden; }; };
+    tog(document.getElementById('more-btn'), document.getElementById('more'));
+    tog(document.getElementById('people-btn'), document.getElementById('people'));
+    app.querySelectorAll('[data-tog]').forEach((b) => tog(b, document.getElementById(b.dataset.tog)));
+    fillForm(document.getElementById('f'), row);
+    const subSel = app.querySelector('[name="subsidiary_code"]');
+    const grpSel = app.querySelector('[name="group_name"]');
+    if (subSel && grpSel) {
+      subSel.addEventListener('change', () => {
+        const auto = groupFromSubsidiary(subSel.value);
+        const catalog = new Set((groups || []).map((g) => g.name));
+        if (!grpSel.value || catalog.has(grpSel.value)) grpSel.value = auto;
+      });
+    }
+
+    document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this contact?', 'Confirm to write this record to the selected subsidiary.'))) return;
+      const fd = new FormData(e.target);
+      const persons = [0,1,2].map((i) => ({
+        prefix: fd.get('p'+i+'_prefix'), first: fd.get('p'+i+'_first'), last: fd.get('p'+i+'_last'),
+        email: fd.get('p'+i+'_email'), mobile: fd.get('p'+i+'_mobile'), alt: fd.get('p'+i+'_alt'),
+        family: fd.get('p'+i+'_family'), dept: fd.get('p'+i+'_dept'), desig: fd.get('p'+i+'_desig'),
+        comm: fd.get('p'+i+'_comm'), login: e.target['p'+i+'_login']?.checked || false,
+      }));
+      const kind = fd.get('contact_type') === 'supplier' ? 'supplier' : 'customer';
+      const body = {
+        id: id || undefined,
+        contact_type: fd.get('contact_type'),
+        entity: fd.get('entity'),
+        contact_code: fd.get('contact_code') || null,
+        group_name: fd.get('group_name') || null,
+        phone: fd.get('phone'),
+        alternate_number: fd.get('alternate_number') || fd.get('additional_number'),
+        landline: fd.get('landline'),
+        email: fd.get('email'),
+        assigned_to: fd.get('assigned_to') || null,
+        tax_number: fd.get('tax_number'),
+        opening_balance: Number(fd.get('opening_balance') || 0),
+        pay_term: fd.get('pay_term'),
+        pay_term_type: fd.get('pay_term_type'),
+        credit_limit: fd.get('credit_limit') === '' ? null : Number(fd.get('credit_limit')),
+        address_line: fd.get('address_line'),
+        address_line2: fd.get('address_line2'),
+        city: fd.get('city'),
+        region: fd.get('region'),
+        ghana_post_gps: fd.get('ghana_post_gps'),
+        landmark: fd.get('landmark'),
+        street: fd.get('street'),
+        building: fd.get('building'),
+        shipping_address: fd.get('shipping_address'),
+        first_name: fd.get('first_name'),
+        last_name: fd.get('last_name'),
+        business_name: fd.get('business_name'),
+        ghana_card: fd.get('ghana_card'),
+        contact_persons: persons,
+        is_active: true,
+      };
+      for (let n=1;n<=10;n++) body['custom_field_'+n] = fd.get('custom_field_'+n);
+      try { stampScope(body, e.target); stampGhanaAddress(body, Object.fromEntries(fd.entries())); } catch (ex) { document.getElementById('err').textContent = ex.message; return; }
+      const saved = await saveParty(kind, body);
+      if (saved?.error) { document.getElementById('err').textContent = saved.error.message; return; }
+      location.href = kind === 'supplier' ? '/suppliers.html' : '/customers.html';
+    };
+  </script>
+</body>
+</html>

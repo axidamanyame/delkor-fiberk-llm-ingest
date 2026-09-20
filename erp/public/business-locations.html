@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Business Locations — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, SUBSIDIARIES } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, saveRow, uid, esc } from './js/ls-rows.js';
+  import { supabase } from './js/supabaseClient.js';
+  import { regionSelect, ghanaGps, ghanaRegion, stampGhanaAddress } from './js/entity-scope.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const settingsMode = q.get('settings') === '1';
+  const KEY = 'df_biz_locations';
+  const TABLE = 'warehouses';
+
+  const PAY_METHODS = [
+    { code: 'cash', label: 'Cash' },
+    { code: 'card', label: 'Card' },
+    { code: 'cheque', label: 'Cheque' },
+    { code: 'bank', label: 'Bank Transfer' },
+    { code: 'momo', label: 'MTN MoMo' },
+    { code: 'telecel', label: 'Telecel Cash' },
+    { code: 'atmoney', label: 'AirtelTigo' },
+    { code: 'other', label: 'Other' },
+    { code: 'custom_1', label: 'Custom Payment 1' },
+    { code: 'custom_2', label: 'Custom Payment 2' },
+    { code: 'custom_3', label: 'Custom Payment 3' },
+    { code: 'custom_4', label: 'Custom Payment 4' },
+    { code: 'custom_5', label: 'Custom Payment 5' },
+    { code: 'custom_6', label: 'Custom Payment 6' },
+    { code: 'custom_7', label: 'Custom Payment 7' },
+  ];
+
+  const seed = BUSINESS_LOCATIONS.map((l) => ({
+    id: l.code,
+    name: l.name,
+    code: l.code,
+    location_id: l.code,
+    city: 'Accra',
+    region: 'Greater Accra',
+    ghana_post_gps: l.subsidiary === 'fiberk' ? 'GA-234-5678'
+      : l.subsidiary === 'delkor' ? 'GA-345-6789'
+      : l.subsidiary === 'bnpl' ? 'GA-456-7890'
+      : 'GA-123-4567',
+    landmark: l.subsidiary === 'bnpl' ? 'Field / Online' : 'Ring Road',
+    website: 'https://delkorfiberk.com',
+    mobile: '0244000000',
+    alternate_number: '0500000000',
+    email: l.code.toLowerCase() + '@delkorfiberk.com',
+    invoice_scheme: 'Default',
+    invoice_scheme_pos: 'Default',
+    invoice_layout: 'Default',
+    pos_layout: 'Default',
+    price_group: 'Default',
+    featured_products: '',
+    custom_field_1: '',
+    custom_field_2: '',
+    custom_field_3: '',
+    custom_field_4: '',
+    auto_print: 'yes',
+    printer_type: 'browser',
+    subsidiary_code: l.subsidiary,
+    is_default: !!l.primary,
+    is_active: true,
+    payment_methods: PAY_METHODS.map((m) => ({ code: m.code, enabled: true, account: '' })),
+  }));
+
+  const rows = await loadRows(TABLE, KEY, seed);
+  rows.forEach((r) => {
+    if (r.is_active === undefined) r.is_active = true;
+    if (!Array.isArray(r.payment_methods)) {
+      r.payment_methods = PAY_METHODS.map((m) => ({ code: m.code, enabled: true, account: '' }));
+    }
+  });
+
+  const schemes = await (async () => {
+    try {
+      const { data } = await supabase.from('invoice_schemes').select('name').limit(50);
+      if (data?.length) return data.map((d) => d.name);
+    } catch { /* ignore */ }
+    try { return (JSON.parse(localStorage.getItem('df_invoice_schemes') || '[]')).map((x) => x.name).filter(Boolean); } catch { /* ignore */ }
+    return ['Default'];
+  })();
+  const layouts = await (async () => {
+    try {
+      const { data } = await supabase.from('invoice_layouts').select('name').limit(50);
+      if (data?.length) return data.map((d) => d.name);
+    } catch { /* ignore */ }
+    try { return (JSON.parse(localStorage.getItem('df_invoice_layouts') || '[]')).map((x) => x.name).filter(Boolean); } catch { /* ignore */ }
+    return ['Default', 'Classic', 'Slim 80mm'];
+  })();
+  const priceGroups = await (async () => {
+    try {
+      const { data } = await supabase.from('selling_price_groups').select('name').limit(50);
+      if (data?.length) return data.map((d) => d.name);
+    } catch { /* ignore */ }
+    return ['Default', 'Retail', 'Wholesale'];
+  })();
+  const accounts = await (async () => {
+    try {
+      const { data } = await supabase.from('payment_accounts').select('id,name,code').eq('is_closed', false).limit(80);
+      if (data?.length) return data;
+    } catch { /* ignore */ }
+    try {
+      const local = JSON.parse(localStorage.getItem('df_payment_accounts') || '[]');
+      if (local.length) return local;
+    } catch { /* ignore */ }
+    return [
+      { id: 'cash', name: 'Cash' },
+      { id: 'eco', name: 'Ecobank Operations' },
+      { id: 'momo', name: 'MTN MoMo Collection' },
+      { id: 'uba', name: 'UBA Current' },
+    ];
+  })();
+
+  const schemeOpts = (cur) => ['Default', ...schemes.filter((s) => s !== 'Default')].map((s) =>
+    `<option ${String(cur || 'Default') === s ? 'selected' : ''}>${esc(s)}</option>`).join('');
+  const layoutOpts = (cur) => ['Default', ...layouts.filter((s) => s !== 'Default')].map((s) =>
+    `<option ${String(cur || 'Default') === s ? 'selected' : ''}>${esc(s)}</option>`).join('');
+  const pgOpts = (cur) => ['', ...priceGroups].map((s) =>
+    `<option value="${esc(s)}" ${String(cur || '') === s ? 'selected' : ''}>${esc(s || 'Please Select')}</option>`).join('');
+  const acctOpts = (cur) => `<option value="">None</option>` + accounts.map((a) =>
+    `<option value="${esc(a.id || a.name)}" ${String(cur || '') === String(a.id || a.name) ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+
+  function tip(t) { return `<span class="info-i" title="${esc(t)}">i</span>`; }
+
+  function paymentTable(row, ro) {
+    const map = Object.fromEntries((row.payment_methods || []).map((p) => [p.code, p]));
+    const dis = ro ? 'disabled' : '';
+    return `
+      <h3 class="set-h">Payment Options: ${tip('Enable methods this shop accepts and map each one to a default payment account.')}</h3>
+      <div class="ult-table-wrap">
+        <table class="ult-table pay-opt-table">
+          <thead><tr><th>Payment Method</th><th>Enable</th><th>Default Account ${tip('Posted when the cashier picks this method.')}</th></tr></thead>
+          <tbody>
+            ${PAY_METHODS.map((m) => {
+              const p = map[m.code] || { enabled: true, account: '' };
+              return `<tr>
+                <td>${esc(m.label)}</td>
+                <td><input type="checkbox" name="pay_on_${m.code}" ${p.enabled !== false ? 'checked' : ''} ${dis}></td>
+                <td><select name="pay_acc_${m.code}" ${dis}>${acctOpts(p.account)}</select></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function grabPays(form) {
+    return PAY_METHODS.map((m) => ({
+      code: m.code,
+      enabled: !!form.querySelector(`[name="pay_on_${m.code}"]`)?.checked,
+      account: form.querySelector(`[name="pay_acc_${m.code}"]`)?.value || '',
+    }));
+  }
+
+  function formPage(row, ro) {
+    const d = (k, v = '') => esc(row[k] ?? v);
+    const dis = ro ? 'disabled' : '';
+    return `
+      <h1>${ro ? 'View' : row.id ? 'Edit' : 'Add a new'} business location</h1>
+      <form id="f" class="sell-card loc-form">
+        <label class="fld">Name:*<input name="name" value="${d('name')}" ${dis} required placeholder="Name"></label>
+        <div class="sell-grid">
+          <label class="fld">Location ID:<input name="location_id" value="${d('location_id')}" ${dis} placeholder="Location ID"></label>
+          <label class="fld">Landmark:<input name="landmark" value="${d('landmark')}" ${dis} placeholder="Landmark"></label>
+          <label class="fld">City:*<input name="city" value="${d('city', 'Accra')}" ${dis} required placeholder="City"></label>
+          <label class="fld">Region:* ${regionSelect(ghanaRegion(row) || 'Greater Accra', { required: true, disabled: !!ro })}</label>
+          <label class="fld">Digital Address:*<input name="ghana_post_gps" value="${esc(ghanaGps(row) || 'GA-123-4567')}" ${dis} required placeholder="e.g. GA-123-4567"></label>
+          <input type="hidden" name="country" value="Ghana" />
+          <label class="fld">Mobile:<input name="mobile" value="${d('mobile')}" ${dis} placeholder="Mobile"></label>
+          <label class="fld">Alternate contact number:<input name="alternate_number" value="${d('alternate_number')}" ${dis} placeholder="Alternate contact number"></label>
+          <label class="fld">Email:<input name="email" type="email" value="${d('email')}" ${dis} placeholder="Email"></label>
+          <label class="fld">Website:<input name="website" value="${d('website')}" ${dis} placeholder="Website"></label>
+          <label class="fld">Invoice scheme for POS:* ${tip('Numbering used on till receipts.')}
+            <select name="invoice_scheme_pos" ${dis} required>${schemeOpts(row.invoice_scheme_pos || row.invoice_scheme)}</select>
+          </label>
+          <label class="fld">Invoice scheme for sale:* ${tip('Numbering used on office sales.')}
+            <select name="invoice_scheme" ${dis} required>${schemeOpts(row.invoice_scheme)}</select>
+          </label>
+          <label class="fld">Invoice layout for POS:* ${tip('Receipt layout printed from the till.')}
+            <select name="pos_layout" ${dis} required>${layoutOpts(row.pos_layout)}</select>
+          </label>
+          <label class="fld">Invoice layout for sale:* ${tip('Invoice layout for office sales.')}
+            <select name="invoice_layout" ${dis} required>${layoutOpts(row.invoice_layout)}</select>
+          </label>
+          <label class="fld">Default Selling Price Group: ${tip('Price list this shop uses unless the customer has another group.')}
+            <select name="price_group" ${dis}>${pgOpts(row.price_group)}</select>
+          </label>
+          <label class="fld">Subsidiary:*
+            <select name="subsidiary_code" ${dis} required>
+              ${SUBSIDIARIES.map((s) => `<option value="${s.code}" ${row.subsidiary_code === s.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+            </select>
+          </label>
+        </div>
+        <div class="sell-grid" style="margin-top:8px">
+          <label class="fld">Custom field 1:<input name="custom_field_1" value="${d('custom_field_1')}" ${dis} placeholder="Custom field 1"></label>
+          <label class="fld">Custom field 2:<input name="custom_field_2" value="${d('custom_field_2')}" ${dis} placeholder="Custom field 2"></label>
+          <label class="fld">Custom field 3:<input name="custom_field_3" value="${d('custom_field_3')}" ${dis} placeholder="Custom field 3"></label>
+          <label class="fld">Custom field 4:<input name="custom_field_4" value="${d('custom_field_4')}" ${dis} placeholder="Custom field 4"></label>
+        </div>
+        <label class="fld" style="margin-top:10px">POS screen Featured Products: ${tip('Comma-separated SKUs pinned at the top of the till catalogue.')}
+          <input name="featured_products" value="${d('featured_products')}" ${dis} placeholder="">
+        </label>
+        <hr class="set-hr">
+        ${paymentTable(row, ro)}
+        <p class="form-actions">
+          ${ro
+            ? `<a class="ult-btn ult-btn-primary" href="/business-locations.html?id=${esc(row.id)}">Edit</a>`
+            : `<button class="ult-btn ult-btn-primary" type="submit">Save</button>`}
+          <a class="ult-btn ult-btn-outline" href="/business-locations.html">Close</a>
+        </p>
+      </form>`;
+  }
+
+  function settingsPage(row) {
+    return `
+      <h1>Business Location Settings <span class="sub">— ${esc(row.name || '')}</span></h1>
+      <div class="loc-set-card">
+        <div class="loc-set-tabs"><button type="button" class="on">Receipt Settings</button></div>
+        <form id="sf" class="loc-set-body">
+          <h3>Receipt Settings <span class="sub">All receipt related settings for this location</span></h3>
+          <div class="sell-grid">
+            <label class="fld">Auto print invoice after finalizing: ${tip('Prints as soon as the sale is finalized.')}
+              <select name="auto_print">
+                <option value="yes" ${row.auto_print !== 'no' ? 'selected' : ''}>Yes</option>
+                <option value="no" ${row.auto_print === 'no' ? 'selected' : ''}>No</option>
+              </select>
+            </label>
+            <label class="fld">Receipt Printer Type:* ${tip('Only browser based option is enabled in demo.')}
+              <select name="printer_type">
+                <option value="browser" selected>Browser Based Printing</option>
+              </select>
+              <span class="file-hint">Only Browser based option is enabled in demo.</span>
+            </label>
+            <label class="fld">Invoice layout:* ${tip('Layout used when this location prints.')}
+              <select name="invoice_layout">${layoutOpts(row.invoice_layout)}</select>
+            </label>
+            <label class="fld">Invoice scheme:* ${tip('Numbering scheme for this location.')}
+              <select name="invoice_scheme">${schemeOpts(row.invoice_scheme)}</select>
+            </label>
+          </div>
+          <p class="form-actions" style="justify-content:flex-end">
+            <button type="submit" class="ult-btn ult-btn-primary" style="background:#6d28d9">Update</button>
+            <a class="ult-btn ult-btn-outline" href="/business-locations.html">Close</a>
+          </p>
+        </form>
+      </div>`;
+  }
+
+  if (id === 'new' || (id && id !== 'list' && !settingsMode)) {
+    const row = id === 'new' ? { payment_methods: PAY_METHODS.map((m) => ({ code: m.code, enabled: true, account: '' })) } : (rows.find((r) => String(r.id) === id) || {});
+    app.innerHTML = formPage(row, view && id !== 'new');
+    const f = document.getElementById('f');
+    if (f && !view) f.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction(row.id ? 'Update this location?' : 'Add this location?', 'Cashiers and stock for this shop will use these details.'))) return;
+      const data = Object.fromEntries([...f.querySelectorAll('[name]')].filter((el) => !el.name.startsWith('pay_')).map((el) => [el.name, el.type === 'checkbox' ? el.checked : el.value]));
+      data.payment_methods = grabPays(f);
+      data.code = data.location_id || data.code || row.code;
+      data.is_active = row.is_active !== false;
+      stampGhanaAddress(data, data);
+      await saveRow(TABLE, KEY, { ...row, ...data, id: row.id || uid() });
+      toast('Location saved');
+      location.href = '/business-locations.html';
+    };
+  } else if (id && settingsMode) {
+    const row = rows.find((r) => String(r.id) === id);
+    if (!row) { app.innerHTML = `<h1>Location not found</h1><p><a href="/business-locations.html">Back</a></p>`; }
+    else {
+      app.innerHTML = settingsPage(row);
+      document.getElementById('sf').onsubmit = async (e) => {
+        e.preventDefault();
+        if (!(await confirmAction('Update receipt settings?', 'Till printing for this shop will use these values.'))) return;
+        const data = Object.fromEntries(new FormData(e.target).entries());
+        await saveRow(TABLE, KEY, { ...row, ...data });
+        toast('Receipt settings updated');
+        location.href = '/business-locations.html';
+      };
+    }
+  } else {
+    const live = rows;
+    app.innerHTML = `
+      <h1>Business Locations <span class="sub">Manage your business locations</span></h1>
+      <section class="home-card loc-list-card" data-tbl="loc">
+        <div class="loc-list-head">
+          <div>All your business locations</div>
+          <a class="ult-add" href="/business-locations.html?id=new">+ Add</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Name</th><th>Location ID</th><th>Landmark</th><th>City</th>
+            <th>Region</th><th>Digital Address</th>
+            <th>Price Group</th><th>Invoice scheme</th>
+            <th>Invoice layout for POS</th><th>Invoice layout for sale</th>
+            <th>Subsidiary</th><th>Action</th>
+          </tr></thead>
+          <tbody>${live.map((r) => `<tr data-view="/business-locations.html?id=${esc(r.id)}&view=1" class="${r.is_active === false ? 'row-off' : ''}">
+            <td>${esc(r.name)}${r.is_default ? ' <span class="pill paid">Default</span>' : ''}${r.is_active === false ? ' <span class="pill overdue">Inactive</span>' : ''}</td>
+            <td>${esc(r.location_id || r.code)}</td>
+            <td>${esc(r.landmark)}</td>
+            <td>${esc(r.city)}</td>
+            <td>${esc(ghanaRegion(r))}</td>
+            <td>${esc(ghanaGps(r))}</td>
+            <td>${esc(r.price_group || '')}</td>
+            <td>${esc(r.invoice_scheme || 'Default')}</td>
+            <td>${esc(r.pos_layout || 'Default')}</td>
+            <td>${esc(r.invoice_layout || 'Default')}</td>
+            <td>${esc(r.subsidiary_code)}</td>
+            <td class="loc-acts">
+              <a class="btn-loc-edit" href="/business-locations.html?id=${esc(r.id)}">✎ Edit</a>
+              <a class="btn-loc-set" href="/business-locations.html?id=${esc(r.id)}&settings=1">⚙ Settings</a>
+              ${r.is_active === false
+                ? `<button type="button" class="btn-loc-on" data-act="on" data-id="${esc(r.id)}">Activate Location</button>`
+                : `<button type="button" class="btn-loc-off" data-act="off" data-id="${esc(r.id)}">⏻ Deactivate Location</button>`}
+            </td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="12" style="text-align:center">No data available in table</td></tr>'}
+          </tbody>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <span data-tbl-pager></span>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="loc"]'), { title: 'Business Locations', storageKey: 'biz-loc' });
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const row = live.find((r) => String(r.id) === b.dataset.id);
+      if (!row) return;
+      if (b.dataset.act === 'off') {
+        if (!(await confirmAction('Deactivate this location?', 'Cashiers will not be able to open a till here. Stock stays on the books.'))) return;
+        await saveRow(TABLE, KEY, { ...row, is_active: false });
+        toast('Location deactivated');
+        location.reload();
+      }
+      if (b.dataset.act === 'on') {
+        if (!(await confirmAction('Activate this location?', 'This shop will accept sales again.'))) return;
+        await saveRow(TABLE, KEY, { ...row, is_active: true });
+        toast('Location activated');
+        location.reload();
+      }
+    };
+  }
+</script>
+</body>
+</html>

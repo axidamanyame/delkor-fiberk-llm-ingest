@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Business Settings — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/sandbox.css" />
+  <style>
+    .page h1 { margin: 0 0 16px; font-size: 22px; font-weight: 800; color: #111; }
+    .biz-set {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+      min-height: calc(100vh - 140px);
+    }
+    .biz-set-nav {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px 10px 14px;
+      position: sticky;
+      top: 64px;
+    }
+    .biz-set-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 0 10px;
+      margin: 0 6px 10px;
+      background: #f8fafc;
+    }
+    .biz-set-search input {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      height: 36px;
+      font: inherit;
+      color: #111;
+      outline: none;
+    }
+    .biz-set-nav nav { display: flex; flex-direction: column; gap: 2px; }
+    .biz-set-nav button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      color: #1f2937;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .biz-set-nav button:hover { background: #f1f5f9; }
+    .biz-set-nav button.on {
+      background: #eef2ff;
+      color: #3730a3;
+      box-shadow: inset 3px 0 0 #4f46e5;
+    }
+    .biz-set-main {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .biz-set-head {
+      padding: 20px 28px 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .biz-set-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: #111; }
+    .biz-set-head .sub { margin: 6px 0 0; color: #3d4f66; font-size: 13px; line-height: 1.45; }
+    .set-panel { padding: 22px 28px 8px; }
+    .set-panel .sell-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px 24px;
+      margin: 0 0 18px;
+    }
+    .set-panel .fld { min-width: 0; }
+    .set-panel .fld input,
+    .set-panel .fld select,
+    .set-panel .fld textarea {
+      width: 100%;
+      min-height: 40px;
+      box-sizing: border-box;
+    }
+    .set-panel .sub { color: #3d4f66; font-size: 13px; line-height: 1.5; margin: 0 0 16px; }
+    .set-h { margin: 18px 0 10px; font-size: 15px; color: #111; }
+    .set-hr { border: 0; border-top: 1px solid #e5e7eb; margin: 8px 0 4px; }
+    .chk-row, .chk-row-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px 20px;
+      margin: 0 0 16px;
+    }
+    .chk { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; font-weight: 600; color: #111; }
+    .chk input { margin-top: 2px; }
+    .inline-pair { display: flex; align-items: center; gap: 8px; }
+    .inline-pair select { flex: 1; min-height: 40px; }
+    .shortcut-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 28px; margin: 0 0 18px; }
+    .shortcut-col { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+    .shortcut-head { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #3d4f66; margin-bottom: 10px; }
+    .carousel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; }
+    .file-browse { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .file-prev { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .browse-btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 600; }
+    .gw-ex { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin: 0 0 16px; overflow: auto; }
+    .gw-ex pre { margin: 8px 0 0; font-size: 12px; color: #111; }
+    .set-update-wrap {
+      padding: 8px 28px 24px;
+      border-top: 1px solid #e5e7eb;
+      margin-top: auto;
+    }
+    .btn-update-settings {
+      background: #4f46e5;
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-apply-modules {
+      background: #fff;
+      color: #4f46e5;
+      border: 2px solid #4f46e5;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .mod-apply-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 8px 0 18px;
+    }
+    .mod-apply-row .sub { margin: 0; }
+    .mod-who {
+      margin: 8px 0 18px;
+      padding: 16px 16px 10px;
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+    .mod-who h3 { margin: 0 0 6px; font-size: 15px; color: #111; }
+    .mod-who-bar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      margin: 10px 0 12px;
+    }
+    @media (max-width: 820px) {
+      .mod-who-bar { grid-template-columns: minmax(0, 1fr); }
+    }
+    .mod-who-bar select {
+      min-width: 0;
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0 12px;
+      font-size: 14px;
+      font-weight: 650;
+      background: #fff;
+      color: #0f172a;
+    }
+    .mod-pick {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+    .mod-pick .mod-pick-lab {
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: #334155;
+    }
+    .mod-pick input[type="search"] {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .mod-who-bar .mod-pick select {
+      width: 100%;
+      min-height: 240px;
+      height: 240px;
+      padding: 6px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .chk.is-off { color: #5b6b80; }
+    .chk.is-off .sub { font-weight: 500; }
+    .set-update-wrap { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    @media (max-width: 1100px) {
+      .set-panel .sell-grid, .chk-row, .chk-row-3, .carousel-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 900px) {
+      .biz-set { grid-template-columns: 1fr; }
+      .biz-set-nav { position: static; }
+      .biz-set-nav nav {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .biz-set-nav button { width: auto; flex: 0 0 auto; white-space: nowrap; }
+      .set-panel .sell-grid, .chk-row, .chk-row-3, .carousel-grid, .shortcut-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, refreshShellMenu } from './js/ultimate-shell.js';
+  import { loadBizSettings, saveBizSettings, BIZ_DEFAULTS, FIELD_OPS_FLOWS, ADDON_MODULE_FLAGS, CORE_MODULE_FLAGS, writeModulePreview, readModulePreview, clearModulePreview, MODULES_CHANGED } from './js/settings-store.js';
+  import { PRODUCT_CLASS_FLAGS } from './js/product-class.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadAccess, can, getAccess } from './js/rbac.js';
+  import { isOwnerRole, isHqRole, displayRole, canonRoleKey } from './js/access-rules.js';
+  import { applyStaffJob, publicJobLabel } from './js/staff-jobs.js';
+  import { JOB_GROUPS } from './js/job-catalog.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_ROLES, SEED_USERS } from './js/catalog-seed.js';
+  import {
+    hydrateGrantsFromRows, effectiveMap, grantChecksHtml, readGrantChecks,
+    overridesFromChecks, setRoleGrants, setUserGrants, writeRowFlags,
+  } from './js/module-grants.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const access = await loadAccess().catch(() => null);
+  const ownerOn = isOwnerRole(access?.roleName);
+  const app = document.getElementById('app');
+  let saved = await loadBizSettings();
+  let dirty = false;
+  const qtab = new URLSearchParams(location.search).get('tab') || 'business';
+  let tab = qtab;
+  let searchQ = '';
+  let rolesList = [];
+  let usersList = [];
+  let grantTarget = '';
+
+  const TABS = [
+    ['business', 'Business'],
+    ['tax', 'Tax'],
+    ['product', 'Product'],
+    ['contact', 'Contact'],
+    ['sale', 'Sale'],
+    ['pos', 'POS'],
+    ['display', 'Display Screen'],
+    ['purchases', 'Purchases'],
+    ['payment', 'Payment'],
+    ['dashboard', 'Dashboard'],
+    ['system', 'System'],
+    ['chevrons', 'Chevron styles'],
+    ['prefixes', 'Prefixes'],
+    ['email', 'Email Settings'],
+    ['sms', 'SMS Settings'],
+    ['reward', 'Reward Point Settings'],
+    ['modules', 'Modules'],
+    ['fieldops', 'Field Ops'],
+    ['labels', 'Custom Labels'],
+  ];
+
+  const TAB_PERM = {
+    business: 'settings.business',
+    tax: 'settings.business|tax.view',
+    product: 'settings.business|product.view',
+    contact: 'settings.business',
+    sale: 'settings.business',
+    pos: 'settings.business|pos.view',
+    display: 'settings.business',
+    purchases: 'settings.business|purchase.view_all',
+    payment: 'settings.business',
+    dashboard: 'dashboard.manage|settings.business',
+    system: 'settings.business',
+    chevrons: 'settings.business',
+    prefixes: 'settings.business',
+    email: 'settings.business',
+    sms: 'settings.business',
+    reward: 'settings.business',
+    modules: 'settings.business',
+    fieldops: 'settings.field_ops|settings.business',
+    labels: 'settings.business|product.edit',
+  };
+
+  function canSeeTab(k) {
+    if (k === 'modules') return ownerOn || isHqRole(access?.roleName);
+    if (ownerOn || isHqRole(access?.roleName)) return true;
+    const need = TAB_PERM[k];
+    return !need || can(need);
+  }
+
+  function esc(s) {
+    const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'};
+    return String(s ?? '').replace(/[&<>"']/g, (c) => map[c]);
+  }
+  const tip = (t) => `<span class="info-i" title="${esc(t)}">i</span>`;
+  const val = (id) => {
+    const p = readModulePreview();
+    if (Object.prototype.hasOwnProperty.call(p, id)) return p[id];
+    return saved[id] ?? BIZ_DEFAULTS[id] ?? '';
+  };
+  const inp = (id, lab, type = 'text', extra = '') =>
+    `<label class="fld">${lab}<input id="${id}" type="${type}" value="${esc(val(id))}" ${extra}></label>`;
+  const sel = (id, lab, opts) =>
+    `<label class="fld">${lab}<select id="${id}">${opts.map(([v, l]) =>
+      `<option value="${esc(v)}" ${String(val(id)) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
+  const LOCKED_MODULES = new Set(['module_home', 'module_system']);
+  const chk = (id, lab, hint = '') => {
+    const lock = LOCKED_MODULES.has(id);
+    return `<label class="chk${lock ? ' is-locked' : ''}"><input type="checkbox" id="${id}" ${lock || val(id) ? 'checked' : ''} ${lock ? 'disabled' : ''}> <span>${lab}${hint || lock ? ' ' + tip(lock ? 'Always on. Access keys apply to jobs on Orientation, not this room.' : hint) : ''}${lock ? ' <span class="hint">Always on</span>' : ''}</span></label>`;
+  };
+
+  function accessKeyRoleChecks() {
+    return JOB_GROUPS.filter((g) => g.keyed !== false && g.id !== 'leadership').map((g) => `
+      <h4 class="set-h" style="margin:14px 0 8px">${esc(g.label)}</h4>
+      <div class="chk-row-3">${g.jobs.map((j) => {
+        const id = 'ak_role_' + canonRoleKey(j.name);
+        return `<label class="chk"><input type="checkbox" id="${id}" ${val(id) ? 'checked' : ''}> <span>${esc(j.name)}</span></label>`;
+      }).join('')}</div>`).join('');
+  }
+
+  function parseGrantTarget(v) {
+    const s = String(v || grantTarget || '');
+    if (s.startsWith('user:')) return { kind: 'user', id: s.slice(5) };
+    if (s.startsWith('role:')) return { kind: 'role', name: s.slice(5) };
+    return { kind: 'role', name: s || 'Cashier' };
+  }
+
+  function defaultGrantTarget() {
+    const names = (rolesList || []).map((r) => r?.name).filter(Boolean);
+    const cash = names.find((n) => /^cashier$/i.test(n));
+    if (cash) return 'role:' + cash;
+    const skip = (n) => /^(owner|hq admin|admin)$/i.test(n);
+    const first = names.find((n) => !skip(n));
+    return first ? 'role:' + first : (names[0] ? 'role:' + names[0] : 'role:Cashier');
+  }
+
+  function personLabel(u) {
+    return u.full_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || u.email || u.id;
+  }
+
+  function grantSelectHtml() {
+    const uSeen = new Set();
+    const users = (usersList || []).map((u) => applyStaffJob(u)).filter((u) => {
+      if (!u?.id || uSeen.has(String(u.id))) return false;
+      uSeen.add(String(u.id));
+      return true;
+    }).sort((a, b) => personLabel(a).localeCompare(personLabel(b)));
+    const cur = grantTarget || defaultGrantTarget();
+    const groups = JOB_GROUPS.filter((g) => g.id !== 'gate');
+    return `
+      <div class="mod-pick" data-pick="role">
+        <div class="mod-pick-lab">Roles</div>
+        <input type="search" id="mod-target-q" placeholder="Search roles…" autocomplete="off" />
+        <select id="mod-target" size="12" aria-label="Role">
+          <option value="">Choose a role…</option>
+          ${groups.map((g) => `<optgroup label="${esc(g.label)}">
+            ${g.jobs.map((j) => `<option value="role:${esc(j.name)}" ${cur === 'role:' + j.name ? 'selected' : ''}>${esc(j.name)}</option>`).join('')}
+          </optgroup>`).join('')}
+        </select>
+      </div>
+      <div class="mod-pick" data-pick="person">
+        <div class="mod-pick-lab">People</div>
+        <input type="search" id="mod-people-q" placeholder="Search people…" autocomplete="off" />
+        <select id="mod-people" size="12" aria-label="Person">
+          <option value="">Choose a person…</option>
+          ${users.length
+            ? users.map((u) => {
+                const role = publicJobLabel(u, u.email);
+                return `<option value="user:${esc(u.id)}" ${cur === 'user:' + String(u.id) ? 'selected' : ''}>${esc(personLabel(u))}${role ? ' — ' + esc(role) : ''}</option>`;
+              }).join('')
+            : '<option value="" disabled>No people on this device yet</option>'}
+        </select>
+      </div>`;
+  }
+
+  function grantMapForTarget() {
+    const t = parseGrantTarget(grantTarget);
+    if (t.kind === 'user') {
+      const u = (usersList || []).find((x) => String(x.id) === String(t.id));
+      return effectiveMap(saved, { roleName: u?.role_name || u?.role || '', userId: t.id });
+    }
+    return effectiveMap(saved, { roleName: t.name });
+  }
+
+  function grantGridHtml() {
+    const map = grantMapForTarget();
+    return `<div id="mod-grant-grid">
+      <h4 class="set-h" style="margin:4px 0 8px">Main menus</h4>
+      <div class="chk-row-3">${grantChecksHtml(saved, map, { flags: CORE_MODULE_FLAGS })}</div>
+      <h4 class="set-h" style="margin:8px 0 8px">Color-coded</h4>
+      <div class="chk-row-3">${grantChecksHtml(saved, map, { flags: ADDON_MODULE_FLAGS })}</div>
+    </div>`;
+  }
+
+  function grantHint() {
+    const t = parseGrantTarget(grantTarget);
+    const meRole = String(access?.roleName || '').toLowerCase();
+    if (t.kind === 'user' && access?.userId && String(access.userId) === String(t.id)) {
+      return 'You are editing your own modules — Apply will change your left menu.';
+    }
+    if (t.kind === 'role' && meRole === String(t.name || '').toLowerCase()) {
+      return 'You are editing your own role — Apply will change your left menu.';
+    }
+    if (t.kind === 'user') return 'Saved for this person only. Their role still applies to everyone else.';
+    return 'Saved for everyone in this role. A person can still be given extra modules below the company ceiling.';
+  }
+
+  const MONTHS = [...Array(12)].map((_, i) => [String(i + 1), new Date(2000, i, 1).toLocaleString('en', { month: 'long' })]);
+  const UNITS = [['', 'Please Select'], ['Pcs', 'Pieces (Pcs)'], ['Kg', 'Kilogram (Kg)'], ['m', 'Meter (m)'], ['Box', 'Box'], ['Set', 'Set']];
+
+  function grab() {
+    const next = { ...saved };
+    app.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
+      if (!el.id || el.id === 'set_search' || el.id === 'mod-target' || el.id === 'mod-target-q' || el.id === 'mod-people' || el.id === 'mod-people-q' || el.dataset.gmod) return;
+      if (el.closest('#mod-who')) return;
+      if (el.type === 'checkbox') next[el.id] = el.checked;
+      else if (el.type === 'number') next[el.id] = el.value === '' ? '' : Number(el.value);
+      else if (el.type === 'file') { /* kept via data URL on change */ }
+      else next[el.id] = el.value;
+    });
+    next.module_home = true;
+    next.module_system = true;
+    return next;
+  }
+
+  function fileBrowse(id, lab) {
+    const cur = val(id);
+    return `<label class="fld">${lab}
+      <span class="file-browse">
+        <input type="file" id="${id}_file" accept="image/*" data-target="${id}">
+        <span class="browse-btn">Browse…</span>
+        ${cur ? `<img class="file-prev" src="${esc(cur)}" alt="">` : '<span class="file-hint">Previous image (if exists) will be replaced</span>'}
+      </span>
+      <input type="hidden" id="${id}" value="${esc(cur)}">
+    </label>`;
+  }
+
+  function panel() {
+    if (tab === 'business') return `
+      <div class="sell-grid">
+        ${inp('business_name', 'Business Name:*')}
+        ${inp('start_date', 'Start Date:', 'date')}
+        ${inp('default_profit_percent', `Default profit percent: ${tip('Default markup used when selling price is blank.')}`, 'number')}
+        ${sel('currency', 'Currency:', [['GHS', 'Ghana — Cedi (GHS)'], ['USD', 'America — Dollar (USD)'], ['EUR', 'Euro (EUR)'], ['NGN', 'Nigeria — Naira (NGN)'], ['GBP', 'UK — Pound (GBP)']])}
+        ${sel('currency_placement', 'Currency Symbol Placement:', [['before', 'Before amount'], ['after', 'After amount']])}
+        ${sel('timezone', 'Time zone:', [['Africa/Accra', 'Africa/Accra'], ['UTC', 'UTC'], ['Africa/Lagos', 'Africa/Lagos'], ['Europe/London', 'Europe/London']])}
+        ${fileBrowse('logo_url', 'Upload Logo:')}
+        ${sel('fy_start_month', `Financial year start month: ${tip('Month the financial year starts for P&L reports.')}`, MONTHS)}
+        ${sel('accounting_method', `Stock Accounting Method:* ${tip('FIFO is the Ghana default for GRA stock valuation.')}`, [['fifo', 'FIFO (First In First Out)'], ['lifo', 'LIFO (Last In First Out)']])}
+        ${inp('transaction_edit_days', `Transaction Edit Days:* ${tip('Days after which a finalized sale cannot be edited.')}`, 'number')}
+        ${sel('date_format', 'Date Format:*', [['d/m/Y', 'dd/mm/yyyy'], ['m/d/Y', 'mm/dd/yyyy'], ['Y-m-d', 'yyyy-mm-dd']])}
+        ${sel('time_format', 'Time Format:*', [['24', '24 Hour'], ['12', '12 Hour']])}
+        ${sel('currency_precision', `Currency precision: ${tip('Decimal places on money.')}`, [['0', '0'], ['2', '2'], ['3', '3']])}
+        ${sel('quantity_precision', `Quantity precision: ${tip('Decimal places on stock qty.')}`, [['0', '0'], ['2', '2'], ['4', '4']])}
+      </div>`;
+
+    if (tab === 'tax') return `
+      <div class="sell-grid">
+        ${inp('tax1_name', `Tax 1 Name ${tip('Shown on invoices. Ghana default is VAT.')}`)}
+        ${inp('tax1_no', 'Tax 1 No. (GRA TIN)')}
+        ${inp('tax2_name', 'Tax 2 Name')}
+        ${inp('tax2_no', 'Tax 2 No.')}
+        ${inp('tax_percent', 'Default tax % (POS)', 'number')}
+        ${sel('inline_tax', 'Enable inline tax in purchase and sell', [['yes', 'Yes'], ['no', 'No']])}
+      </div>
+      <p class="sub">Ghana VAT / NHIL / GETFund / COVID levies also live on Tax Rates. This default is what the till applies when a line has no rate.</p>`;
+
+    if (tab === 'product') {
+      const groups = [...new Set(PRODUCT_CLASS_FLAGS.map((f) => f.group))];
+      return `
+      <div class="sell-grid">
+        ${inp('sku_prefix', 'SKU prefix:')}
+        ${sel('default_unit', 'Default Unit:', UNITS)}
+        <div class="fld">Enable Product Expiry: ${tip('Adds an expiry date on each lot.')}
+          <span class="inline-pair">
+            <input type="checkbox" id="enable_product_expiry" ${val('enable_product_expiry') ? 'checked' : ''}>
+            <select id="on_product_expiry">
+              <option value="add_expiry" ${val('on_product_expiry') === 'add_expiry' ? 'selected' : ''}>Add item expiry</option>
+              <option value="keep_selling" ${val('on_product_expiry') === 'keep_selling' ? 'selected' : ''}>Keep selling</option>
+              <option value="stop_selling" ${val('on_product_expiry') === 'stop_selling' ? 'selected' : ''}>Stop selling</option>
+            </select>
+          </span>
+        </div>
+      </div>
+      ${groups.map((g) => `
+        <h3 class="set-h">${esc(g)}</h3>
+        <div class="chk-row-3">
+          ${PRODUCT_CLASS_FLAGS.filter((f) => f.group === g).map((f) => chk(f.flag, f.label, f.help)).join('')}
+        </div>`).join('')}
+      <h3 class="set-h">Warehouse extras</h3>
+      <div class="chk-row-3">
+        ${chk('enable_sub_units', 'Enable Sub Units', 'Lets a product sell in both carton and piece.')}
+        ${chk('enable_racks', 'Enable Racks', 'Warehouse rack / bin on the product.')}
+        ${chk('enable_row', 'Enable Row')}
+        ${chk('enable_position', 'Enable Position')}
+        ${chk('product_image_required', 'Is product image required?')}
+      </div>
+      <div class="mod-apply-row">
+        <button type="button" class="btn-apply-modules" id="apply-modules">Apply</button>
+        <p class="sub">Shows or hides these layers on Add Product and the product list now. Update Settings saves the set.</p>
+      </div>`;
+    }
+
+    if (tab === 'contact') return `
+      <div class="sell-grid">
+        ${inp('default_credit_limit', 'Default credit limit', 'number')}
+        ${inp('default_customer_group', 'Default customer group')}
+      </div>
+      <p class="sub">Credit limit and group are stamped on new customers. Each contact still belongs to a subsidiary and location.</p>`;
+
+    if (tab === 'sale') return `
+      <div class="sell-grid">
+        ${inp('default_sale_discount', 'Default Sale Discount:*', 'number')}
+        ${sel('default_sale_tax', 'Default Sale Tax:', [['', 'None'], ['VAT', 'VAT 15%'], ['NHIL', 'NHIL 2.5%']])}
+        ${sel('item_addition_method', 'Sales Item Addition Method:', [['increment', 'Increase item quantity if exist'], ['new', 'Add new row']])}
+        ${sel('amount_rounding', `Amount rounding method: ${tip('Applied on the invoice total.')}`, [['none', 'None'], ['nearest', 'Nearest whole'], ['0.05', 'Nearest 0.05'], ['0.1', 'Nearest 0.1']])}
+        ${chk('sales_price_is_min', 'Sales price is minimum selling price')}
+        ${chk('allow_overselling', 'Allow Overselling', 'Sell even when stock is zero.')}
+        ${chk('enable_sales_order', 'Enable Sales Order', 'Adds Sales Order under Sell.')}
+        ${chk('is_pay_term_required', 'Is pay term required?')}
+      </div>
+      <hr class="set-hr">
+      <h3 class="set-h">Commission Agent:</h3>
+      <div class="sell-grid">
+        ${sel('sales_cmsn_agent', 'Sales Commission Agent:', [['disable', 'Disable'], ['logged_in', 'Logged in user'], ['select', 'Select from list']])}
+        ${sel('cmsn_calculation_type', 'Commission Calculation Type:', [['invoice', 'Invoice value'], ['payment', 'Payment received']])}
+        ${chk('cmsn_agent_required', 'Is commission agent required?')}
+      </div>
+      <hr class="set-hr">
+      <h3 class="set-h">Payment Link ${tip('Invoice pay button. Customer settles by card or MoMo without coming to the till. Keys stay on this device.')}</h3>
+      <div class="chk-row">${chk('enable_payment_link', 'Enable payment link')}</div>
+
+      <p class="sub">Paystack: (GHS Ghana — card, MoMo, bank)</p>
+      <div class="sell-grid">
+        ${inp('paystack_public_key', 'Public Key:', 'text', 'placeholder="pk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off"')}
+        ${inp('paystack_secret_key', 'Secret Key:', 'password', 'placeholder="sk_test_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off"')}
+      </div>
+
+      <p class="sub">Hubtel Online Checkout: (GHS — MTN / Telecel / AT MoMo, cards, USSD)</p>
+      <div class="sell-grid">
+        ${inp('hubtel_merchant_account', 'Merchant Account No.:', 'text', 'placeholder="HM2012345" autocomplete="off"')}
+        ${inp('hubtel_client_id', 'Client ID:', 'text', 'placeholder="4f8c2a91-7b3e-4d16-9a0c-1e5f8b2d6c47" autocomplete="off"')}
+        ${inp('hubtel_client_secret', 'Client Secret:', 'password', 'placeholder="paste Client Secret from Hubtel dashboard" autocomplete="off"')}
+      </div>
+      <div class="gw-ex">
+        <div class="gw-ex-h">Hubtel key example (sandbox format — copy from <a href="https://unity.hubtel.com/" target="_blank" rel="noopener">unity.hubtel.com</a> → API accounts → HTTP Rest API)</div>
+        <pre>Merchant Account No.  HM2012345
+Client ID             4f8c2a91-7b3e-4d16-9a0c-1e5f8b2d6c47
+Client Secret         9b7e4c1a2d5f8e3b6c0a4d7e1f2b5c8a
+Authorization         Basic base64(ClientID:ClientSecret)</pre>
+      </div>
+
+      <p class="sub">MTN MoMo Collections: (direct wallet debit — Request to Pay)</p>
+      <div class="sell-grid">
+        ${sel('momo_environment', 'Environment:', [['sandbox', 'Sandbox (momodeveloper.mtn.com)'], ['mtn-ghana', 'Production — MTN Ghana']])}
+        ${inp('momo_subscription_key', 'Subscription Key (Primary):', 'password', 'placeholder="1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d" autocomplete="off"')}
+        ${inp('momo_api_user', 'API User ID:', 'text', 'placeholder="550e8400-e29b-41d4-a716-446655440000" autocomplete="off"')}
+        ${inp('momo_api_key', 'API Key:', 'password', 'placeholder="3f2504e0-4f89-11d3-9a0c-0305e82c3301" autocomplete="off"')}
+        ${inp('momo_callback_url', 'Callback URL:', 'url', 'placeholder="https://your-domain.com/api/momo/callback" autocomplete="off"')}
+      </div>
+      <div class="gw-ex">
+        <div class="gw-ex-h">MTN MoMo key example (sandbox — from <a href="https://momodeveloper.mtn.com/" target="_blank" rel="noopener">momodeveloper.mtn.com</a> → Collections)</div>
+        <pre>Ocp-Apim-Subscription-Key  1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d
+API User ID                550e8400-e29b-41d4-a716-446655440000
+API Key                    3f2504e0-4f89-11d3-9a0c-0305e82c3301
+Auth token                 Basic base64(API-User:API-Key)
+Target environment         sandbox  ·  live uses X-Target-Environment: mtn-ghana</pre>
+      </div>
+      <p class="sub">Telecel Cash and AirtelTigo collect through Hubtel checkout. Direct MTN wallets can also hit the MoMo Collections API above.</p>`;
+
+    if (tab === 'pos') return `
+      <h3 class="set-h">Add keyboard shortcuts:</h3>
+      <p class="sub">Shortcut should be the names of the keys separated by '+'. Example: <b>ctrl+shift+b</b>, <b>ctrl+h</b>.<br>
+      Available key names are: shift, ctrl, alt, backspace, tab, enter, return, capslock, esc, escape, space, pageup, pagedown, end, home, left, up, right, down, ins, del, and plus</p>
+      <div class="shortcut-grid">
+        <div class="shortcut-col">
+          <div class="shortcut-head"><span>Operations</span><span>Keyboard Shortcut</span></div>
+          ${inp('pos_shortcut_express', 'Express Checkout:')}
+          ${inp('pos_shortcut_pay', 'Pay & Checkout:')}
+          ${inp('pos_shortcut_draft', 'Draft:')}
+          ${inp('pos_shortcut_cancel', 'Cancel:')}
+          ${inp('pos_shortcut_qty', 'Go to product quantity:')}
+          ${inp('pos_shortcut_weighing', 'Weighing Scale:')}
+        </div>
+        <div class="shortcut-col">
+          <div class="shortcut-head"><span>Operations</span><span>Keyboard Shortcut</span></div>
+          ${inp('pos_shortcut_discount', 'Edit Discount:')}
+          ${inp('pos_shortcut_order_tax', 'Edit Order Tax:')}
+          ${inp('pos_shortcut_add_payment', 'Add Payment Row:')}
+          ${inp('pos_shortcut_finalize', 'Finalize Payment:')}
+          ${inp('pos_shortcut_add_product', 'Add new product:')}
+        </div>
+      </div>
+      <h3 class="set-h">POS settings:</h3>
+      <div class="chk-row-3">
+        ${chk('pos_disable_multiple_pay', 'Disable Multiple Pay')}
+        ${chk('pos_disable_draft', 'Disable Draft')}
+        ${chk('pos_disable_express_checkout', 'Disable Express Checkout')}
+        ${chk('pos_hide_product_suggestion', "Don't show product suggestion")}
+        ${chk('pos_hide_recent_trans', "Don't show recent transactions")}
+        ${chk('pos_disable_discount', 'Disable Discount')}
+        ${chk('pos_disable_order_tax', 'Disable order tax')}
+        ${chk('pos_subtotal_editable', 'Subtotal Editable', 'Cashier can type the line subtotal.')}
+        ${chk('pos_disable_suspend', 'Disable Suspend Sale')}
+        ${chk('pos_enable_transaction_date', 'Enable transaction date on POS screen')}
+        ${chk('pos_enable_service_staff', 'Enable cashier staff in product line', 'Assign a cashier (Sales Associate) on each cart line.')}
+        ${chk('pos_service_staff_required', 'Is cashier staff required')}
+        ${chk('pos_disable_credit_sale', 'Disable credit sale button', 'Hides Pay Later / credit on the till.')}
+        ${chk('pos_enable_weighing', 'Enable Weighing Scale')}
+        ${chk('pos_show_invoice_scheme', 'Show invoice scheme')}
+        ${chk('pos_show_invoice_layout', 'Show invoice layout dropdown')}
+        ${chk('pos_print_on_suspend', 'Print invoice on suspend')}
+        ${chk('pos_show_pricing_tooltip', 'Show pricing on product suggestion tooltip')}
+      </div>
+      <div class="mod-apply-row">
+        <button type="button" class="btn-apply-modules" id="apply-modules">Apply</button>
+        <p class="sub">Hides or shows till buttons now. Open POS to see it. Update Settings saves the set.</p>
+      </div>
+      <h3 class="set-h">Weighing Scale barcode Setting:</h3>
+      <p class="sub">Configure barcode as per your weighing scale.</p>
+      <div class="sell-grid">
+        ${inp('ws_prefix', 'Prefix:')}
+        ${sel('ws_sku_length', 'Product sku length:', [['4', '4'], ['5', '5'], ['6', '6'], ['7', '7'], ['8', '8']])}
+        ${sel('ws_qty_int_length', 'Quantity integer part length:', [['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']])}
+        ${sel('ws_qty_frac_length', 'Quantity fractional part length:', [['0', '0'], ['2', '2'], ['3', '3'], ['4', '4']])}
+      </div>`;
+
+    if (tab === 'display') return `
+      ${chk('enable_customer_display', 'Enable Customer display screen')}
+      <p class="sub">For customer display screen to work, make sure it's opened in same browser as POS screen in new tab. And that tab is mirrored to another customer-facing display monitor.</p>
+      <label class="fld">Display screen heading:
+        <textarea id="display_screen_heading" rows="6">${esc(val('display_screen_heading'))}</textarea>
+      </label>
+      <div class="carousel-grid">
+        ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => fileBrowse('carousel_image_' + n, 'Carousel Image ' + n + ':')).join('')}
+      </div>`;
+
+    if (tab === 'purchases') return `
+      <div class="chk-row">
+        ${chk('enable_editing_product_from_purchase', 'Enable editing product price from purchase screen', 'Lets purchasing change the product cost from the PO.')}
+        ${chk('enable_purchase_status', 'Enable Purchase Status', 'Ordered / pending / received on purchases.')}
+        ${chk('enable_lot_number', 'Enable Lot number', 'Tracks manufacturer lot on each receipt.')}
+        ${chk('enable_purchase_order', 'Enable purchase order')}
+        ${chk('enable_purchase_requisition', 'Enable Purchase Requisition', 'Internal request before a PO is raised.')}
+      </div>`;
+
+    if (tab === 'payment') return `
+      <div class="sell-grid">${inp('cash_denoms', 'Cash denominations (comma separated)')}</div>
+      <div class="chk-row">
+        ${chk('enable_cash_denomination_on_pos', 'Enable cash denomination on POS')}
+        ${chk('enable_cash_denomination_for_payment_methods', 'Enable cash denomination for payment methods')}
+        ${chk('strict_check_on_denomination', 'Strict check — payment amount must match denomination total')}
+      </div>
+      <p class="sub">Location-level default accounts (Cash, Card, Cheque, Bank Transfer, MoMo) are on each Business Location → Payment Options. Paystack, Hubtel and MTN MoMo collection keys live on the Sale tab → Payment Link.</p>`;
+
+    if (tab === 'dashboard') return `
+      <div class="chk-row">${chk('view_stock_expiry_alert', 'View stock expiry alert')}</div>
+      ${inp('stock_expiry_alert_days', 'Stock expiry alert days', 'number')}
+      <p class="sub">Head-office dashboards show group figures. Cashier / agent / customer / supplier dashboards stay scoped to that user group.</p>`;
+
+    if (tab === 'system') return `
+      <div class="sell-grid">
+        ${inp('datatable_page_entries', 'Datatable page entries', 'number')}
+        ${sel('theme_color', 'Theme color', [['blue', 'Blue'], ['black', 'Black']])}
+        ${inp('meet_code', 'Google Meet code or URL')}
+      </div>
+      ${chk('enable_row_number', 'Show row numbers')}
+      <p class="sub">Meet code is used when staff click Meet in Messages. Google Meet cannot sit inside this page (Google blocks embedding), so Meet opens a join window. The team room stays in this window. Date and time format live on the Business tab.</p>`;
+
+    if (tab === 'chevrons') return `<div id="chev-mount"></div>`;
+
+    if (tab === 'prefixes') return `
+      <div class="sell-grid">
+        ${inp('prefix_purchase', 'Purchase:')}
+        ${inp('prefix_purchase_return', 'Purchase Return:')}
+        ${inp('prefix_purchase_requisition', 'Purchase Requisition:')}
+        ${inp('prefix_purchase_order', 'Purchase Order:')}
+        ${inp('prefix_stock_transfer', 'Stock Transfer:')}
+        ${inp('prefix_stock_adjustment', 'Stock Adjustment:')}
+        ${inp('prefix_sell_return', 'Sell Return:')}
+        ${inp('prefix_expense', 'Expenses:')}
+        ${inp('prefix_contacts', 'Contacts:')}
+        ${inp('prefix_purchase_payment', 'Purchase Payment:')}
+        ${inp('prefix_sell_payment', 'Sell Payment:')}
+        ${inp('prefix_expense_payment', 'Expense Payment:')}
+        ${inp('prefix_business_location', 'Business Location:')}
+        ${inp('prefix_username', 'Username:')}
+        ${inp('prefix_subscription', 'Subscription No.:')}
+        ${inp('prefix_draft', 'Draft:')}
+        ${inp('prefix_sale_order', 'Sales Order:')}
+        ${inp('prefix_quotation', 'Quotation:')}
+      </div>`;
+
+    if (tab === 'email') return `
+      ${ownerOn ? chk('use_superadmin_settings', 'Use superadmin mail settings') : ''}
+      <div class="sell-grid" id="toggle_visibility">
+        ${sel('mail_driver', 'Mail driver', [['smtp', 'SMTP'], ['sendmail', 'Sendmail']])}
+        ${inp('mail_host', 'Host')}
+        ${inp('mail_port', 'Port')}
+        ${inp('mail_username', 'Username')}
+        ${inp('mail_password', 'Password')}
+        ${sel('mail_encryption', 'Encryption', [['tls', 'TLS'], ['ssl', 'SSL'], ['', 'None']])}
+        ${inp('mail_from_address', 'From address')}
+        ${inp('mail_from_name', 'From name')}
+      </div>
+      <p><button type="button" class="ult-btn ult-btn-outline" id="test_email_btn">Test Email</button></p>
+      <p class="sub">This app cannot send SMTP from the browser. Test Email validates the fields; live send uses the connector.</p>`;
+
+    if (tab === 'sms') return `
+      <div class="sell-grid">
+        ${inp('sms_settings_url', 'SMS URL')}
+        ${inp('send_to_param_name', 'Send to parameter')}
+        ${inp('msg_param_name', 'Message parameter')}
+        ${sel('request_method', 'Request method', [['post', 'POST'], ['get', 'GET']])}
+        ${inp('sms_from', 'From name')}
+        ${inp('test_number', 'Test number')}
+      </div>
+      <p><button type="button" class="ult-btn ult-btn-outline" id="test_sms_btn">Test SMS</button></p>
+      <p class="sub">Test SMS validates the number and URL. Live Ghana SMS (Hubtel / Mnotify) goes through the connector.</p>`;
+
+    if (tab === 'reward') return `
+      <div class="rp-box">
+        ${chk('enable_reward_points', 'Enable Reward Point')}
+        ${inp('rp_name', 'Reward Point Display Name:')}
+        <h4>Earning Points Settings:</h4>
+        <div class="sell-grid">
+          ${inp('rp_earn_amount', `Amount spend for unit point: ${tip('Spend this amount to earn 1 point.')}`, 'number')}
+          ${inp('rp_min_order_earn', `Minimum order total to earn reward: ${tip('Order must reach this total before points accrue.')}`, 'number')}
+          ${inp('rp_max_points_per_order', 'Maximum points per order:', 'number')}
+        </div>
+      </div>
+      <div class="rp-box">
+        <h4>Redeem Points Settings:</h4>
+        <div class="sell-grid">
+          ${inp('rp_redeem_amount', `Redeem amount per unit point: ${tip('Value of 1 point when redeemed.')}`, 'number')}
+          ${inp('rp_min_order', 'Minimum order total to redeem points:', 'number')}
+          ${inp('rp_min_redeem', `Minimum redeem point: ${tip('Customer must hold at least this many points.')}`, 'number')}
+          ${inp('rp_max_redeem_per_order', 'Maximum redeem point per order:', 'number')}
+          <label class="fld">Reward Point expiry period: ${tip('Leave blank for no expiry.')}
+            <span class="inline-pair">
+              <input id="rp_expiry" type="number" value="${esc(val('rp_expiry'))}" placeholder="Reward Point expiry per">
+              <select id="rp_expiry_unit">
+                ${[['year', 'Year'], ['month', 'Month'], ['day', 'Day']].map(([v, l]) =>
+                  `<option value="${v}" ${val('rp_expiry_unit') === v ? 'selected' : ''}>${l}</option>`).join('')}
+              </select>
+            </span>
+          </label>
+        </div>
+      </div>`;
+
+    if (tab === 'modules') return `
+      <h3 class="set-h">Enable/Disable Modules</h3>
+      <p class="sub">Company ceiling for the main rooms: Home → Records → Operations → Purchases → Sales → Finance → Collections → Reports → System. Child screens follow the parent. Untick a room to hide it for everyone (troubleshooting). <strong>Home</strong> and <strong>System</strong> stay on — they are not on the access-key list.</p>
+      <div class="chk-row-3">
+        ${CORE_MODULE_FLAGS.map((m) => chk(m.flag, m.label)).join('')}
+      </div>
+      <div class="mod-apply-row">
+        <button type="button" class="btn-apply-modules" id="apply-modules">Apply</button>
+        <p class="sub">Applies the company ticks to the left menu now. Does not replace Update Settings.</p>
+      </div>
+      <h3 class="set-h">Color-coded modules</h3>
+      <p class="sub">Add-on rooms after the main menus (Communications, Field Ops, Call Centre, WMS, HRM, Accounting…). Tick or untick, then Apply to show or hide them on the left immediately. Update Settings saves the set.</p>
+      <div class="chk-row-3">
+        ${ADDON_MODULE_FLAGS.map((m) => chk(m.flag, m.label)).join('')}
+      </div>
+      <div class="mod-apply-row">
+        <button type="button" class="btn-apply-modules" id="apply-modules-addons">Apply</button>
+        <p class="sub">Applies the color-coded ticks now. Does not replace Update Settings.</p>
+      </div>
+      <div class="mod-who" id="mod-who">
+        <h3>Modules for a role or person</h3>
+        <p class="sub">Company ticks above are the ceiling. Use <strong>Roles</strong> for a job, or <strong>People</strong> for one person. They are two lists. Modules the company has switched off stay hidden.</p>
+        <div class="mod-who-bar">
+          ${grantSelectHtml()}
+        </div>
+        ${grantGridHtml()}
+        <div class="mod-apply-row">
+          <button type="button" class="btn-apply-modules" id="apply-role-modules">Apply for this ${parseGrantTarget(grantTarget).kind === 'user' ? 'person' : 'role'}</button>
+          <p class="sub" id="mod-grant-hint">${esc(grantHint())}</p>
+        </div>
+      </div>
+      <h3 class="set-h">Access key (orientation)</h3>
+      <p class="sub">Tick the jobs that must enter a key on Orientation. Head-office jobs (Retail Operations, Supply Chain, office) get <strong>HO-XXXX-XXXX</strong> and land on the group dashboard. Shop floor and field get <strong>OP-XXXX-XXXX</strong> and land on the till or field floor. Leadership is never keyed.</p>
+      ${chk('access_key_enabled', 'Use access keys for the jobs below')}
+      <div style="margin-top:10px">
+        ${accessKeyRoleChecks()}
+      </div>`;
+
+    if (tab === 'fieldops') {
+      const groups = [...new Set(FIELD_OPS_FLOWS.map((f) => f.group))];
+      return `
+      <p class="sub">Field Ops is a separate floor. It does not inherit the ERP. Tick only the books that may copy across when BNPL Field Sales is on. Accounting, HR and purchases stay off unless you deliberately open them.</p>
+      ${groups.map((g) => `
+        <h3 class="set-h">${esc(g)}</h3>
+        <div class="chk-row-3">
+          ${FIELD_OPS_FLOWS.filter((f) => f.group === g).map((f) => chk(f.id, f.label, f.help)).join('')}
+        </div>`).join('')}
+      <p class="sub">Open Field Ops from the left menu: BNPL (Hire Purchase) → BNPL Field Sales.</p>
+      <div class="mod-apply-row">
+        <button type="button" class="btn-apply-modules" id="apply-modules">Apply</button>
+        <p class="sub">Opens or closes Field Ops books now. Update Settings saves the set.</p>
+      </div>`;
+    }
+
+    if (tab === 'labels') return `
+      <div class="sell-grid">
+        ${inp('custom_label_1', 'Product custom field 1')}
+        ${sel('custom_label_1_type', 'Type', [['text', 'Text'], ['dropdown', 'Dropdown']])}
+        ${inp('custom_label_2', 'Product custom field 2')}
+        ${sel('custom_label_2_type', 'Type', [['text', 'Text'], ['dropdown', 'Dropdown']])}
+        ${inp('custom_label_3', 'Product custom field 3')}
+        ${sel('custom_label_3_type', 'Type', [['text', 'Text'], ['dropdown', 'Dropdown']])}
+        ${inp('custom_label_4', 'Product custom field 4')}
+        ${sel('custom_label_4_type', 'Type', [['text', 'Text'], ['dropdown', 'Dropdown']])}
+      </div>
+      <div class="custom_label_product_dropdown ${val('custom_label_1_type') === 'dropdown' ? '' : 'hide'}">
+        <label class="fld">Dropdown options (one per line)<textarea id="custom_label_1_options" rows="4">${esc(val('custom_label_1_options'))}</textarea></label>
+      </div>`;
+    return '';
+  }
+
+  function bindFiles() {
+    app.querySelectorAll('input[type=file][data-target]').forEach((inpEl) => {
+      inpEl.addEventListener('change', () => {
+        const file = inpEl.files && inpEl.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const hid = document.getElementById(inpEl.dataset.target);
+          if (hid) hid.value = String(reader.result || '');
+          saved[inpEl.dataset.target] = hid?.value || '';
+          dirty = true;
+          const wrap = inpEl.closest('.file-browse');
+          if (wrap) {
+            wrap.querySelector('.file-hint')?.remove();
+            let img = wrap.querySelector('.file-prev');
+            if (!img) { img = document.createElement('img'); img.className = 'file-prev'; wrap.appendChild(img); }
+            img.src = String(reader.result || '');
+          }
+          toast('Image attached — click Update Settings to save');
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+
+  const TAB_HELP = {
+    business: 'Company identity, currency, dates and stock method for the whole group.',
+    tax: 'VAT, NHIL and the default till rate. GRA TIN lives here; extra levies stay on Tax Rates.',
+    product: 'Classification layers for the catalogue. Tick only the levels cashiers and agents should see.',
+    contact: 'Defaults stamped on new customers and suppliers.',
+    sale: 'Discounts, overselling, sales orders and payment-link keys.',
+    pos: 'Till shortcuts, till buttons and the weighing-scale barcode.',
+    display: 'Customer-facing display screen and carousel images.',
+    purchases: 'Purchase status, lots, orders and requisitions.',
+    payment: 'Cash denominations on the till and payment methods.',
+    dashboard: 'Home widgets and stock-expiry alerts.',
+    system: 'Table size, theme, row numbers, and the company Google Meet code.',
+    chevrons: 'Arrow family, size, placement, and open/closed direction on the left menu.',
+    prefixes: 'Document number prefixes for each voucher type.',
+    email: 'Outgoing mail host. Test send uses the connector.',
+    sms: 'SMS gateway for sale and payment notices.',
+    reward: 'Loyalty points earned and redeemed on the till.',
+    modules: 'Turn add-on modules on or off, then pick which jobs must use an access key on Orientation.',
+    fieldops: 'Tick the books that may flow from the ERP into Field Ops. Unticked books stay in the office.',
+    labels: 'Custom product fields shown on Add Product.',
+  };
+
+  function paint() {
+    const visibleTabs = TABS.filter(([k]) => canSeeTab(k));
+    if (!visibleTabs.some(([k]) => k === tab)) tab = visibleTabs[0]?.[0] || 'business';
+    const filtered = visibleTabs.filter(([, l]) => !searchQ || l.toLowerCase().includes(searchQ.toLowerCase()));
+    const tabLabel = (TABS.find(([k]) => k === tab) || ['', 'Settings'])[1];
+    app.innerHTML = `
+      <h1>Business Settings</h1>
+      <div class="biz-set">
+        <aside class="biz-set-nav">
+          <div class="biz-set-search">
+            <span aria-hidden="true">⌕</span>
+            <input id="set_search" placeholder="Search settings" value="${esc(searchQ)}" autocomplete="off">
+          </div>
+          <nav>${visibleTabs.map(([k, l]) =>
+            `<button type="button" class="${k === tab ? 'on' : ''}" data-t="${k}" ${filtered.some((f) => f[0] === k) ? '' : 'hidden'}>${l}</button>`
+          ).join('')}</nav>
+        </aside>
+        <section class="biz-set-main">
+          <header class="biz-set-head">
+            <h2>${esc(tabLabel)}</h2>
+            <p class="sub">${esc(TAB_HELP[tab] || '')}</p>
+          </header>
+          <form id="bussiness_edit_form" class="set-panel">
+            ${panel()}
+          </form>
+          <div class="set-update-wrap">
+            ${['modules', 'pos', 'fieldops', 'product'].includes(tab) ? '<button type="button" class="btn-apply-modules" id="apply-modules-foot">Apply</button>' : ''}
+            ${tab === 'chevrons' ? '' : '<button type="submit" form="bussiness_edit_form" class="btn-update-settings">Update Settings</button>'}
+          </div>
+        </section>
+      </div>`;
+    app.querySelectorAll('.biz-set-nav [data-t]').forEach((b) => {
+      b.onclick = () => { saved = grab(); tab = b.dataset.t; history.pushState({ spa: '/settings.html?tab=' + tab, tab: true }, '', '/settings.html?tab=' + tab); paint(); };
+    });
+    document.getElementById('set_search').addEventListener('input', (e) => {
+      searchQ = e.target.value;
+      const q = searchQ.toLowerCase();
+      app.querySelectorAll('.biz-set-nav [data-t]').forEach((b) => {
+        b.hidden = q && !b.textContent.toLowerCase().includes(q);
+      });
+      const first = [...app.querySelectorAll('.biz-set-nav [data-t]')].find((b) => !b.hidden);
+      if (first && q && first.dataset.t !== tab) {
+        saved = grab();
+        tab = first.dataset.t;
+        history.replaceState({}, '', '?tab=' + tab);
+        const keep = searchQ;
+        paint();
+        const s = document.getElementById('set_search');
+        if (s) { s.value = keep; s.focus(); s.setSelectionRange(keep.length, keep.length); }
+      }
+    });
+    async function saveGrantTarget({ quiet } = {}) {
+      const t = parseGrantTarget(grantTarget);
+      const who = document.getElementById('mod-who') || app;
+      const checks = readGrantChecks(who);
+      if (t.kind === 'user' && t.id) {
+        const u = (usersList || []).find((x) => String(x.id) === String(t.id));
+        const roleName = u?.role_name || u?.role || '';
+        const flags = overridesFromChecks(saved, checks, { roleName, userId: t.id });
+        setUserGrants(t.id, flags);
+        if (u) {
+          u.module_flags = flags;
+          await writeRowFlags('user', u, flags);
+        }
+        const mine = access?.userId && String(access.userId) === String(t.id);
+        if (mine) await refreshShellMenu();
+        if (!quiet) {
+          toast(mine
+            ? 'Your modules updated. Click Update Settings to save the company ticks.'
+            : 'Modules saved for ' + personLabel(u || { id: t.id }) + '. They see it on next refresh.');
+        }
+        return { mine, kind: 'user' };
+      }
+      if (t.kind === 'role' && t.name) {
+        const flags = overridesFromChecks(saved, checks, { roleName: t.name });
+        setRoleGrants(t.name, flags);
+        const r = (rolesList || []).find((x) => String(x.name).toLowerCase() === String(t.name).toLowerCase());
+        if (r) {
+          r.module_flags = flags;
+          await writeRowFlags('role', r, flags);
+        }
+        const mine = String(access?.roleName || '').toLowerCase() === String(t.name).toLowerCase();
+        if (mine) await refreshShellMenu();
+        if (!quiet) {
+          toast(mine
+            ? 'Your role modules updated. Click Update Settings to save the company ticks.'
+            : 'Modules saved for the ' + t.name + ' role.');
+        }
+        return { mine, kind: 'role' };
+      }
+      return {};
+    }
+
+    function bindGrantUi() {
+      const roleSel = document.getElementById('mod-target');
+      const peopleSel = document.getElementById('mod-people');
+      const bindFilter = (qId, sel) => {
+        const q = document.getElementById(qId);
+        const filter = () => {
+          const s = String(q?.value || '').trim().toLowerCase();
+          sel?.querySelectorAll('option').forEach((o) => {
+            if (!o.value) { o.hidden = false; return; }
+            o.hidden = !!(s && !String(o.textContent || '').toLowerCase().includes(s));
+          });
+          sel?.querySelectorAll('optgroup').forEach((g) => {
+            g.hidden = ![...g.querySelectorAll('option')].some((o) => !o.hidden && o.value);
+          });
+        };
+        q?.addEventListener('input', filter);
+      };
+      const refreshGrant = () => {
+        const grid = document.getElementById('mod-grant-grid');
+        if (grid) grid.outerHTML = grantGridHtml();
+        const hint = document.getElementById('mod-grant-hint');
+        if (hint) hint.textContent = grantHint();
+        const btn = document.getElementById('apply-role-modules');
+        if (btn) btn.textContent = 'Apply for this ' + (parseGrantTarget(grantTarget).kind === 'user' ? 'person' : 'role');
+      };
+      bindFilter('mod-target-q', roleSel);
+      bindFilter('mod-people-q', peopleSel);
+      roleSel?.addEventListener('change', () => {
+        if (!roleSel.value) return;
+        grantTarget = roleSel.value;
+        if (peopleSel) peopleSel.value = '';
+        refreshGrant();
+      });
+      peopleSel?.addEventListener('change', () => {
+        if (!peopleSel.value) return;
+        grantTarget = peopleSel.value;
+        if (roleSel) roleSel.value = '';
+        refreshGrant();
+      });
+      document.getElementById('apply-role-modules')?.addEventListener('click', () => saveGrantTarget());
+    }
+
+    async function applyModules() {
+      const next = grab();
+      const pred = tab === 'fieldops' ? (k) => String(k).startsWith('field_flow_')
+        : tab === 'pos' ? (k) => String(k).startsWith('pos_') || String(k).startsWith('ws_')
+        : tab === 'product' ? (k) => PRODUCT_CLASS_FLAGS.some((f) => f.flag === k) || ['enable_sub_units','enable_racks','enable_row','enable_position','product_image_required','enable_product_expiry','on_product_expiry','sku_prefix','default_unit'].includes(k)
+        : (k) => String(k).startsWith('module_');
+      const flags = {};
+      Object.keys(next).forEach((k) => { if (pred(k)) flags[k] = next[k]; });
+      writeModulePreview(flags);
+      saved = { ...saved, ...flags };
+      try { window.dispatchEvent(new CustomEvent(MODULES_CHANGED, { detail: { tab, flags } })); } catch { /* ignore */ }
+      if (tab === 'modules') {
+        await saveGrantTarget({ quiet: true });
+        await refreshShellMenu();
+        const grid = document.getElementById('mod-grant-grid');
+        if (grid) grid.outerHTML = grantGridHtml();
+      }
+      toast(tab === 'pos'
+        ? 'Till settings applied. Open POS to see the buttons. Click Update Settings to save.'
+        : tab === 'fieldops'
+        ? 'Field Ops books applied. Open Field Ops to see the floor. Click Update Settings to save.'
+        : tab === 'product'
+        ? 'Product layers applied. Open Products or Add Product to see the fields. Click Update Settings to save.'
+        : 'Left menu updated for you. Role and person ticks are saved separately. Click Update Settings to save the company set.');
+    }
+    document.getElementById('apply-modules')?.addEventListener('click', applyModules);
+    document.getElementById('apply-modules-addons')?.addEventListener('click', applyModules);
+    document.getElementById('apply-modules-foot')?.addEventListener('click', applyModules);
+    bindGrantUi();
+    if (tab === 'chevrons') {
+      const mount = document.getElementById('chev-mount');
+      import('./js/chevron.js').then((m) => m.paintChevronSettings(mount)).catch((e) => {
+        if (mount) mount.innerHTML = '<p class="sub">Could not open chevron styles.</p>';
+        console.warn(e);
+      });
+    }
+    app.querySelectorAll('.chk.is-locked').forEach((lab) => {
+      lab.addEventListener('click', (e) => {
+        e.preventDefault();
+        const id = lab.querySelector('input')?.id;
+        const name = id === 'module_system' ? 'System' : 'Home';
+        toast('Access key required. ' + name + ' stays on.');
+        const box = lab.querySelector('input');
+        if (box) box.checked = true;
+      });
+    });
+    app.querySelector('#bussiness_edit_form').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Update settings?', 'These values apply across all subsidiaries. Lists still follow the sidebar filter.'))) return;
+      if (!can('settings.business') && !ownerOn && !isHqRole(access?.roleName)) {
+        toast('You cannot update settings', 'error');
+        return;
+      }
+      saved = grab();
+      if (!canSeeTab('modules')) {
+        Object.keys(saved).forEach((k) => {
+          if (String(k).startsWith('module_')) saved[k] = (BIZ_DEFAULTS[k] !== undefined ? undefined : saved[k]);
+        });
+        const prev = await loadBizSettings();
+        Object.keys(prev || {}).forEach((k) => {
+          if (String(k).startsWith('module_')) saved[k] = prev[k];
+        });
+      }
+      if (!ownerOn) saved.use_superadmin_settings = false;
+      saved = grab();
+      const { error, localOnly, hint } = await saveBizSettings(saved);
+      dirty = false;
+      if (error) toast(error.message, 'error');
+      else {
+        if (tab === 'modules' && document.getElementById('mod-who')) {
+          await saveGrantTarget({ quiet: true });
+        }
+        clearModulePreview();
+        await refreshShellMenu();
+        toast(localOnly ? (hint || 'Settings saved on this device') : 'Settings updated');
+      }
+    };
+    app.querySelector('#use_superadmin_settings')?.addEventListener('change', (e) => {
+      document.getElementById('toggle_visibility')?.classList.toggle('hide', e.target.checked);
+      document.getElementById('test_email_btn')?.classList.toggle('hide', e.target.checked);
+    });
+    if (saved.use_superadmin_settings) {
+      document.getElementById('toggle_visibility')?.classList.add('hide');
+      document.getElementById('test_email_btn')?.classList.add('hide');
+    }
+    document.getElementById('custom_label_1_type')?.addEventListener('change', (e) => {
+      document.querySelector('.custom_label_product_dropdown')?.classList.toggle('hide', e.target.value !== 'dropdown');
+    });
+    document.getElementById('test_email_btn')?.addEventListener('click', () => {
+      const d = grab();
+      if (!d.mail_host || !d.mail_from_address) { toast('Host and from address are required', 'error'); return; }
+      toast('Mail settings stored. Live send uses the connector — this app does not ship SMTP from the browser.');
+    });
+    document.getElementById('test_sms_btn')?.addEventListener('click', () => {
+      const d = grab();
+      if (!String(d.test_number || '').trim()) { toast('Test number is required', 'error'); document.getElementById('test_number')?.focus(); return; }
+      if (!d.sms_settings_url) { toast('SMS URL is required', 'error'); return; }
+      toast('SMS settings stored. Live send uses the connector.');
+    });
+    bindFiles();
+    app.querySelectorAll('input,select,textarea').forEach((el) => el.addEventListener('input', () => { dirty = true; }));
+  }
+  window.addEventListener('beforeunload', (e) => { if (dirty) e.preventDefault(); });
+  try {
+    const [rr, uu] = await Promise.all([
+      loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES),
+      loadRows('profiles', CAT_KEYS.users, SEED_USERS),
+    ]);
+    rolesList = rr || [];
+    usersList = uu || [];
+    hydrateGrantsFromRows(rolesList, usersList);
+  } catch { /* device lists stay empty — picker still works for seeded roles after retry */ }
+  if (!grantTarget) grantTarget = defaultGrantTarget();
+  window.addEventListener('df-tab', () => {
+    tab = new URLSearchParams(location.search).get('tab') || 'business';
+    paint();
+  });
+  window.addEventListener('popstate', () => {
+    tab = new URLSearchParams(location.search).get('tab') || 'business';
+    paint();
+  });
+  paint();
+</script>
+</body>
+</html>

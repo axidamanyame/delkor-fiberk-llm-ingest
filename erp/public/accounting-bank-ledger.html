@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bank Ledger — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script src="/js/boot-guard.js"></script>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { accNav, esc } from './js/accounting.js';
+  import { fmt } from './js/supabaseClient.js';
+  import {
+    ensureBankBooks, ledgerRows, statementSummary, LEDGER_CATS, setCategory, catLabel, getBankRole,
+  } from './js/bank-ledger.js';
+
+try {
+  const session = await mountUltimateShell();
+  if (!session) { location.replace('/login.html'); throw new Error('auth'); }
+  const app = document.getElementById('app');
+  const F = { search: '', category: '', from: '2026-06-01', to: '2026-09-08' };
+
+  function ymd(iso) {
+    const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || '');
+  }
+
+  async function paint() {
+    await ensureBankBooks();
+    const sum = statementSummary();
+    const rows = ledgerRows(F);
+    const role = getBankRole();
+    const cats = role === 'payroll'
+      ? LEDGER_CATS.filter((c) => c.key === 'salary')
+      : role === 'ops'
+        ? LEDGER_CATS.filter((c) => ['phone_inventory', 'rent', 'imprest', 'charges'].includes(c.key))
+        : LEDGER_CATS;
+    app.innerHTML = `
+      ${accNav('ledger')}
+      <div class="acc-top"><div>
+        <h1>Bank Ledger</h1>
+        <p class="sub">UBA Fiberk ${esc(sum.account_number)} · ${esc(ymd(sum.period_start))} – ${esc(ymd(sum.period_end))} · ${rows.length} lines</p>
+      </div>
+        <a class="ult-btn ult-btn-outline" href="/accounting-reconciliation.html">Reconciliation</a>
+      </div>
+      <div class="filters" style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px">
+        <input id="f-q" placeholder="Search description…" value="${esc(F.search)}" />
+        <select id="f-cat">
+          <option value="">All categories</option>
+          ${cats.map((c) => `<option value="${c.key}" ${F.category===c.key?'selected':''}>${esc(c.label)}</option>`).join('')}
+        </select>
+        <input id="f-from" type="date" value="${esc(F.from)}" />
+        <input id="f-to" type="date" value="${esc(F.to)}" />
+      </div>
+      <div class="ult-card">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Date</th><th>Description</th><th>Debit</th><th>Credit</th><th>Balance</th>
+            <th>Category</th><th>Linked module</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${esc(ymd(r.transaction_date))}</td>
+            <td>${esc(r.description)}</td>
+            <td class="num">${r.debit ? fmt(r.debit) : ''}</td>
+            <td class="num">${r.credit ? fmt(r.credit) : ''}</td>
+            <td class="num">${r.balance != null ? fmt(r.balance) : ''}</td>
+            <td>${role === 'finance' ? `<select data-cat="${esc(r.id)}">${LEDGER_CATS.map((c) =>
+              `<option value="${c.key}" ${c.key===r.category?'selected':''}>${esc(c.label)}</option>`).join('')}</select>`
+              : esc(catLabel(r.category))}</td>
+            <td>${esc(r.link_label || r.module || '—')}</td>
+          </tr>`).join('') || '<tr><td colspan="7">No ledger lines in this filter.</td></tr>'}</tbody>
+        </table></div>
+      </div>`;
+    const bind = () => {
+      F.search = app.querySelector('#f-q')?.value || '';
+      F.category = app.querySelector('#f-cat')?.value || '';
+      F.from = app.querySelector('#f-from')?.value || '';
+      F.to = app.querySelector('#f-to')?.value || '';
+      paint();
+    };
+    app.querySelector('#f-q')?.addEventListener('change', bind);
+    app.querySelector('#f-q')?.addEventListener('keyup', (e) => { if (e.key === 'Enter') bind(); });
+    app.querySelector('#f-cat')?.addEventListener('change', bind);
+    app.querySelector('#f-from')?.addEventListener('change', bind);
+    app.querySelector('#f-to')?.addEventListener('change', bind);
+    app.querySelectorAll('[data-cat]').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        setCategory(sel.dataset.cat, sel.value);
+        paint();
+      });
+    });
+  }
+
+  await paint();
+} catch (err) {
+  const app = document.getElementById('app');
+  if (app && !document.getElementById('ult-root')) {
+    app.innerHTML = `<div class="ult-card" style="margin:28px auto;max-width:520px;padding:20px">
+      <h1>Bank Ledger</h1>
+      <p>${String(err?.message || err || 'Could not open')}</p>
+      <p><a class="ult-btn ult-btn-primary" href="/login.html">Sign in</a>
+         <a class="ult-btn ult-btn-outline" href="/uba-fiberk.html">UBA Fiberk</a></p>
+    </div>`;
+  }
+}
+</script>
+</body>
+</html>

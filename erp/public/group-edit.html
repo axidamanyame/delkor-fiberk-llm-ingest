@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Group — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    label{display:block;font-weight:700;margin:12px 0 6px;color:#111}
+    input,select{width:100%;border:1px solid #111;border-radius:8px;padding:10px;box-sizing:border-box;color:#111}
+  </style>
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bootPartyGroupEdit } from './js/party-groups.js';
+  await mountUltimateShell();
+  await bootPartyGroupEdit();
+</script>
+</body>
+</html>

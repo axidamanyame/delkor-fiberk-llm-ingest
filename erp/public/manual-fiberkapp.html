@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Fiberkapp technical map — training</title>
+<link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/manual-ref.css" />
+<style>
+  body{font:15px/1.5 system-ui,sans-serif;color:#111;background:#eef1f6;margin:0}
+  main{max-width:980px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:28px;margin:0 0 8px}
+  h2{font-size:20px;margin:28px 0 8px;border-bottom:2px solid #5b6cff;padding-bottom:4px}
+  h3{font-size:16px;margin:18px 0 6px}
+  .sub{color:#4b5563}
+  table{width:100%;border-collapse:collapse;background:#fff;margin:8px 0 16px;font-size:13px}
+  th,td{border:1px solid #d5dde8;padding:7px 8px;vertical-align:top}
+  th{background:#5b6cff;color:#fff;text-align:left}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:4px}
+  ul{margin:6px 0 12px}
+</style>
+</head>
+<body>
+<main>
+<h1>Fiberkapp.com — technical training map</h1>
+<p class="sub">Britsoft Sales and Inventory Advanced (Ultimate POS v6) at fiberkapp.com, business title DELKOR II FIBERK. Layout and functions only. Live stock, customers, and amounts are not copied here.</p>
+<p class="sub">Each control below does at least three jobs: <b>open</b> (list or modal), <b>change</b> (edit / status / payment), <b>leave a record</b> (print, notify, or stock movement).</p>
+
+<h2>0. Shell</h2>
+<p>Black left rail. Active group is a purple chip. Main canvas is grey. Work sits in white cards. List pages share one schematic:</p>
+<ol>
+  <li>Page title</li>
+  <li>Filters card (funnel) — closed until opened on some desks, open on All sales</li>
+  <li>List card — Show N entries, Export CSV / Excel / Print / Column visibility / PDF, Search</li>
+  <li>Blue header DataTable, first column usually Action (except Products: checkbox, image, then Action)</li>
+  <li>Teal outline <b>Actions ▾</b> dropdown</li>
+  <li><b>View</b> = Bootstrap modal-xl fragment. <b>Edit / Add</b> = full page form.</li>
+</ol>
+<p>Top quick-adds (every page footer/header): Add Sale, Add Purchase, Add Product, Add Expense, Add Stock Transfer, Add Stock Adjustment, Add Draft, Add Quotation.</p>
+<p>Code on their side: Laravel + DataTables <code>serverSide</code> + <code>product.js</code> / module JS. List AJAX is often the same URL as the page (<code>GET /products</code>, <code>GET /sells</code>, <code>GET /purchases</code>) with <code>X-Requested-With: XMLHttpRequest</code>.</p>
+
+<h2>1. Home</h2>
+<p><code>/home</code> — KPI tiles (Total Sales and siblings), location switcher, date filter, clock in/out modal, calculator, notifications. Three jobs: show period totals, switch business location, open POS / today’s profit.</p>
+
+<h2>2. Products</h2>
+<table>
+<tr><th>Submenu</th><th>URL</th><th>What it is</th><th>Three jobs</th></tr>
+<tr><td>List Products</td><td>/products</td><td>Master catalogue DataTable</td><td>Filter type/category/brand/unit/tax/location; Actions on a SKU; mass delete selected</td></tr>
+<tr><td>Add Product</td><td>/products/create</td><td>Full form</td><td>Name/SKU/unit/brand/category/locations; purchase &amp; sell price; IMEI flag + custom fields SUPPLIERS…JIJI</td></tr>
+<tr><td>Update Price</td><td>/update-product-price</td><td>Excel import</td><td>Export current prices; upload file; write new DPP/DSP</td></tr>
+<tr><td>Print Labels</td><td>/labels/show</td><td>Barcode sheet</td><td>Pick product; pick sticker layout; print</td></tr>
+<tr><td>Variations</td><td>/variation-templates</td><td>Size/colour templates</td><td>Add template; edit values; delete</td></tr>
+<tr><td>Import Products</td><td>/import-products</td><td>Bulk SKU load</td><td>Download template; upload; review errors</td></tr>
+<tr><td>Import Opening Stock</td><td>/import-opening-stock</td><td>Qty + cost by location</td><td>Template; upload; stock ledger rows</td></tr>
+<tr><td>Selling Price Group</td><td>/selling-price-group</td><td>Price lists</td><td>Add group; assign to location; edit SKU prices</td></tr>
+<tr><td>Units / Categories / Brands / Warranties</td><td>/units /taxonomies /brands /warranties</td><td>Lookups</td><td>Add; edit; delete. Categories are parent/child (shown as “Cat -- Sub”).</td></tr>
+</table>
+<p><b>List Products columns (live thead):</b> checkbox, Product image, Action, Product, Business Location (ℹ “Product will be available only in this business locations”), Unit Purchase Price, Selling Price, Current stock, Product Type, Category, Brand, Tax, SKU, SUPPLIERS, JUMIA, COMPUGHANA, GET4LESS, TELEFONIKA, FRANKO, JIJI.</p>
+<p><b>Actions on a product (server HTML):</b> Labels · View (modal-xl) · Edit (page) · Delete · divider · Add or edit opening stock (modal) · Product stock history · Add or edit Group Prices · Duplicate Product.</p>
+
+<h2>3. Sale</h2>
+<table>
+<tr><th>Submenu</th><th>URL</th><th>Three jobs</th></tr>
+<tr><td>All sales</td><td>/sells</td><td>Filter location/customer/payment/date/user/agent/staff/ship/method; Actions on invoice; export</td></tr>
+<tr><td>Add Sale</td><td>/sells/create</td><td>Customer + location + lines + payments; save; print</td></tr>
+<tr><td>List POS / POS</td><td>/pos · /pos/create</td><td>Open register; ring SKUs; close register</td></tr>
+<tr><td>Drafts / Quotations</td><td>/sells/drafts · /sells/quotations</td><td>Park a cart; convert to sale; delete</td></tr>
+<tr><td>List Sell Return</td><td>/sell-return</td><td>Pick original invoice; return qty; refund / credit</td></tr>
+<tr><td>Shipments</td><td>/shipments</td><td>Set shipping status; print packing/delivery; notify</td></tr>
+<tr><td>Discounts</td><td>/discount</td><td>Add rule; limit dates/locations; end rule</td></tr>
+<tr><td>Import Sales</td><td>/import-sales</td><td>Template; upload; post invoices</td></tr>
+</table>
+<p><b>All sales filters:</b> Business Location, Customer, Payment Status, Date Range, User, Sales Commission Agent, Service staff, Shipping Status, Subscriptions checkbox, Payment Method.</p>
+<p><b>All sales columns:</b> Action, Date, Invoice No., Customer name, Contact Number, Location, Payment Status, Payment Method, Total amount, Total paid, Sell Due, Sell Return Due, Shipping Status, Total Items, Types of service, Custom Field 1, Added By, Sell note, Staff note, Shipping Details, Table, Service staff.</p>
+<p><b>Actions on a sale:</b> View (modal) · Edit (POS edit page) · Delete · Edit Shipping (modal) · Print Invoice · Packing Slip · Delivery Note · divider · Add payment (modal) · View Payments (modal) · Sell Return · Invoice URL · New Sale Notification (modal template).</p>
+
+<h2>4. Purchases</h2>
+<table>
+<tr><th>Submenu</th><th>URL</th><th>Three jobs</th></tr>
+<tr><td>List Purchases</td><td>/purchases</td><td>Filter location/supplier/status/payment/date; Actions; export</td></tr>
+<tr><td>Add Purchase</td><td>/purchases/create</td><td>Supplier*, date*, status*, location*, line search, discount/tax/shipping, payment block, save</td></tr>
+<tr><td>List Purchase Return</td><td>/purchase-return</td><td>Pick PO; return qty; adjust due</td></tr>
+</table>
+<p><b>List columns:</b> Action, Date, Reference No, Location, Supplier, Purchase Status, Payment Status, Grand Total, Payment due, Added By.</p>
+<p><b>Actions:</b> View (modal-xl — Supplier / Business / meta + green line table) · Print · Edit (page) · Delete · Labels · divider · Add payment · View Payments · Purchase Return · Update Status · Items Received Notification.</p>
+<p>View modal header: <code>Purchase Details (Reference No: #PO…)</code>.</p>
+
+<h2>5. Manufacturing</h2>
+<p><code>/manufacturing/recipe</code> — recipes that turn components into a finished SKU. Three jobs: define recipe, produce a batch (consume components), see finished stock.</p>
+
+<h2>6. Repair</h2>
+<p><code>/repair/dashboard</code> — job sheets and repair invoices. Three jobs: open job, bill parts/labour, hand device back.</p>
+
+<h2>7. Stock Transfers</h2>
+<p>List columns: Date, Reference No, Location (From), Location (To), Status, Shipping Charges, Total Amount, Additional Notes, Action.</p>
+<p>Add form: Date*, Ref, Status*, From*, To*, product lines, shipping, notes. Three jobs: create pending transfer, mark in-transit / completed (stock leaves From, lands To), print.</p>
+
+<h2>8. Stock Adjustment</h2>
+<p>Add form: Location*, Ref, Date*, Adjustment type* (normal / abnormal), amount recovered, reason, product lines. Three jobs: write qty delta, optionally recover value, leave an audit row.</p>
+
+<h2>9. Contacts</h2>
+<table>
+<tr><th>Submenu</th><th>URL</th><th>Three jobs</th></tr>
+<tr><td>Suppliers / Customers</td><td>/contacts?type=</td><td>List; add/edit card; statement / pay</td></tr>
+<tr><td>Customer Groups</td><td>/customer-group</td><td>Add group; assign contacts; price list hook</td></tr>
+<tr><td>Import Contacts</td><td>/contacts/import</td><td>Template; upload; merge duplicates</td></tr>
+</table>
+<p>Contact form fields: type, name, business name, mobile, email, tax number, address, city/state/country, pay term, assigned users, CRM source / life stage.</p>
+
+<h2>10. User Management</h2>
+<p>Users columns: Username, Name, Role, Email, Action. Roles define permission keys. Sales Commission Agents get a % on sales. Three jobs each: create login, attach role/locations, disable.</p>
+
+<h2>11. Expenses</h2>
+<p>Add: Location, category/sub, ref, date, expense-for, document, tax, total*, note, refund flag, recurring, payment block. List + Add + Categories. Three jobs: post cost, pay it, report it.</p>
+
+<h2>12. Payment Accounts</h2>
+<p>List: Name, Account Type, Sub Type, Account Number, Note, Balance, details, Added By, Action. Reports: Balance Sheet, Trial Balance, Cash Flow, Payment Account Report. Three jobs: hold a cash/bank/MoMo pot, receive a payment, move between pots.</p>
+
+<h2>13. Accounting (pages opened)</h2>
+<p>Dashboard, Chart of accounts, Journal Entry, Transfer, Transactions, Budget, Reports, Settings. Payment Accounts: List, Balance Sheet, Trial Balance, Cash Flow, Payment Account Report.</p>
+<ul>
+  <li>Dashboard: Account Type · Current Balance.</li>
+  <li>Chart of accounts: Tree/Tabular. Add = modal <code>create_account_modal</code>.</li>
+  <li>Journal: Action · Journal Date · Reference No · Added By · notes. Add = <b>new page</b> <code>/journal-entry/create</code>. Filter refreshes the table.</li>
+  <li>Transfer: Add = modal <code>create_transfer_modal</code>.</li>
+  <li>Transactions: Action-first sale-style grid.</li>
+</ul>
+<h2>13b. HRM (pages opened)</h2>
+<p>Dashboard, Leave Type, Leave, Attendance, Payroll, Holiday, Sales Targets, Settings, My Payrolls. Add Leave / status / payroll / attendance = <b>modals on the same page</b>.</p>
+<ul>
+  <li>Leave: Reference No · Leave Type · Employee · Date · Reason · Status · Action</li>
+  <li>Leave Type: Leave Type · Max Leave Count · Action</li>
+  <li>Holiday: Name · Date · Business Location · Note · Action</li>
+  <li>Attendance: Date · Employee · Clock In · Clock Out · duration · shift · Action</li>
+  <li>Payroll: Employee · Department · Designation · Month/Year · Ref · Total · Payment Status · Action</li>
+</ul>
+<p>Our HRM tabs stay on <code>/hrm.html?tab=</code>. Leave/holiday/attendance headers now match the live lists.</p>
+
+<h2>14. Reports</h2>
+<p>Profit/Loss, Purchase &amp; Sale, Tax, Supplier &amp; Customer, Customer Groups, Stock, Stock Adjustment, Trending Products, Items, Product Purchase, Product Sell, Purchase Payment, Sell Payment, Expense, Register, Sales Representative, Service Staff, Activity Log. Each report: pick filters → render table → export.</p>
+
+<h2>15. Orders</h2>
+<p><code>/modules/orders</code> — e-commerce / connector order inbox. Three jobs: list inbound orders, accept into a sale, reject / map customer.</p>
+
+<h2>16. Notification Templates</h2>
+<p>Email/SMS bodies for new sale, items received, payment, etc. Actions on lists call <code>/notification/get-template/{id}/{key}</code> in a modal. Three jobs: edit template, preview, send.</p>
+
+<h2>17. Settings</h2>
+<p><code>/business/settings</code> — Business Name, start date, default profit %, currency, symbol placement, timezone, logo, financial year start, stock accounting method, transaction edit days, date/time format, currency/qty precision, plus invoice schemes, locations, barcodes, printers, tax rates, types of service, package subscription.</p>
+
+<h2>18. CRM · Project · Asset Management · HRM · Communications · Spreadsheet</h2>
+<ul>
+  <li><b>CRM</b> /crm/dashboard — follow-ups, sources, life stages, conversion. Schedule / complete / cancel a follow-up.</li>
+  <li><b>Project</b> /project/project — projects, tasks, categories.</li>
+  <li><b>Assets</b> /asset/dashboard — categories, allocated to you, warranty status. Allocate / revoke / maintain.</li>
+  <li><b>HRM</b> /hrm/dashboard — people, leave, attendance, payroll.</li>
+  <li><b>Communications</b> /communications.html — floor, announcements, messages, calls, meetings, groups, to-do, documents, memos, reminders, knowledge base.</li>
+  <li><b>Spreadsheet</b> /spreadsheet/sheets — in-app sheets (not Excel files on disk).</li>
+</ul>
+
+<h2>IT notes for the Delkor ERP clone</h2>
+<ol>
+  <li>Do not copy Fiberkapp rows. Clone schematic: rail order, filter card, Action pill, modal View vs page Edit.</li>
+  <li>Products custom field headers (SUPPLIERS…JIJI) are business-defined labels on <code>product_custom_field1..7</code>.</li>
+  <li>View endpoints return HTML fragments (<code>modal-dialog modal-xl</code>), not full layouts.</li>
+  <li>Our maps: List Products → <code>/products.html</code>; All sales → <code>/pos-sales.html</code>; List Purchases → <code>/purchase-orders.html</code>; Settings → <code>/settings.html</code>.</li>
+  <li>Delkor-only rail after Spreadsheet: User Manual, Communication, Operations Hub, Collections, Field Ops, WMS. Those are not Fiberkapp pages.</li>
+</ol>
+<p class="sub">Crawled from the live menu on fiberkapp.com for training. Credentials are not stored in this file.</p>
+</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  mountUltimateShell?.({ title: 'Fiberkapp map' });
+</script>
+</body>
+</html>

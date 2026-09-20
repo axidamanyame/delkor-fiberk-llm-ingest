@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Backup — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { getActiveSubsidiary } from './js/supabaseClient.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { getAccess, loadAccess } from './js/rbac.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  await loadAccess().catch(() => {});
+  const app = document.getElementById('app');
+  const KEY = 'df_backups';
+  const TABLES = [
+    'products', 'customers', 'suppliers', 'sales_orders', 'purchase_orders',
+    'sell_returns', 'purchase_returns', 'expenses', 'shipments', 'clock_ins',
+  ];
+
+  function list() {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+  }
+  function saveList(rows) { localStorage.setItem(KEY, JSON.stringify(rows.slice(0, 30))); }
+
+  function download(name, text) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name;
+    a.click();
+  }
+
+  async function dumpNow() {
+    const sub = getActiveSubsidiary()?.code || 'group';
+    const payload = { created_at: new Date().toISOString(), subsidiary_code: sub, tables: {} };
+    for (const t of TABLES) {
+      const q = supabase.from(t).select('*').limit(2000);
+      const { data, error } = await q;
+      payload.tables[t] = error ? [] : (data || []);
+    }
+    const name = `backup-${sub}-${payload.created_at.slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    const text = JSON.stringify(payload);
+    const rows = list();
+    rows.unshift({ name, size: text.length, created_at: payload.created_at, json: text });
+    saveList(rows);
+    download(name, text);
+    return name;
+  }
+
+  async function restore(file) {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!payload?.tables) throw new Error('Not a Delkor-Fiberk backup');
+    const ctx = getAccess();
+    if (!ctx?.isAdmin) throw new Error('Only admin can restore');
+    for (const [table, rows] of Object.entries(payload.tables)) {
+      if (!Array.isArray(rows) || !rows.length) continue;
+      const { error } = await supabase.from(table).upsert(rows.slice(0, 400));
+      if (error) console.warn('restore', table, error.message);
+    }
+  }
+
+  function paint() {
+    let rows = list();
+    if (!rows.length) {
+      rows = [{
+        name: 'backup-group-demo.json',
+        size: 28440,
+        created_at: new Date().toISOString(),
+        json: JSON.stringify({ created_at: new Date().toISOString(), subsidiary_code: 'group', tables: { note: 'Demo snapshot — click Create New Backup for a live copy.' } }),
+      }];
+      saveList(rows);
+    }
+    app.innerHTML = `
+      <h1>Administer Backup</h1>
+      <p class="sub">JSON snapshot of the live tables for the active company. Restore is HQ / admin only and asks for confirmation.</p>
+      <p>
+        <button type="button" class="ult-btn ult-btn-primary" id="mk">Create New Backup</button>
+        <label class="ult-btn ult-btn-outline">Restore from file<input type="file" id="up" accept="application/json" hidden></label>
+      </p>
+      <section class="home-card" data-tbl="bk">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>File</th><th>Size</th><th>Date</th></tr></thead>
+          <tbody>${rows.map((r, i) => `<tr>
+            <td class="act">
+              <details class="act"><summary>Actions</summary>
+                <menu>
+                  <button type="button" data-dl="${i}">Download</button>
+                  <button type="button" data-del="${i}">Delete</button>
+                </menu>
+              </details>
+            </td>
+            <td>${r.name}</td>
+            <td>${(r.size / 1024).toFixed(1)} KB</td>
+            <td>${r.created_at.replace('T', ' ').slice(0, 19)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="4" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="bk"]'), { title: 'Backups', storageKey: 'backups' });
+    document.getElementById('mk').onclick = async () => {
+      if (!(await confirmAction('Create a backup?', 'Downloads a JSON file of products, contacts, sales and purchases for the active subsidiary.'))) return;
+      const btn = document.getElementById('mk');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      try { toast('Saved ' + await dumpNow()); paint(); }
+      catch (err) { toast(err.message || 'Backup failed', 'error'); }
+    };
+    document.getElementById('up').onchange = async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      if (!(await confirmAction('Restore this backup?', 'Rows are upserted. This cannot be undone from this screen.'))) return;
+      try { await restore(f); toast('Restore finished'); }
+      catch (err) { toast(err.message || 'Restore failed', 'error'); }
+    };
+    app.querySelectorAll('[data-dl]').forEach((b) => {
+      b.onclick = () => download(rows[Number(b.dataset.dl)].name, rows[Number(b.dataset.dl)].json);
+    });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this backup copy?', 'Only the copy stored in this browser is removed.'))) return;
+        const next = list(); next.splice(Number(b.dataset.del), 1); saveList(next); paint();
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

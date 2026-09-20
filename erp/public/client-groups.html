@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client Groups — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/client-desk.css" />
+  <style>
+    .cat-tree{list-style:none;margin:0;padding:0}
+    .cat-tree ul{list-style:none;margin:0;padding:0 0 0 18px;border-left:2px solid #c7d2fe}
+    .cat-tree li{margin:4px 0}
+    .cat-tree summary,.cat-tree .twig{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer}
+    .cat-tree summary{font-weight:800;background:#eef2ff}
+    .cat-tree .twig:hover{background:#f8fafc}
+    .cat-tree .code{font-size:11px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:999px;padding:1px 8px}
+    .view-tog{display:flex;gap:6px}
+    .view-tog button{border:1px solid #111;background:#fff;border-radius:8px;padding:6px 12px;cursor:pointer;font-weight:700}
+    .view-tog button.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { bindTable } from './js/home-tables.js';
+  import { readLs, saveRow, deleteRow } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { CLIENT_GROUP_TREE, flattenClientGroups } from './js/client-groups-tree.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+  const q = new URLSearchParams(location.search);
+  let view = q.get('view') === 'table' ? 'table' : 'tree';
+
+  function rows() {
+    const extra = (readLs(KEYS.client_groups, []) || []).filter((r) => r && r.sub_group);
+    const base = flattenClientGroups();
+    const ids = new Set(base.map((r) => r.id));
+    return base.concat(extra.filter((r) => !ids.has(r.id)));
+  }
+
+  function paint() {
+    const list = rows().filter((r) => String(r.status || 'Active') !== 'Deleted');
+    app.innerHTML = `
+      ${pageChrome('Client Groups', 'Classification only — Investors, Partners, Consultants and their sub-groups. No people are stored here.')}
+      <div class="card">
+        <div class="head">
+          <h2>Structure</h2>
+          <div class="view-tog">
+            <button type="button" class="${view==='tree'?'on':''}" data-v="tree">Tree</button>
+            <button type="button" class="${view==='table'?'on':''}" data-v="table">Table</button>
+          </div>
+        </div>
+        ${view === 'tree' ? treeHtml(list) : tableHtml(list)}
+      </div>`;
+    app.querySelectorAll('[data-v]').forEach((b) => {
+      b.onclick = () => { view = b.dataset.v; history.replaceState({}, '', '/client-groups.html?view=' + view); paint(); };
+    });
+    if (view === 'table') bindTable(app.querySelector('[data-tbl="cgroups"]'), { title: 'Client Groups', storageKey: 'client-groups' });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        const id = b.dataset.del;
+        if (flattenClientGroups().some((r) => r.id === id)) {
+          ackResult(false, 'Built-in sub-groups stay. Add extra types instead of deleting these.');
+          return;
+        }
+        if (!(await confirmAction('Delete this sub-group?'))) return;
+        const r = await deleteRow('client_groups', KEYS.client_groups, id);
+        if (r?.cancelled) return;
+        ackResult(true, 'Removed.');
+        paint();
+      };
+    });
+    const form = document.getElementById('addg');
+    if (form) form.onsubmit = async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const sub = String(fd.get('sub_group') || '').trim();
+      if (!sub) return;
+      if (!(await confirmAction('Add this sub-group? Structure only — no people.'))) return;
+      await saveRow('client_groups', KEYS.client_groups, {
+        group_name: fd.get('group_name'),
+        sub_group: sub,
+        description: String(fd.get('description') || '').trim(),
+        status: 'Active',
+      });
+      ackResult(true, 'Sub-group saved.');
+      form.reset();
+      paint();
+    };
+  }
+
+  function treeHtml(list) {
+    const by = {};
+    list.forEach((r) => { (by[r.group_name] ||= []).push(r); });
+    return `<ul class="cat-tree">${CLIENT_GROUP_TREE.map((g) => `
+      <li>
+        <details open>
+          <summary>${esc(g.group_name)} <span class="code">${(by[g.group_name]||[]).length}</span></summary>
+          <ul>${(by[g.group_name]||[]).map((c) => `
+            <li class="twig"><span>${esc(c.sub_group)}</span><span class="code">${esc(c.status || 'Active')}</span></li>
+          `).join('')}</ul>
+        </details>
+      </li>`).join('')}</ul>
+      ${addForm()}`;
+  }
+
+  function tableHtml(list) {
+    return `
+      <div data-tbl="cgroups">
+        <div class="bar">
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th><th>Group</th><th>Sub-group</th><th>Description</th><th>Status</th>
+          </tr></thead>
+          <tbody>${list.map((r) => `<tr data-id="${esc(r.id)}">
+            <td>${flattenClientGroups().some((x) => x.id === r.id) ? '' : `<button type="button" class="btn-del" data-del="${esc(r.id)}">Delete</button>`}</td>
+            <td>${esc(r.group_name)}</td>
+            <td>${esc(r.sub_group)}</td>
+            <td>${esc(r.description || '')}</td>
+            <td>${esc(r.status || 'Active')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>
+      ${addForm()}`;
+  }
+
+  function addForm() {
+    return `<form id="addg" class="comm-form" style="margin-top:16px">
+      <label>Group
+        <select name="group_name">${CLIENT_GROUP_TREE.map((g) => `<option>${esc(g.group_name)}</option>`).join('')}</select>
+      </label>
+      <label>Sub-group <input name="sub_group" required placeholder="e.g. Family Office" /></label>
+      <label class="span2">Description <input name="description" placeholder="Human-readable explanation" /></label>
+      <button class="add" type="submit" style="border:0;cursor:pointer">Add sub-group</button>
+    </form>`;
+  }
+
+  paint();
+</script>
+</body>
+</html>

@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Products</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}.page h1{margin:0;font-size:22px}
+    .sub{color:#3d4f66;font-size:14px;font-weight:400}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin-bottom:12px}
+    #filt-box.filter-panel{width:100%;max-width:none;border:1px solid #e2e8f0;border-radius:10px;background:#fff;box-shadow:0 0 4px rgba(0,0,0,.08);margin:0 0 12px;padding:0}
+    #filt-box > summary{padding:10px 14px;font-weight:700;cursor:pointer;list-style:none}
+    #filt-box .filt-drop-body{padding:8px 14px 10px}
+    #filt-box .fp-row{display:grid;gap:10px 12px;margin:0 0 10px;width:100%}
+    #filt-box .fp-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+    #filt-box .fp-row-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+    #filt-box .fp-row-8{grid-template-columns:repeat(8,minmax(0,1fr))}
+    #filt-box .fp-row-end{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0;flex-wrap:nowrap}
+    #filt-box .fp-field{min-width:0}
+    #filt-box .fp-field label,#filt-box .fp-field .filt-lab{display:block;font-weight:500;font-size:13px;margin:0 0 4px;color:#334155}
+    #filt-box .fp-field select,#filt-box .fp-field input[type=date],#filt-box .filt-combo-btn{width:100%;height:38px;border:1px solid #cbd5e1;border-radius:6px;padding:0 10px;background:#fff;font-size:13px;box-sizing:border-box}
+    #filt-box .filt-combo{width:100%;display:block}
+    #filt-box .fp-checks{display:flex;align-items:center;gap:18px}
+    #filt-box .fp-checks label{display:inline-flex;align-items:center;gap:6px;font-weight:500;font-size:13px;margin:0;white-space:nowrap}
+    #filt-box .fp-checks input{width:16px;height:16px;margin:0;accent-color:#2563eb}
+    #filt-box .fp-actions{display:flex;gap:8px;margin-left:auto}
+    #filt-box .fp-actions button,#filt-box .fp-actions summary{height:36px;padding:0 14px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;font-weight:600}
+    #filt-box #filt-clear{background:#f8fafc}
+    #filt-box .filt-hq summary{list-style:none;background:#2563eb;color:#fff;border-color:#1d4ed8}
+    .desk-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+    .desk-head h1{margin:0;line-height:32px}
+    .desk-tabs{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0 0 10px;border-bottom:1px solid var(--ult-border)}
+    .desk-tabs a,.desk-tabs button{height:40px;display:inline-flex;align-items:center;padding:0 14px;border:0;background:transparent;color:#334155;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;border-bottom:2px solid transparent;margin-bottom:-1px}
+    .desk-tabs a.on,.desk-tabs button.on{color:#1d4ed8;border-bottom-color:#1d4ed8}
+    .prod-tools-top{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:0 0 10px}
+    .prod-tools-top .add,.prod-tools-top .dl{height:40px;display:inline-flex;align-items:center}
+    .filters .filt-lab{display:block;font-size:13px;font-weight:600;color:#334155;margin:0 0 4px}
+    .filters select,.filters input[type=date],.filt-combo-btn{width:100%;height:40px;border:1px solid #cbd5e1;border-radius:6px;padding:0 10px;background:#fff;color:var(--ult-text);font-size:13px}
+    .filt-toggle-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:2px 0}
+    .filt-switch{display:flex !important;flex-direction:row !important;align-items:center;gap:6px;height:40px;font-size:13px;font-weight:650;color:#334155;cursor:pointer;margin:0;white-space:nowrap}
+    .filt-switch input{appearance:auto !important;-webkit-appearance:checkbox !important;width:16px !important;height:16px !important;margin:0 !important;border:1px solid #64748b !important;border-radius:3px !important;background:#fff !important;flex:none}
+    .filt-switch input::after{content:none !important}
+    @media(max-width:900px){.filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+    .bar .grow{flex:1}
+    .prod-tools-top{display:flex;justify-content:flex-end;gap:8px;margin:4px 0 8px}
+    .prod-tools-bot,.prod-tools-one{display:flex;flex-wrap:nowrap;align-items:center;gap:6px;margin:0 0 8px;overflow-x:auto}
+    .prod-tools-one .add,.prod-tools-one .dl,.prod-tools-one button{height:28px;padding:0 10px;font-size:12px;white-space:nowrap}
+    [data-tbl="prod"] .crud-bar,[data-tbl="prod"] .function-bar,[data-tbl="prod"] .prod-tools-one{
+      display:flex;flex-wrap:nowrap;align-items:center;gap:6px;
+    }
+    .df-peek{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:80;display:flex;align-items:center;justify-content:center;padding:18px}
+    .df-peek-card{background:var(--ult-card);color:var(--ult-text);border-radius:16px;max-width:640px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(15,23,42,.28)}
+    .df-peek-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ult-border)}
+    .df-peek-h h2{margin:0;font-size:18px}
+    .df-peek-h button{border:0;background:#e2e8f0;border-radius:8px;width:32px;height:32px;font-size:18px;cursor:pointer}
+    .df-peek-b{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:16px}
+    .df-peek-b img,.df-peek-ph{width:180px;height:180px;object-fit:contain;background:var(--ult-card-2);border:1px solid var(--ult-border);border-radius:12px}
+    .df-peek-ph{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}
+    .df-peek-b dl{margin:0;display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:13px}
+    .df-peek-b dt{color:#64748b;font-weight:700}
+    .df-peek-b dd{margin:0;font-weight:650}
+    @media(max-width:640px){.df-peek-b{grid-template-columns:1fr}}
+    .prod-tools-bot .grow{flex:1 1 auto;min-width:8px}
+    .prod-search{width:260px;min-width:200px;height:36px;border:1px solid #111;background:var(--ult-card);color:var(--ult-text);border-radius:8px;padding:6px 12px;font-size:13px}
+    .bar select,.bar input,.bar button{border:1px solid #111;background:var(--ult-card);color:var(--ult-text);border-radius:8px;padding:5px 10px;font-size:12px}
+    .add,.dl{border:0;border-radius:999px;padding:10px 18px;font-weight:700;color:#fff;text-decoration:none;cursor:pointer}
+    .add{background:#4f46e5}.dl{background:#4338ca}
+    table.ult-table th,table.ult-table td{color:var(--ult-text);white-space:nowrap}
+    table.ult-table tfoot td{background:#cbd5e1;font-weight:800}
+    tr.oos td{background:#fecaca}
+    .act-btn{color:#0284c7;border:1px solid #7dd3fc;background:var(--ult-card);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .act-menu{position:absolute;background:var(--ult-card);border:1px solid var(--ult-border);border-radius:8px;min-width:210px;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+    .act-menu a,.act-menu button{display:block;width:100%;text-align:left;border:0;background:var(--ult-card);padding:8px 12px;cursor:pointer;text-decoration:none;color:var(--ult-text)}
+    .bulk{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .bulk button{border-radius:999px;padding:4px 10px;font-size:12px;background:var(--ult-card);cursor:pointer}
+    .b-del{color:#e11d48;border:1px solid #fda4af}
+    .b-add{color:#0d9488;border:1px solid #5eead4}
+    .b-rm{color:#111;border:1px solid #111}
+    .b-off{color:#a16207;border:1px solid #facc15}
+    .b-woo{color:#a16207;border:1px solid #facc15}
+    .inactive-tag{display:inline-block;margin-left:6px;font-size:10px;font-weight:800;color:#92400e;background:#fef3c7;border-radius:999px;padding:1px 7px;vertical-align:middle}
+    .df-loc-pick select{width:100%;height:40px;border:1px solid var(--ult-border);border-radius:8px;padding:8px 10px;font:inherit}
+    img.thumb{width:40px;height:40px;object-fit:contain;background:var(--ult-card-2);border:1px solid var(--ult-border)}
+    .thumb-pending{position:relative;display:inline-block}
+    .thumb-pending::after{content:'review';position:absolute;left:0;right:0;bottom:-2px;font-size:8px;font-weight:800;color:#9a3412;text-align:center}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pager button{border:1px solid #111;background:var(--ult-card);padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff}
+  
+    .filt-hq summary{cursor:pointer;list-style:none;border:1px solid var(--ult-border);border-radius:8px;padding:6px 10px;background:var(--ult-card);font-weight:700}
+    .filt-hq-list{position:absolute;right:0;top:110%;background:var(--ult-card);border:1px solid var(--ult-border);border-radius:10px;padding:10px;display:grid;gap:6px;min-width:220px;z-index:20;box-shadow:0 8px 24px rgba(15,23,42,.12)}
+    .filt-hq{position:relative}
+    .filt-hq-list label{display:flex;gap:8px;align-items:center;font-size:13px}
+    #filt-box.filt-drop{padding:0 !important}
+    #filt-box .filt-drop-body{padding:6px 10px 8px !important}
+    #filt-box .filt-group,
+    #filt-box .filters,
+    #filt-box .filt-groups section,
+    .filt-drop-body .filt-group,
+    .filt-drop-body section{
+      border:none !important;
+      background:transparent !important;
+      box-shadow:none !important;
+      outline:none !important;
+      border-radius:0 !important;
+      min-height:0 !important;
+      padding:0 !important;
+      margin:0 0 6px !important;
+    }
+</style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, locationsFor, filterAgentHtml, locationSupportsAgents, getActiveLocation, wirePageFilters } from './js/scope.js';
+  import { bindTable, openFlyout, closeFlyout } from './js/home-tables.js';
+  import { openDeskModal } from './js/desk-modal.js';
+  import { peelWrite } from './js/account-rules.js';
+  import { subsidiaryLabel } from './js/entity-scope.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { backfillDemoScope } from './js/demo-seed.js';
+  import { loadRows, safeFrom, saveRow, deleteRow, uid, readLs, writeLs } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_PRODUCTS, isDemoProduct, purgeDemoProducts } from './js/catalog-seed.js';
+  import { bindPublishButton } from './js/catalog-sync.js';
+  import { expandUnits } from './js/unit-rows.js';
+  import { displaySku } from './js/sku-lifecycle.js';
+  import { specsCaption } from './js/catalog-merch.js';
+  import { loadBizSettings, MODULES_CHANGED } from './js/settings-store.js';
+  import { classLayerOn, labelOf, PRODUCT_CLASSES, ITEM_KINDS, PRODUCT_STATUSES } from './js/product-class.js';
+  import { excludeMigrated, siloGateHtml, isMigratedRow, knownSiloCount, hardForkMerge, liveDeskRows } from './js/fiberk-silo.js';
+  import { hostedProductImage, loadCatalogPhotos } from './js/product-images.js';
+  import { openRecordView } from './js/record-view.js';
+  import { hydrateInventoryBook, applyTradeFigures, isInventoryItem, onHandQty, bookBanner, statusChip } from './js/inventory-book.js';
+  import { deskHow } from './js/desk-manual.js';
+  import { deskJumpBar } from './js/desk-chrome.js';
+  import { departmentOfLocation, DEPARTMENTS, operationalSubsidiaryOptions, normalizeProductBook, marketplaceOfLocation, chainOf } from './js/org-chain.js';
+  import { alignStoreFields } from './js/catalog-merch.js';
+  import { isHqRole } from './js/access-rules.js';
+  import { getAccess } from './js/rbac.js';
+  const SUB_PREFIX = { axidigetek:'AXI', fiberk:'FIB', bnpl:'BNP', delkor:'DEL', ops:'OPH' };
+  const skuPrefixOf = (p) => {
+    const sku = String(p?.sku || '').toUpperCase();
+    const m = sku.match(/^([A-Z]{3})(?:-|\d)/);
+    return m ? m[1] : sku.slice(0, 3);
+  };
+  const homeLocationOfPrefix = (pre) => {
+    const sub = Object.entries(SUB_PREFIX).find(([,v]) => v === pre)?.[0];
+    return locationsFor(sub || 'group', { forSale:true })[0] || null;
+  };
+  await mountUltimateShell();
+  await loadCatalogPhotos();
+  let biz = await loadBizSettings();
+  const on = (flag) => classLayerOn(biz, flag);
+  window.addEventListener(MODULES_CHANGED, async () => { biz = await loadBizSettings(); load(); });
+  if (location.hash === '#add') location.replace('/product-form.html');
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let showFilt = false;
+  const F = { type:'', category:'', subcat:'', brand:'', unit:'', tax:'', loc:'', sub:'', dept:'', branch:'', model:'', size:'', color:'', nosell:false, woo:false, from:'', to:'', q:'' };
+  const FILT_KEY = 'df_product_filter_bar';
+  const FILT_OPTS = [
+    ['sub', 'Subsidiary'], ['loc', 'Business Location'], ['branch', 'Branch'],
+    ['type', 'Product Type'], ['dept', 'Department'], ['category', 'Category'], ['subcat', 'Subcategory'],
+    ['brand', 'Brand'], ['model', 'Model'], ['size', 'Size'], ['color', 'Color'],
+    ['unit', 'Unit'], ['tax', 'Tax'], ['from', 'From Date'], ['to', 'To Date'],
+    ['woo', 'WooCommerce'], ['nosell', 'Not for selling'],
+  ];
+  const loadFiltBar = () => {
+    const base = Object.fromEntries(FILT_OPTS.map(([k]) => [k, true]));
+    try { return { ...base, ...JSON.parse(localStorage.getItem(FILT_KEY) || '{}') }; } catch { return base; }
+  };
+  const saveFiltBar = (m) => { try { localStorage.setItem(FILT_KEY, JSON.stringify(m)); } catch { /* ignore */ } };
+  let filtBar = loadFiltBar();
+  const showF = (k) => filtBar[k] !== false;
+  const hqOn = () => isHqRole(getAccess()?.roleName || getAccess()?.role);
+  let view = new URLSearchParams(location.search).get('view') || 'list';
+  if (!['list', 'inventory', 'stock', 'catalog'].includes(view)) view = 'list';
+  if (view === 'catalog') location.replace('/product-catalog.html');
+
+  function openProductPeek(p, rawId) {
+    const moves = window.__dfProdMoves || { sold: {}, moved: {}, adjusted: {} };
+    const key = p ? (p.id || p.sku || rawId) : rawId;
+    const row = p ? {
+      ...p,
+      units_sold: p.units_sold ?? moves.sold[p.id] ?? moves.sold[p.sku] ?? moves.sold[key],
+      units_transferred: p.units_transferred ?? moves.moved[p.id] ?? moves.moved[p.sku],
+      units_adjusted: p.units_adjusted ?? moves.adjusted[p.id] ?? moves.adjusted[p.sku],
+    } : { id: rawId, name: 'Product', sku: rawId };
+    openRecordView(row, { kind: 'product' });
+  }
+
+  function findProduct(id) {
+    const pack = (window.__dfProductRows || []).concat(typeof products === 'undefined' ? [] : products);
+    return pack.find((x) => String(x.id) === String(id) || String(x.sku || '').toUpperCase() === String(id).toUpperCase())
+      || { id, name: id, sku: id };
+  }
+
+  async function patchProduct(id, fields) {
+    const cur = findProduct(id);
+    const next = { ...cur, ...fields, id: cur.id || id, updated_at: new Date().toISOString() };
+    try { await peelWrite('products', { ...fields, id: next.id }, { id: next.id }); } catch { /* local */ }
+    try { await saveRow('products', CAT_KEYS.products, next); } catch { /* ignore */ }
+    window.__dfProductRows = (window.__dfProductRows || []).map((r) => String(r.id) === String(next.id) ? { ...r, ...next } : r);
+    return next;
+  }
+
+  function labelBars(code) {
+    const s = String(code || '0000');
+    let html = '<span style="display:inline-flex;align-items:flex-end;height:36px">';
+    for (let i = 0; i < s.length; i++) {
+      html += `<i style="display:inline-block;width:${1 + (s.charCodeAt(i) % 3)}px;height:36px;background:#111;margin-right:1px"></i>`;
+    }
+    return html + '</span>';
+  }
+
+  function openLabelsCard(p) {
+    const sku = displaySku(p) || p.sku || '';
+    openDeskModal({
+      title: 'Labels',
+      saveLabel: 'Print',
+      body: `<p class="dm-hint">${esc(p.name || '')} · ${esc(sku)}</p>
+        <label>No. of labels</label><input name="copies" type="number" min="1" max="200" value="1" />
+        <div style="margin-top:12px;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;text-align:center">
+          <div style="font-weight:800">${esc(p.name || '')}</div>
+          <div>${labelBars(sku)}</div>
+          <div>${esc(sku)}</div>
+          <div>${fmt(p.selling_price || p.sell)}</div>
+        </div>`,
+      onSave(fd) {
+        const n = Math.max(1, Math.min(200, Number(fd.get('copies') || 1)));
+        const w = window.open('', 'labels');
+        if (!w) { ackResult(false, 'Allow pop-ups to print labels'); return false; }
+        const card = `<div style="width:180px;border:1px solid #111;padding:8px;text-align:center;font-family:Arial;page-break-inside:avoid;margin:6px">
+          <div style="font-weight:800;font-size:12px">${esc(p.name || '')}</div>
+          <div>${labelBars(sku)}</div>
+          <div style="font-size:11px">${esc(sku)}</div>
+          <div style="font-weight:800">${fmt(p.selling_price || p.sell)}</div>
+        </div>`;
+        w.document.write(`<!DOCTYPE html><body style="display:flex;flex-wrap:wrap">${Array.from({ length: n }, () => card).join('')}<script>onload=function(){print()}<\/script></body>`);
+        w.document.close();
+        return true;
+      },
+    });
+  }
+
+  function openEditCard(p, { duplicate = false } = {}) {
+    const row = { ...p };
+    if (duplicate) {
+      row.id = uid();
+      row.name = (p.name || 'Product') + ' (copy)';
+      row.sku = String(p.sku || 'SKU').replace(/-COPY\d*$/i, '') + '-COPY' + String(Date.now()).slice(-4);
+      row.stock = 0;
+      row.current_stock = 0;
+      row.opening_stock = 0;
+      row.barcode = '';
+    }
+    openDeskModal({
+      title: duplicate ? 'Duplicate product' : 'Edit product',
+      saveLabel: duplicate ? 'Save copy' : 'Update',
+      body: `<label>Product name</label><input name="name" required value="${esc(row.name || '')}" />
+        <label>SKU</label><input name="sku" ${duplicate ? '' : 'readonly'} value="${esc(row.sku || '')}" />
+        <label>Brand</label><input name="brand" value="${esc(row.brand || '')}" />
+        <label>Model</label><input name="model" value="${esc(row.model || row.model_number || '')}" />
+        <label>Color</label><input name="color" value="${esc(row.color || row.colour || '')}" />
+        <label>Size</label><input name="size" value="${esc(row.size || '')}" />
+        <label>Selling price (GHS)</label><input name="selling_price" type="number" step="0.01" value="${Number(row.selling_price || 0)}" />
+        <label>Unit cost (GHS)</label><input name="cost_price" type="number" step="0.01" value="${Number(row.cost_price || row.purchase_price || 0)}" />
+        <label>Description</label><textarea name="description">${esc(row.description || '')}</textarea>`,
+      async onSave(fd) {
+        const fields = {
+          name: String(fd.get('name') || '').trim(),
+          sku: String(fd.get('sku') || row.sku).trim(),
+          brand: fd.get('brand') || '',
+          model: fd.get('model') || '',
+          color: fd.get('color') || '',
+          size: fd.get('size') || '',
+          selling_price: Number(fd.get('selling_price') || 0),
+          cost_price: Number(fd.get('cost_price') || 0),
+          purchase_price: Number(fd.get('cost_price') || 0),
+          description: fd.get('description') || '',
+        };
+        if (!fields.name) { ackResult(false, 'Name is required'); return false; }
+        if (duplicate) {
+          await saveRow('products', CAT_KEYS.products, { ...row, ...fields, id: row.id, created_at: new Date().toISOString() });
+          ackResult(true, 'Copy saved as ' + fields.sku);
+        } else {
+          await patchProduct(row.id, fields);
+          ackResult(true, 'Product updated');
+        }
+        load();
+        return true;
+      },
+    });
+  }
+
+  function openOpeningCard(p) {
+    const qty = Number(p.opening_stock ?? p.current_stock ?? p.stock ?? 0);
+    openDeskModal({
+      title: 'Add or edit opening stock',
+      saveLabel: 'Save',
+      body: `<p class="dm-hint">${esc(p.name || '')} · ${esc(displaySku(p) || p.sku || '')}</p>
+        <label>Business location</label><input readonly value="${esc(p.location_name || p.locName || p.location_code || '')}" />
+        <label>Opening quantity</label><input name="qty" type="number" min="0" step="1" value="${qty}" />
+        <label>Unit cost (GHS)</label><input name="cost" type="number" step="0.01" value="${Number(p.cost_price || p.purchase_price || 0)}" />`,
+      async onSave(fd) {
+        const q = Number(fd.get('qty') || 0);
+        const cost = Number(fd.get('cost') || 0);
+        await patchProduct(p.id, { opening_stock: q, current_stock: q, stock: q, cost_price: cost, purchase_price: cost });
+        ackResult(true, 'Opening stock saved');
+        load();
+        return true;
+      },
+    });
+  }
+
+  function openGroupPricesCard(p) {
+    openDeskModal({
+      title: 'Add or edit group prices',
+      saveLabel: 'Save',
+      body: `<p class="dm-hint">${esc(p.name || '')} · ${esc(displaySku(p) || p.sku || '')}</p>
+        <label>Retail</label><input name="retail_price" type="number" step="0.01" value="${Number(p.retail_price ?? p.selling_price ?? 0)}" />
+        <label>Wholesale</label><input name="wholesale_price" type="number" step="0.01" value="${Number(p.wholesale_price ?? 0)}" />
+        <label>Distributor</label><input name="distributor_price" type="number" step="0.01" value="${Number(p.distributor_price ?? 0)}" />
+        <label>Agent</label><input name="agent_price" type="number" step="0.01" value="${Number(p.agent_price ?? 0)}" />`,
+      async onSave(fd) {
+        const retail = Number(fd.get('retail_price') || 0);
+        await patchProduct(p.id, {
+          retail_price: retail,
+          selling_price: retail,
+          wholesale_price: Number(fd.get('wholesale_price') || 0),
+          distributor_price: Number(fd.get('distributor_price') || 0),
+          agent_price: Number(fd.get('agent_price') || 0),
+        });
+        ackResult(true, 'Group prices saved');
+        load();
+        return true;
+      },
+    });
+  }
+
+  function histQty(v) {
+    const n = Number(String(v || '').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function histMatch(p, blob) {
+    const t = String(blob || '').toUpperCase();
+    const sku = String(p.sku || '').toUpperCase();
+    const name = String(p.name || '').toUpperCase();
+    return (sku && t.includes(sku)) || (name && t.includes(name)) || t.includes(String(p.id || ''));
+  }
+  function histBlob(l) {
+    if (!l || typeof l !== 'object') return String(l || '');
+    return `${l.product || ''} ${l.name || ''} ${l.sku || ''} ${(l.cells || []).join(' ')}`;
+  }
+  function pc(n) { return Number(n || 0).toFixed(2); }
+
+  async function openHistoryCard(p) {
+    if (!p) return;
+    document.getElementById('hist-back')?.remove();
+    const [sales, purch, xfers] = await Promise.all([
+      liveDeskRows('sales').catch(() => []),
+      liveDeskRows('purchases').catch(() => []),
+      liveDeskRows('transfers').catch(() => []),
+    ]);
+    const rows = [];
+    (sales || []).forEach((s) => {
+      (s.lines || []).forEach((l) => {
+        if (!histMatch(p, histBlob(l))) return;
+        rows.push({
+          type: 'Sale', qty: -Math.abs(histQty(l.qty || l.quantity || 1)),
+          date: String(s.order_date || '').slice(0, 16), ref: s.invoice_no || '', party: s.customer_name || 'Walk-In Customer',
+        });
+      });
+    });
+    (purch || []).forEach((s) => {
+      (s.lines || []).forEach((l) => {
+        if (!histMatch(p, histBlob(l) + ' ' + (l.name || ''))) return;
+        rows.push({
+          type: 'Purchase', qty: Math.abs(histQty(l.qty || l.quantity || (l.cells || [])[2] || 1)),
+          date: String(s.order_date || '').slice(0, 16), ref: s.reference || '', party: s.supplier_name || '',
+        });
+      });
+    });
+    (xfers || []).forEach((s) => {
+      (s.lines || []).forEach((l) => {
+        if (!histMatch(p, histBlob(l))) return;
+        const q = Math.abs(histQty(l.qty || (l.cells || [])[2] || 1));
+        rows.push({ type: 'Stock Transfers (Out)', qty: -q, date: String(s.date || '').slice(0, 16), ref: s.ref || '', party: s.to || '' });
+        rows.push({ type: 'Stock Transfers (In)', qty: q, date: String(s.date || '').slice(0, 16), ref: s.ref || '', party: s.from || '' });
+      });
+    });
+    rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    let run = 0;
+    const ledger = rows.map((r) => { run += r.qty; return { ...r, after: run }; });
+    const shown = ledger.slice().reverse();
+    const sum = (t) => ledger.filter((r) => r.type === t).reduce((s, r) => s + Math.abs(r.qty), 0);
+    const onHand = Number(p.stock ?? p.current_stock ?? p.qty ?? 0);
+    const variation = p.variation || p.variant || '';
+    const back = document.createElement('div');
+    back.id = 'hist-back';
+    back.className = 'rv-back';
+    back.innerHTML = `<article class="hist-card" role="dialog">
+      <header class="rv-title"><h2>${esc(p.name || 'Product')}</h2><button type="button" class="rv-x" data-hist-close>×</button></header>
+      <div class="hist-filt">
+        <div><label>Product:</label><input readonly value="${esc(p.name || '')} - ${esc(displaySku(p) || p.sku || '')}" /></div>
+        <div><label>Business Location:</label><input readonly value="${esc(p.location_name || p.locName || '')}" /></div>
+        <div><label>Variations:</label><input readonly value="${esc(variation || 'Default')}" /></div>
+      </div>
+      <div class="hist-sum">
+        <div><h3>Quantities In</h3>
+          <div class="kv"><span>Total Purchase</span><b>${pc(sum('Purchase'))}</b></div>
+          <div class="kv"><span>Opening Stock</span><b>0.00</b></div>
+          <div class="kv"><span>Total Sell Return</span><b>${pc(sum('Sell Return'))}</b></div>
+          <div class="kv"><span>Stock Transfers (In)</span><b>${pc(sum('Stock Transfers (In)'))}</b></div>
+        </div>
+        <div><h3>Quantities Out</h3>
+          <div class="kv"><span>Total Sold</span><b>${pc(sum('Sale'))}</b></div>
+          <div class="kv"><span>Total Stock Adjustment</span><b>${pc(sum('Stock Adjustment'))}</b></div>
+          <div class="kv"><span>Total Purchase Return</span><b>0.00</b></div>
+          <div class="kv"><span>Stock Transfers (Out)</span><b>${pc(sum('Stock Transfers (Out)'))}</b></div>
+        </div>
+        <div><h3>Totals</h3>
+          <div class="kv"><span>Current stock</span><b>${pc(onHand)}</b></div>
+        </div>
+      </div>
+      <table class="hist-tbl"><thead><tr>
+        <th>Type</th><th>Quantity change</th><th>New Quantity</th><th>Date</th><th>Reference No</th><th>Customer/Supplier information</th>
+      </tr></thead>
+      <tbody>${shown.length ? shown.map((r) => `<tr>
+        <td>${esc(r.type)}</td>
+        <td class="${r.qty>=0?'in':'out'}">${r.qty>0?'+':''}${pc(r.qty)}</td>
+        <td>${pc(r.after)}</td>
+        <td>${esc(r.date)}</td>
+        <td>${esc(r.ref || '--')}</td>
+        <td>${esc(r.party || '--')}</td>
+      </tr>`).join('') : '<tr><td colspan="6">No stock movements for this product yet.</td></tr>'}</tbody></table>
+      <footer class="rv-foot"><button type="button" class="rv-close" data-hist-close>Close</button></footer>
+    </article>`;
+    if (!document.getElementById('hist-css')) {
+      const s = document.createElement('style');
+      s.id = 'hist-css';
+      s.textContent = `.rv-back{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow:auto}
+        .rv-title{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #e5e7eb}
+        .rv-title h2{margin:0;font-size:18px}
+        .rv-x{border:0;background:transparent;font-size:22px;cursor:pointer}
+        .rv-foot{display:flex;justify-content:flex-end;padding:12px 20px}
+        .rv-close{background:#0f172a;color:#fff;border:0;border-radius:10px;padding:8px 14px;cursor:pointer}
+        .hist-card{width:min(1100px,96vw);background:#fff;border-radius:12px;max-height:90vh;overflow:auto}
+        .hist-filt{display:grid;grid-template-columns:1.4fr 1fr .9fr;gap:16px;padding:12px 20px}
+        .hist-filt label{display:block;font-size:13px;font-weight:700;margin:0 0 4px}
+        .hist-filt input{width:100%;height:36px;border:1px solid #cbd5e1;border-radius:8px;padding:6px 10px}
+        .hist-sum{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;padding:8px 20px 16px}
+        .hist-sum h3{margin:0 0 8px;font-size:14px}
+        .hist-sum .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #eef2f7;font-size:13px}
+        .hist-tbl{width:calc(100% - 40px);margin:0 20px 16px;border-collapse:collapse;font-size:13px}
+        .hist-tbl th{background:#2563eb;color:#fff;text-align:left;padding:8px 10px}
+        .hist-tbl td{padding:8px 10px;border-bottom:1px solid #eef2f7}
+        .hist-tbl .in{color:#16a34a;font-weight:800}
+        .hist-tbl .out{color:#dc2626;font-weight:800}`;
+      document.head.appendChild(s);
+    }
+    back.addEventListener('click', (e) => {
+      if (e.target === back || e.target.closest('[data-hist-close]')) back.remove();
+    });
+    document.body.appendChild(back);
+  }
+
+  async function load() {
+    try { await hardForkMerge(); } catch { /* dump optional */ }
+    const [packProducts, rawProducts, lines, xfer, adj] = await Promise.all([
+      liveDeskRows('products'),
+      loadRows('products', CAT_KEYS.products, SEED_PRODUCTS),
+      safeFrom('sales_order_lines'),
+      safeFrom('stock_transfers'),
+      safeFrom('stock_adjustments'),
+    ]);
+    const seen = new Map();
+    [...(packProducts || []), ...(rawProducts || [])].forEach((p) => {
+      if (!p) return;
+      const id = String(p.id || p.sku || '');
+      if (!id) return;
+      if (!seen.has(id)) seen.set(id, p);
+    });
+    let products = [...seen.values()].filter((p) => p && (isMigratedRow(p) || !isDemoProduct(p)));
+    if (!products.length && SEED_PRODUCTS.length) products = SEED_PRODUCTS.filter((p) => !isDemoProduct(p));
+    products = normalizeProductBook(products).map(alignStoreFields);
+    try {
+      if (products.length) writeLs(CAT_KEYS.products, products);
+    } catch { /* quota — keep in-memory rows */ }
+    try { hydrateInventoryBook(); } catch { /* first paint */ }
+    try { applyTradeFigures(); } catch { /* trade figures */ }
+    const sold = {}, moved = {}, adjusted = {};
+    (lines||[]).forEach((l)=>{ const k=l.product_id||l.sku; if(k) sold[k]=(sold[k]||0)+Number(l.quantity||0); });
+    (xfer||[]).forEach((l)=>{ if(l.product_id) moved[l.product_id]=(moved[l.product_id]||0)+Number(l.quantity||0); });
+    (adj||[]).forEach((l)=>{ if(l.product_id) adjusted[l.product_id]=(adjusted[l.product_id]||0)+Number(l.quantity||0); });
+    window.__dfProdMoves = { sold, moved, adjusted };
+
+    const prefixToSub = Object.fromEntries(Object.entries(SUB_PREFIX).map(([k,v]) => [v, k]));
+    const inferSub = (p) => {
+      const raw = String(p.subsidiary_code || '').toLowerCase();
+      if (raw && raw !== 'group') return raw;
+      return prefixToSub[skuPrefixOf(p)] || '';
+    };
+    const scoped = filterBySidebar(products || []);
+    let rows = scoped.slice();
+    window.__dfProductRows = products || [];
+    if (F.q) {
+      const q = F.q.toLowerCase();
+      rows = rows.filter((p) => `${p.name || ''} ${p.sku || ''} ${p.brand || ''} ${p.legacy_location || p.loc || ''} ${p.legacy_cat || ''} ${p.category || ''} ${p.subcategory || ''}`.toLowerCase().includes(q));
+    }
+    if (F.sub) rows = rows.filter((p) => inferSub(p) === F.sub);
+    if (F.type) rows = rows.filter((p) => String(p.product_type||p.type||'simple') === F.type);
+    if (F.category) rows = rows.filter((p) => p.category === F.category);
+    if (F.subcat) rows = rows.filter((p) => p.subcategory === F.subcat);
+    if (F.brand) rows = rows.filter((p) => p.brand === F.brand);
+    if (F.unit) rows = rows.filter((p) => (p.unit||'pcs') === F.unit);
+    if (F.tax) rows = rows.filter((p) => String(p.tax||p.tax_name||'') === F.tax);
+    if (F.loc) rows = rows.filter((p) => (p.location_code||'') === F.loc || (p.location_code==='DEL-FURN' && F.loc==='DEL-ONLINE'));
+    if (F.dept) rows = rows.filter((p) => (departmentOfLocation(p.location_code)?.code || '') === F.dept);
+    if (F.branch) rows = rows.filter((p) => String(p.branch || p.branch_name || p.deptName || '') === F.branch);
+    if (F.model) rows = rows.filter((p) => String(p.model || p.device_model || '') === F.model);
+    if (F.size) rows = rows.filter((p) => String(p.size || '') === F.size);
+    if (F.color) rows = rows.filter((p) => String(p.color || p.colour || '') === F.color);
+    if (F.family) rows = rows.filter((p) => String(p.product_family||'') === F.family);
+    if (F.pclass) rows = rows.filter((p) => String(p.product_class||'') === F.pclass);
+    if (F.kind) rows = rows.filter((p) => String(p.item_kind||'') === F.kind);
+    if (F.status) rows = rows.filter((p) => String(p.status || (p.is_active===false?'inactive':'active')) === F.status);
+    if (F.nosell) rows = rows.filter((p) => p.not_for_selling === true || p.is_active === false);
+    if (F.woo) rows = rows.filter((p) => p.woocommerce_enabled === true);
+    const rowDay = (p) => String(p.updated_at || p.created_at || p.date || p.added_on || '').slice(0, 10);
+    if (F.from) rows = rows.filter((p) => !rowDay(p) || rowDay(p) >= F.from);
+    if (F.to) rows = rows.filter((p) => !rowDay(p) || rowDay(p) <= F.to);
+    if (view === 'inventory') rows = rows.filter((p) => onHandQty(p) > 0);
+    if (view === 'list') { /* every SKU that has ever existed — including zero stock */ }
+    const uniq = (vals) => [...new Set(vals.filter(Boolean))];
+    const opt = (arr, cur) => arr.map((v)=>`<option ${cur===v?'selected':''}>${esc(v)}</option>`).join('');
+    const shops = locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true });
+    const locOpts = shops.map((l)=>`<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('');
+
+    let enriched = rows.map((p) => {
+      const qty = Number(p.stock ?? p.current_stock ?? 0);
+      const cost = Number(p.cost_price || p.purchase_price || 0);
+      const sell = Number(p.selling_price || 0);
+      const store = alignStoreFields(p);
+      return {
+        ...p, ...store, qty, cost, sell,
+        costVal: qty * cost, sellVal: qty * sell, profit: qty * (sell - cost),
+        sold: sold[p.id] || sold[p.sku] || 0,
+        moved: moved[p.id] || 0, adjusted: adjusted[p.id] || 0,
+        subCode: inferSub(p),
+        locName: chainOf(p).location,
+        deptName: chainOf(p).department,
+        subName: chainOf(p).subsidiary,
+        branchName: p.branch || p.branch_name || chainOf(p).department,
+      };
+    });
+
+    const cf = (p, i) => p['product_custom_field' + i] || p['custom_field_' + i] || p['cf_' + i] || '';
+    const listBody = enriched.map((p) => {
+      const src = hostedProductImage(p.image_url || p.catalog_image_url, p);
+      const pending = p.source === 'fiberkapp' && p.catalog_image_url && !p.pos_image_ready;
+      const img = src
+        ? `<span class="${pending ? 'thumb-pending' : ''}"><img class="thumb" src="${esc(src)}" alt="Product image" /></span>`
+        : '<span class="thumb"></span>';
+      const cat = [p.category, p.subcategory].filter(Boolean).join(' -- ') || '—';
+      const typ = ({ simple: 'Single', variable: 'Variable', combo: 'Combo' }[p.product_type || p.type] || p.product_type || 'Single');
+      const day = String(p.updated_at || p.created_at || p.date || '').slice(0, 10);
+      return `<tr data-q="${esc(`${p.name || ''} ${p.sku || ''} ${p.brand || ''} ${p.legacy_location || ''}`.toLowerCase())}">
+      <td><input type="checkbox" data-pick="${p.id}" /></td>
+      <td class="act" style="position:relative"><button type="button" class="act-btn" data-act="${p.id}">Actions <span class="caret">▾</span></button></td>
+      <td>${img}</td>
+      <td>${esc(p.name)}${p.not_for_selling ? ' <span class="inactive-tag">Not for selling</span>' : ''}${p.is_active === false ? ' <span class="inactive-tag">Inactive</span>' : ''}</td>
+      <td>${esc(p.subName)}</td>
+      <td>${esc(p.locName)}</td>
+      <td>${esc(p.branch || p.branch_name || '—')}</td>
+      <td>${esc(p.deptName)}</td>
+      <td>₵ ${Number(p.cost || 0).toFixed(2)}</td>
+      <td>₵ ${Number(p.sell || 0).toFixed(2)}</td>
+      <td>${Number(p.qty || 0).toFixed(2)} ${esc(p.unit || 'Pieces')}</td>
+      <td>${esc(typ)}</td>
+      <td>${esc(p.category || '')}</td>
+      <td>${esc(p.subcategory || '')}</td>
+      <td>${esc(p.brand || '')}</td>
+      <td>${esc(p.model || p.device_model || '')}</td>
+      <td>${esc(p.size || '')}</td>
+      <td>${esc(p.color || p.colour || '')}</td>
+      <td>${esc(p.unit || '')}</td>
+      <td>${esc(p.tax || p.tax_name || '')}</td>
+      <td>${esc(day || '')}</td>
+      <td>${esc(day || '')}</td>
+      <td>${p.woocommerce_enabled ? 'Yes' : 'No'}</td>
+      <td>${p.not_for_selling ? 'Yes' : 'No'}</td>
+      <td>${esc(displaySku(p) || p.sku || '')}</td>
+      <td>${esc(cf(p, 1))}</td>
+      <td>${esc(cf(p, 2))}</td>
+      <td>${esc(cf(p, 3))}</td>
+      <td>${esc(cf(p, 4))}</td>
+      <td>${esc(cf(p, 5))}</td>
+      <td>${esc(cf(p, 6))}</td>
+      <td>${esc(cf(p, 7))}</td>
+    </tr>`;
+    }).join('') || '<tr data-dummy="1"><td colspan="20" style="text-align:center">No data available in table</td></tr>';
+
+    const stockBody = enriched.map((p) => `<tr class="${p.qty<=0?'oos':''}">
+      <td><input type="checkbox" data-pick="${p.id}" /></td>
+      <td><button type="button" class="act-btn" data-hist="${p.id}">Product stock history</button></td>
+      <td>${esc(p.sku_unit || displaySku(p) || p.sku || '')}</td>
+      <td>${esc(p.catalog_sku || '—')}</td>
+      <td>${esc(p.movement_key || '—')}</td>
+      <td>${esc(p.name || '')}${p.not_for_selling ? ' <span class="inactive-tag">Not for selling</span>' : ''}</td>
+      <td>${esc(p.brand || '—')}</td>
+      <td>${esc(p.model || p.model_number || '—')}</td>
+      <td>${esc(p.size || '—')}</td>
+      <td>${esc(p.color || p.colour || '—')}</td>
+      <td>${esc(p.variation || '')}</td>
+      <td>${esc(p.category || '')}</td>
+      <td>${esc(p.subcategory || '')}</td>
+      <td>${esc(p.locName || '')}</td>
+      <td>${fmt(p.sell)}</td>
+      <td>${Number(p.qty || 0).toFixed(2)} units</td>
+      <td>${fmt(p.costVal)}</td>
+    </tr>`).join('') || '<tr data-dummy="1"><td colspan="17" style="text-align:center">No data available in table</td></tr>';
+
+    const invBody = enriched.map((p) => {
+      const reorder = Number(p.reorder_level ?? p.alert_quantity ?? p.low_stock_alert ?? 0);
+      const low = p.qty <= reorder && reorder > 0;
+      const inactive = p.is_active === false || p.not_for_selling;
+      const typ = ({ simple: 'Single', variable: 'Variable', combo: 'Combo' }[p.product_type || p.type] || p.product_type || 'Single');
+      return `<tr class="${p.qty<=0?'oos':''}">
+        <td><input type="checkbox" data-pick="${p.id}" /></td>
+        <td style="position:relative"><button type="button" class="act-btn" data-act="${p.id}">Actions ▾</button></td>
+        <td>${esc(displaySku(p) || p.sku || 'UNK')}</td>
+        <td>${esc(p.name || '')}</td>
+        <td>${esc(p.brand || '—')}</td>
+        <td>${esc(p.model || p.model_number || '—')}</td>
+        <td>${esc(p.size || '—')}</td>
+        <td>${esc(p.color || p.colour || '—')}</td>
+        <td>${esc(p.category || '—')}</td>
+        <td>${esc(p.subcategory || '—')}</td>
+        <td>${esc(typ)}</td>
+        <td class="${low?'oos':''}">${Number(p.qty).toFixed(0)}</td>
+        <td>${reorder || '—'}</td>
+        <td>${esc(p.unit || 'Pcs')}</td>
+        <td>${fmt(p.cost)}</td>
+        <td>${esc(p.tax || p.tax_name || '—')}</td>
+        <td>${esc(p.supplier_name || p.supplier || '—')}</td>
+        <td>${esc(subsidiaryLabel(p.subCode) || p.subCode || '—')}</td>
+        <td>${esc(p.locName)}</td>
+        <td>${esc(p.branchName || '—')}</td>
+        <td>${esc(p.deptName || '—')}</td>
+        <td>${p.woocommerce_enabled ? 'Yes' : 'No'}</td>
+        <td>${p.not_for_selling ? 'Yes' : 'No'}</td>
+        <td>${inactive ? 'Inactive' : 'Active'}</td>
+      </tr>`;
+    }).join('') || '<tr data-dummy="1"><td colspan="24" style="text-align:center">No inventory rows</td></tr>';
+
+    const totQty = enriched.reduce((a,p)=>a+p.qty,0);
+    const totCost = enriched.reduce((a,p)=>a+p.costVal,0);
+    const totSell = enriched.reduce((a,p)=>a+p.sellVal,0);
+    const totProfit = enriched.reduce((a,p)=>a+p.profit,0);
+    const totSold = enriched.reduce((a,p)=>a+p.sold,0);
+
+    app.innerHTML = `
+      <div class="desk-head">
+        <h1>${view==='inventory' ? 'Product Inventory' : view==='stock' ? 'Inventory Management' : 'List Products'}</h1>
+        ${deskHow(view==='inventory' ? 'prod-inventory' : 'products')}
+        <p style="margin:0;color:#3d4f66">${esc(scopeCaption())}</p>
+        ${deskJumpBar()}
+      </div>
+      ${siloGateHtml('products', knownSiloCount('products'))}
+      <details class="filter-panel filt-drop" id="filt-box" ${showFilt ? 'open' : ''}>
+        <summary id="filt-tog">Filters</summary>
+        <div class="filt-drop-body">
+          <div class="fp-row fp-row-3">
+            ${showF('sub') ? `<div class="fp-field"><label>Subsidiary</label><select id="f-sub"><option value="">All</option>
+              ${operationalSubsidiaryOptions().filter((s)=>s.code!=='ops').map((s)=>`<option value="${s.code}" ${F.sub===s.code?'selected':''}>${esc(s.name)}</option>`).join('')}
+            </select></div>` : ''}
+            ${showF('loc') ? `<div class="fp-field"><label>Business Location</label><select id="f-loc"><option value="">All</option>${locOpts}</select></div>` : ''}
+            ${showF('branch') ? `<div class="fp-field"><label>Branch</label><select id="f-branch"><option value="">All</option>${opt(uniq(scoped.map(p=>p.branch||p.branch_name||chainOf(p).department)), F.branch)}</select></div>` : ''}
+          </div>
+          <div class="fp-row fp-row-4">
+            ${showF('type') ? `<div class="fp-field"><label>Product Type</label><select id="f-type"><option value="">All</option>
+              <option value="simple" ${F.type==='simple'?'selected':''}>Single</option>
+              <option value="variable" ${F.type==='variable'?'selected':''}>Variable</option>
+              <option value="combo" ${F.type==='combo'?'selected':''}>Combo</option></select></div>` : ''}
+            ${showF('dept') ? `<div class="fp-field"><label>Department</label><select id="f-dept"><option value="">All</option>
+              ${DEPARTMENTS.filter((d)=>!F.sub||d.subsidiary===F.sub).map((d)=>`<option value="${d.code}" ${F.dept===d.code?'selected':''}>${esc(d.name)}</option>`).join('')}
+            </select></div>` : ''}
+            ${showF('category') ? `<div class="fp-field"><label>Category</label><select id="f-cat"><option value="">All</option>${opt(uniq(scoped.map(p=>p.category)).sort(), F.category)}</select></div>` : ''}
+            ${showF('subcat') ? `<div class="fp-field"><label>Subcategory</label><select id="f-subcat"><option value="">All</option>${opt(uniq(scoped.filter(p=>!F.category||p.category===F.category).map(p=>p.subcategory)).sort(), F.subcat)}</select></div>` : ''}
+          </div>
+          <div class="fp-row fp-row-8">
+            ${showF('brand') ? `<div class="fp-field"><label>Brand</label><select id="f-brand"><option value="">All</option>${opt(uniq(scoped.map(p=>p.brand)), F.brand)}</select></div>` : ''}
+            ${showF('model') ? `<div class="fp-field"><label>Model</label><select id="f-model"><option value="">All</option>${opt(uniq(scoped.map(p=>p.model||p.device_model)), F.model)}</select></div>` : ''}
+            ${showF('size') ? `<div class="fp-field"><label>Size</label><select id="f-size"><option value="">All</option>${opt(uniq(scoped.map(p=>p.size)), F.size)}</select></div>` : ''}
+            ${showF('color') ? `<div class="fp-field"><label>Color</label><select id="f-color"><option value="">All</option>${opt(uniq(scoped.map(p=>p.color||p.colour)), F.color)}</select></div>` : ''}
+            ${showF('unit') ? `<div class="fp-field"><label>Unit</label><select id="f-unit"><option value="">All</option>${opt(uniq(scoped.map(p=>p.unit||'pcs')), F.unit)}</select></div>` : ''}
+            ${showF('tax') ? `<div class="fp-field"><label>Tax</label><select id="f-tax"><option value="">All</option>${opt(uniq(scoped.map(p=>p.tax||p.tax_name)), F.tax)}</select></div>` : ''}
+            ${showF('from') ? `<div class="fp-field"><label>From Date</label><input type="date" id="f-from" value="${esc(F.from||'')}" /></div>` : ''}
+            ${showF('to') ? `<div class="fp-field"><label>To Date</label><input type="date" id="f-to" value="${esc(F.to||'')}" /></div>` : ''}
+          </div>
+          <div class="fp-row-end">
+            <div class="fp-checks">
+              ${showF('woo') ? `<label><input type="checkbox" id="f-woo" ${F.woo?'checked':''}/> WooCommerce</label>` : ''}
+              ${showF('nosell') ? `<label><input type="checkbox" id="f-nosell" ${F.nosell?'checked':''}/> Not for selling</label>` : ''}
+            </div>
+            <div class="fp-actions">
+              <button type="button" id="filt-clear">Clear Filters</button>
+              ${hqOn() ? `<details class="filt-hq"><summary>Filter List</summary>
+                <div class="filt-hq-list">${FILT_OPTS.map(([k,l]) => `<label><input type="checkbox" data-filt-key="${k}" ${showF(k)?'checked':''}/> ${l}</label>`).join('')}</div>
+              </details>` : ''}
+            </div>
+          </div>
+        </div>
+      </details>
+      <div class="card" data-tbl="prod">
+        <div class="desk-tabs">
+          <a class="${view==='list'?'on':''}" href="/products.html">List Products</a>
+          <a class="${view==='inventory'?'on':''}" href="/products.html?view=inventory">Product Inventory</a>
+          <a class="${view==='stock'?'on':''}" href="/products.html?view=stock">Inventory Management</a>
+        </div>
+        <div class="bar prod-tools-bot prod-tools-one">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>200</option><option>500</option><option>All</option></select> entries</label>
+          <a class="add" href="/product-form.html">+ Add</a>
+          <button type="button" class="dl" data-exp="xls">Download Excel</button>
+          <button type="button" class="dl" id="pub-catalog">Publish catalog</button>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search class="prod-search" placeholder="Search …" value="${esc(F.q)}" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          ${view==='list' ? `
+          <thead><tr>
+            <th><input type="checkbox" id="pick-all" /></th>
+            <th>Action</th>
+            <th>Product image</th>
+            <th>Product</th>
+            <th>Subsidiary</th>
+            <th>Business Location</th>
+            <th>Branch</th>
+            <th>Department</th>
+            <th>Unit Purchase Price</th>
+            <th>Selling Price</th>
+            <th>Current stock</th>
+            <th>Product Type</th>
+            <th>Category</th>
+            <th>Subcategory</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Unit</th>
+            <th>Tax</th>
+            <th>From Date</th>
+            <th>To Date</th>
+            <th>WooCommerce</th>
+            <th>Not for Selling</th>
+            <th>SKU</th>
+            <th>SUPPLIERS</th>
+            <th>JUMIA</th>
+            <th>COMPUGHANA</th>
+            <th>GET4LESS</th>
+            <th>TELEFONIKA</th>
+            <th>FRANKO</th>
+            <th>JIJI</th>
+          </tr></thead>
+          <tbody>${listBody}</tbody>` : view==='inventory' ? `
+          <thead><tr>
+            <th><input type="checkbox" id="pick-all" /></th>
+            <th>Action</th>
+            <th>SKU</th>
+            <th>Product Name</th>
+            <th>Brand</th>
+            <th>Model</th>
+            <th>Size</th>
+            <th>Color</th>
+            <th>Category</th>
+            <th>Subcategory</th>
+            <th>Product Type</th>
+            <th>Quantity In Stock</th>
+            <th>Reorder Level</th>
+            <th>Unit</th>
+            <th>Unit Cost</th>
+            <th>Tax</th>
+            <th>Supplier</th>
+            <th>Subsidiary</th>
+            <th>Business Location</th>
+            <th>Branch</th>
+            <th>Department</th>
+            <th>WooCommerce</th>
+            <th>Not for Selling</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${invBody}</tbody>` : `
+          <thead><tr>
+            <th><input type="checkbox" id="pick-all" /></th>
+            <th>ACTION</th>
+            <th>SKU</th>
+            <th>HUB CATALOG</th>
+            <th>MOVE KEY</th>
+            <th>PRODUCT</th>
+            <th>BRAND</th>
+            <th>MODEL</th>
+            <th>SIZE</th>
+            <th>COLOR</th>
+            <th>VARIATION</th>
+            <th>CATEGORY</th>
+            <th>SUBCATEGORY</th>
+            <th>BUSINESS LOCATION</th>
+            <th>UNIT SELLING PRICE</th>
+            <th>CURRENT STOCK</th>
+            <th>CURRENT STOCK VALUE</th>
+          </tr></thead>
+          <tbody>${stockBody}</tbody>`}
+        </table></div>
+        ${''}
+        <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+      </div>`;
+
+    bindTable(app.querySelector('[data-tbl="prod"]'), { title: view==='stock'?'Inventory Management': view==='inventory'?'Product Inventory':'List Products', storageKey: 'prod-'+view, skipFilters: true });
+    bindPublishButton(document.getElementById('pub-catalog'));
+    const searchEl = app.querySelector('[data-tbl-search]');
+    if (searchEl && F.q) {
+      searchEl.value = F.q;
+      searchEl._tblPaint?.();
+    }
+    searchEl?.addEventListener('input', () => { F.q = searchEl.value; });
+    document.getElementById('filt-box')?.addEventListener('toggle', (e) => {
+      showFilt = !!e.target.open;
+    });
+    app.querySelectorAll('[data-filt-key]').forEach((box) => {
+      box.onchange = () => {
+        filtBar[box.getAttribute('data-filt-key')] = box.checked;
+        saveFiltBar(filtBar);
+        load();
+      };
+    });
+    const bindF = () => {
+      F.type = document.getElementById('f-type')?.value || '';
+      F.category = document.getElementById('f-cat')?.value || '';
+      F.subcat = document.getElementById('f-subcat')?.value || '';
+      F.unit = document.getElementById('f-unit')?.value || '';
+      F.tax = document.getElementById('f-tax')?.value || '';
+      F.brand = document.getElementById('f-brand')?.value || '';
+      F.loc = document.getElementById('f-loc')?.value || '';
+      F.sub = document.getElementById('f-sub')?.value || '';
+      F.dept = document.getElementById('f-dept')?.value || '';
+      F.branch = document.getElementById('f-branch')?.value || '';
+      F.model = document.getElementById('f-model')?.value || '';
+      F.size = document.getElementById('f-size')?.value || '';
+      F.color = document.getElementById('f-color')?.value || '';
+      F.nosell = !!document.getElementById('f-nosell')?.checked;
+      F.woo = !!document.getElementById('f-woo')?.checked;
+      F.from = document.getElementById('f-from')?.value || '';
+      F.to = document.getElementById('f-to')?.value || '';
+      F.q = searchEl?.value || F.q;
+      load();
+    };
+    ['f-type','f-cat','f-subcat','f-unit','f-tax','f-brand','f-loc','f-sub','f-dept','f-branch','f-model','f-size','f-color','f-nosell','f-woo','f-from','f-to'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.onchange = bindF;
+    });
+    document.getElementById('filt-clear')?.addEventListener('click', () => {
+      Object.assign(F, { type:'', category:'', subcat:'', brand:'', unit:'', tax:'', loc:'', sub:'', dept:'', branch:'', model:'', size:'', color:'', nosell:false, woo:false, from:'', to:'', q:'' });
+      load();
+    });
+    app.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => {
+      view = b.dataset.tab;
+      const u = new URL(location.href);
+      if (view === 'list') u.searchParams.delete('view');
+      else u.searchParams.set('view', view);
+      history.replaceState({}, '', u);
+      load();
+    });
+    document.getElementById('pick-all')?.addEventListener('change', (e) => {
+      app.querySelectorAll('[data-pick]').forEach((c) => { c.checked = e.target.checked; });
+    });
+
+    app.querySelectorAll('[data-act]').forEach((b) => {
+      b.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (document.querySelector(`.act-flyout[data-for="${CSS.escape(b.dataset.act)}"]`)) {
+          closeFlyout();
+          return;
+        }
+        const id = b.dataset.act;
+        const menu = openFlyout(b, `
+          <button type="button" data-do="labels">Labels</button>
+          <button type="button" data-do="view">View</button>
+          <button type="button" data-do="edit">Edit</button>
+          <button type="button" data-do="delete">Delete</button>
+          <hr style="margin:4px 0;border:0;border-top:1px solid #e5e7eb" />
+          <button type="button" data-do="opening">Add or edit opening stock</button>
+          <button type="button" data-do="hist">Product stock history</button>
+          <button type="button" data-do="prices">Add or edit Group Prices</button>
+          <button type="button" data-do="dup">Duplicate Product</button>`);
+        menu.dataset.for = id;
+        menu.addEventListener('click', async (ev) => {
+          const btn = ev.target.closest('[data-do]');
+          if (!btn) return;
+          ev.preventDefault();
+          closeFlyout();
+          const p = findProduct(id);
+          const act = btn.dataset.do;
+          if (act === 'labels') openLabelsCard(p);
+          else if (act === 'view') openProductPeek(p, id);
+          else if (act === 'edit') openEditCard(p);
+          else if (act === 'hist') await openHistoryCard(p);
+          else if (act === 'opening') openOpeningCard(p);
+          else if (act === 'prices') openGroupPricesCard(p);
+          else if (act === 'dup') openEditCard(p, { duplicate: true });
+          else if (act === 'delete') {
+            if (!(await confirmAction('Delete this product?', 'Removes it from the catalogue at this location.'))) return;
+            await deleteRow('products', CAT_KEYS.products, id);
+            ackResult(true, 'Product deleted.');
+            load();
+          }
+        });
+      };
+    });
+
+    app.querySelectorAll('[data-hist]').forEach((b) => {
+      b.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeFlyout();
+        const id = b.dataset.hist;
+        const pack = window.__dfProductRows || products || [];
+        const hit = pack.find((x) => String(x.id) === String(id) || String(x.sku || '').toUpperCase() === String(id).toUpperCase());
+        await openHistoryCard(hit || { id, name: id, sku: id });
+      });
+    });
+
+    const selected = () => [...app.querySelectorAll('[data-pick]:checked')].map((x) => x.dataset.pick);
+    const productById = (id) => (products || []).find((p) => String(p.id) === String(id));
+    const locChoices = () => locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true });
+
+    function pickLocation(title, hint) {
+      const shops = locChoices();
+      if (!shops.length) {
+        ackResult(false, 'No selling locations on this subsidiary.');
+        return Promise.resolve(null);
+      }
+      return new Promise((resolve) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'df-loc-pick';
+        wrap.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+        const cur = getActiveLocation() || F.loc || shops[0].code;
+        wrap.innerHTML = `<div style="background:#fff;color:#111;border-radius:12px;max-width:420px;width:100%;padding:22px;box-shadow:0 20px 40px rgba(0,0,0,.25)">
+          <h3 style="margin:0 0 8px">${esc(title)}</h3>
+          <p style="margin:0 0 12px;font-size:13px;color:#3d4f66">${esc(hint || '')}</p>
+          <label style="display:block;font-size:13px;font-weight:700">Business location
+            <select id="bulk-loc">${shops.map((l) => `<option value="${esc(l.code)}" ${l.code === cur ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
+          </label>
+          <p style="display:flex;gap:8px;justify-content:flex-end;margin:18px 0 0">
+            <button type="button" id="bulk-x" style="border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 14px;cursor:pointer">Cancel</button>
+            <button type="button" id="bulk-ok" class="add">Continue</button>
+          </p>
+        </div>`;
+        document.body.appendChild(wrap);
+        wrap.querySelector('#bulk-x').onclick = () => { wrap.remove(); resolve(null); };
+        wrap.querySelector('#bulk-ok').onclick = () => {
+          const code = wrap.querySelector('#bulk-loc').value;
+          wrap.remove();
+          resolve(shops.find((s) => s.code === code) || null);
+        };
+      });
+    }
+
+    const bulk = {
+      delete: async (ids) => {
+        if (!(await confirmAction('Delete selected products?', ids.length + ' product(s) will be removed from the catalogue.'))) return false;
+        for (const id of ids) await deleteRow('products', CAT_KEYS.products, id);
+        ackResult(true, ids.length + ' product(s) deleted.');
+        return true;
+      },
+      addloc: async (ids) => {
+        const loc = await pickLocation('Add to location', 'Creates a copy of each selected product at the shop you pick. Stock starts at 0.');
+        if (!loc) return false;
+        if (!(await confirmAction('Add ' + ids.length + ' product(s) to ' + loc.name + '?', 'Existing copies at that shop are skipped.'))) return false;
+        let added = 0, skipped = 0;
+        const all = readLs(CAT_KEYS.products, []);
+        for (const id of ids) {
+          const src = productById(id) || all.find((p) => String(p.id) === String(id));
+          if (!src) { skipped += 1; continue; }
+          const already = all.some((p) => p.sku && p.sku === src.sku && p.location_code === loc.code);
+          if (already) { skipped += 1; continue; }
+          await saveRow('products', CAT_KEYS.products, {
+            ...src,
+            id: uid(),
+            location_code: loc.code,
+            location_name: loc.name,
+            stock: 0,
+            current_stock: 0,
+            created_at: new Date().toISOString(),
+          });
+          added += 1;
+        }
+        ackResult(true, added ? added + ' added to ' + loc.name + (skipped ? ' · ' + skipped + ' already there' : '') : 'Those SKUs are already at ' + loc.name + '.');
+        return true;
+      },
+      rmloc: async (ids) => {
+        const loc = await pickLocation('Remove from location', 'Removes the selected products from that shop only. Other shops keep their copy.');
+        if (!loc) return false;
+        if (!(await confirmAction('Remove ' + ids.length + ' product(s) from ' + loc.name + '?'))) return false;
+        let n = 0;
+        for (const id of ids) {
+          const src = productById(id);
+          if (!src) continue;
+          if (src.location_code && src.location_code !== loc.code) continue;
+          await deleteRow('products', CAT_KEYS.products, id);
+          n += 1;
+        }
+        ackResult(true, n ? n + ' removed from ' + loc.name + '.' : 'None of the selected rows belong to ' + loc.name + '.');
+        return true;
+      },
+      off: async (ids) => {
+        if (!(await confirmAction('Deactivate selected products?', 'They stay in the catalogue but will not sell on the till.'))) return false;
+        for (const id of ids) {
+          const src = productById(id) || { id };
+          await saveRow('products', CAT_KEYS.products, { ...src, id, is_active: false, not_for_selling: true });
+        }
+        ackResult(true, ids.length + ' product(s) deactivated.');
+        return true;
+      },
+      woo: async (ids) => {
+        if (!(await confirmAction('Sync selected products to WooCommerce?', 'Writes a sync log and marks the SKUs as Woo-enabled.'))) return false;
+        const rows = ids.map((id) => productById(id)).filter(Boolean);
+        for (const src of rows) {
+          await saveRow('products', CAT_KEYS.products, {
+            ...src,
+            woocommerce_enabled: true,
+            woo_id: src.woo_id || ('woo-' + (src.sku || src.id)),
+            last_woo_sync: new Date().toISOString(),
+          });
+        }
+        const logs = readLs('df_woo_sync_log', []);
+        logs.unshift({
+          id: 'wl-' + Date.now(),
+          at: new Date().toISOString(),
+          type: 'Products',
+          op: 'Created',
+          by: 'HQ Finance',
+          records: rows.map((p) => p.sku || p.id).join(', '),
+          n: rows.length,
+          details: rows.map((p) => (p.sku || p.id) + ' ' + (p.name || '') + ' — synced').join('\n'),
+        });
+        writeLs('df_woo_sync_log', logs.slice(0, 80));
+        try {
+          const s = JSON.parse(localStorage.getItem('df_woo_settings') || '{}');
+          s.unsynced_products = Math.max(0, Number(s.unsynced_products || 0) - rows.length);
+          localStorage.setItem('df_woo_settings', JSON.stringify(s));
+        } catch { /* ignore */ }
+        ackResult(true, rows.length + ' SKU(s) synced. Open WooCommerce → Sync Log to review.');
+        return true;
+      },
+    };
+    app.querySelectorAll('[data-bulk]').forEach((b) => {
+      b.onclick = async () => {
+        if (b.dataset.bulk === 'invert') {
+          app.querySelectorAll('[data-pick]').forEach((c) => { c.checked = !c.checked; });
+          return;
+        }
+        const ids = selected();
+        if (!ids.length) {
+          ackResult(false, 'Tick at least one product first.');
+          return;
+        }
+        const changed = await bulk[b.dataset.bulk](ids);
+        if (changed) load();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, () => load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; }));
+  load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard groups</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading…</main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { DASH_GROUPS } from './js/dashboards.js';
+    import { confirmAction } from './js/confirm-action.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const { data: users } = await supabase.from('profiles').select('id,email,full_name,role,dashboard_group').order('email').limit(500);
+    function paint() {
+      app.innerHTML = pageChrome('Dashboard groups', 'Assign which home each person opens. This sits above their role.') + `
+        <div class="ult-card">
+          <table class="ult-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Dashboard group</th></tr></thead>
+            <tbody>${(users||[]).map((u) => `<tr>
+              <td>${u.full_name||''}</td>
+              <td>${u.email||''}</td>
+              <td>${u.role||''}</td>
+              <td><select data-id="${u.id}">${DASH_GROUPS.map((g) =>
+                `<option value="${g.id}" ${String(u.dashboard_group||'')===g.id?'selected':''}>${g.label}</option>`).join('')}</select></td>
+            </tr>`).join('')}</tbody>
+          </table>
+          <p><button type="button" class="ult-btn ult-btn-primary" id="save">Save groups</button></p>
+        </div>`;
+      document.getElementById('save').onclick = async () => {
+        if (!(await confirmAction('Save dashboard groups?', 'Each user will open that home on next login.'))) return;
+        for (const sel of app.querySelectorAll('select[data-id]')) {
+          await supabase.from('profiles').update({ dashboard_group: sel.value }).eq('id', sel.dataset.id);
+        }
+        alert('Saved');
+      };
+    }
+    paint();
+  </script>
+</body>
+</html>

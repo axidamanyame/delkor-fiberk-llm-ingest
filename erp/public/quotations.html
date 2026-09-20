@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quotations — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading quotations…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, saveRow, esc, uid } from './js/ls-rows.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { isDemoRecord } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const QKEY = 'df_quotations';
+
+  async function copyQuote(id, rows) {
+    const src = rows.find((r) => String(r.id) === String(id));
+    if (!src) return ackResult(false, 'Quotation not found.');
+    const next = {
+      ...src,
+      id: uid(),
+      reference: 'QT-' + Date.now(),
+      status: 'draft',
+      notes: 'Copied from ' + (src.reference || id),
+      copied_from: src.id,
+      created_at: new Date().toISOString(),
+    };
+    delete next.updated_at;
+    const r = await saveRow('quotations', QKEY, next);
+    if (r?.error) return ackResult(false, r.error.message);
+    ackResult(true, next.reference + ' copied.');
+    load();
+  }
+
+  async function toSale(id, rows) {
+    const src = rows.find((r) => String(r.id) === String(id));
+    if (!src) return;
+    if (!(await confirmAction('Convert to sale?', src.reference + ' becomes a draft sale.'))) return;
+    const sale = {
+      id: uid(),
+      reference: 'SO-' + Date.now(),
+      customer_id: src.customer_id,
+      customer_name: src.customer_name,
+      status: 'draft',
+      order_date: new Date().toISOString().slice(0, 10),
+      subtotal: src.subtotal,
+      tax_amount: src.tax_amount,
+      total_amount: src.total_amount,
+      lines: src.lines || src.items || [],
+      notes: 'From quotation ' + (src.reference || ''),
+      quotation_id: src.id,
+      subsidiary_code: src.subsidiary_code,
+    };
+    const r = await saveRow('sales_orders', 'df_sales_orders', sale);
+    if (r?.error) return ackResult(false, r.error.message);
+    ackResult(true, sale.reference + ' created as a draft sale.');
+  }
+
+  async function load() {
+    let rows = (await loadRows('quotations', QKEY, [])).filter((r) => r && !isDemoRecord(r));
+    app.innerHTML = `
+      <h1>List quotations</h1>
+      <p class="sub">Sell → Quotations</p>
+      <div class="home-card" data-tbl="quotes">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Date</th><th>Reference No</th><th>Customer</th><th>Status</th><th>Total</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}" data-view="/quotation-form.html?id=${encodeURIComponent(r.id)}&view=1">
+            <td><details class="act"><summary class="act-btn">Actions</summary><menu>
+              <a href="/quotation-form.html?id=${encodeURIComponent(r.id)}&view=1">View</a>
+              <a href="/quotation-form.html?id=${encodeURIComponent(r.id)}">Edit</a>
+              <button type="button" data-copy="${esc(r.id)}">Copy</button>
+              <button type="button" data-sale="${esc(r.id)}">Convert to sale</button>
+              <button type="button" data-del="${esc(r.id)}">Delete</button>
+            </menu></details></td>
+            <td>${esc(String(r.order_date || r.created_at || '').slice(0, 10))}</td>
+            <td>${esc(r.reference || r.quote_no || '')}</td>
+            <td>${esc(r.customer_name || 'Walk-In')}</td>
+            <td>${esc(r.status || 'draft')}</td>
+            <td>${fmt(r.total_amount || r.total || 0)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="6">No quotations yet</td></tr>'}</tbody>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="quotes"]'), {
+      title: 'Quotations', storageKey: 'quotes', table: 'quotations', key: QKEY, onDone: load,
+    });
+    app.querySelectorAll('[data-copy]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); copyQuote(b.dataset.copy, rows); }; });
+    app.querySelectorAll('[data-sale]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); toSale(b.dataset.sale, rows); }; });
+  }
+  load();
+</script>
+</body>
+</html>

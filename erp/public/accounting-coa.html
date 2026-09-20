@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chart of accounts — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import {
+    accNav, esc, loadAccounts, loadJournals, loadTransfers, scopeAccounts, scopeDocs,
+    seedDefaultAccounts, saveRow, KEYS, TYPES, tableBar, tableFoot, statusPill, accountBalance, subLabel,
+    ensureDemoBooks,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const F = { type: '', status: '', view: 'table' };
+  let showFilt = true;
+
+  async function paint() {
+    await ensureDemoBooks();
+    const [raw, journals, transfers] = await Promise.all([loadAccounts(), loadJournals(), loadTransfers()]);
+    let rows = scopeAccounts(raw);
+    if (F.type) rows = rows.filter((a) => a.account_type === F.type);
+    if (F.status) rows = rows.filter((a) => (a.status || 'Active') === F.status);
+    const empty = !raw.length || !scopeAccounts(raw).length;
+
+    const treeHtml = () => {
+      const byType = {};
+      rows.forEach((a) => {
+        const t = a.account_type || 'Asset';
+        const s = a.sub_type || '—';
+        byType[t] = byType[t] || {};
+        byType[t][s] = byType[t][s] || [];
+        byType[t][s].push(a);
+      });
+      return `<ul class="coa-tree" id="coa-tree">${TYPES.map((t) => {
+        const subs = byType[t] || {};
+        const keys = Object.keys(subs);
+        if (!keys.length) return '';
+        const n = keys.reduce((s, k) => s + subs[k].length, 0);
+        return `<li>
+          <div class="node b-tog" data-fold>▾ <strong>${esc(t)}</strong> <span class="muted">${n}</span></div>
+          <ul>${keys.map((s) => `<li>
+            <div class="node b-tog" data-fold>${esc(s)} <span class="muted">${subs[s].length}</span></div>
+            <ul>${subs[s].map((a) => `<li class="leaf"><a href="/accounting-ledger.html?id=${esc(a.id)}">${esc(a.name)} <span class="muted">${esc(a.gl_code || '')} · ${esc(subLabel(a.subsidiary_code))}</span></a></li>`).join('')}</ul>
+          </li>`).join('')}</ul>
+        </li>`;
+      }).join('')}</ul>`;
+    };
+
+    const body = empty
+      ? `<div class="empty-acc">
+          <h3>No Accounts found</h3>
+          <p>Would you like us to create default accounts? Default accounts can be edited/deleted after it is created</p>
+          <button type="button" class="btn-defaults" id="seed">Create Default Accounts</button>
+        </div>`
+      : (F.view === 'tree'
+        ? `<div style="display:flex;gap:8px;margin-bottom:10px">
+             <button type="button" class="coa-tog" id="exp-all">Expand all</button>
+             <button type="button" class="coa-tog" id="col-all">Collapse all</button>
+           </div>${treeHtml()}`
+        : `<div class="pf ${showFilt ? 'open' : ''}" id="pf">
+             <button type="button" class="pf-btn" id="filt-tog">
+               <span style="display:flex;align-items:center"><span class="pf-ico">☰</span><span class="label">Filters</span></span>
+               <span class="pf-chev">▾</span>
+             </button>
+             <div class="pf-body">
+               <div class="filters" style="grid-template-columns:1fr 1fr">
+                 <label>Account Type:
+                   <select id="f-type">
+                     <option value="">All</option>
+                     ${TYPES.map((t) => `<option ${F.type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+                   </select>
+                 </label>
+                 <label>Status:
+                   <select id="f-status">
+                     <option value="">All</option>
+                     <option ${F.status === 'Active' ? 'selected' : ''}>Active</option>
+                     <option ${F.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+                   </select>
+                 </label>
+               </div>
+             </div>
+           </div>
+           ${tableBar()}
+           <div class="ult-table-wrap"><table class="ult-table loc-table">
+             <thead><tr>
+               <th data-nosort="1">Action</th>
+               <th>Name</th>
+               <th>General Ledger (GL) Code</th>
+               <th>Parent Account</th>
+               <th>Account Type</th>
+               <th>Account Sub Type</th>
+               <th>Detail Type</th>
+               <th>Primary Balance</th>
+               <th>Subsidiary</th>
+               <th>Status</th>
+             </tr></thead>
+             <tbody>
+               ${rows.map((a) => {
+                 const bal = accountBalance(a, scopeDocs(journals), scopeDocs(transfers));
+                 return `<tr data-view="/accounting-ledger.html?id=${esc(a.id)}">
+                   <td>${actMenu(a.id, [
+                     { href: `/accounting-ledger.html?id=${a.id}`, label: 'Ledger' },
+                     { href: `/accounting-account-form.html?id=${a.id}`, label: 'Edit' },
+                     { act: 'toggle', label: (a.status === 'Inactive' ? 'Activate' : 'Deactivate') },
+                   ])}</td>
+                   <td>${esc(a.name)}</td>
+                   <td>${esc(a.gl_code || '')}</td>
+                   <td>${esc(a.parent_account || '')}</td>
+                   <td>${esc(a.account_type)}</td>
+                   <td>${esc(a.sub_type || '')}</td>
+                   <td>${esc(a.detail_type || '')}</td>
+                   <td>${fmt(bal)}</td>
+                   <td>${esc(subLabel(a.subsidiary_code))}</td>
+                   <td>${statusPill(a.status)}</td>
+                 </tr>`;
+               }).join('') || '<tr data-dummy="1"><td colspan="10">No Accounts found</td></tr>'}
+             </tbody>
+           </table></div>
+           ${tableFoot()}`);
+
+    app.innerHTML = `
+      ${accNav('coa')}
+      <div class="acc-top">
+        <div>
+          <h1>Chart of accounts</h1>
+          <p class="sub">${esc(scopeCaption())}</p>
+        </div>
+        <a class="ult-add" href="/accounting-account-form.html">+ Add</a>
+      </div>
+      <div class="coa-toggles">
+        <button type="button" class="coa-tog ${F.view === 'tree' ? 'on' : ''}" data-v="tree">Tree view</button>
+        <button type="button" class="coa-tog ${F.view === 'table' ? 'on' : ''}" data-v="table">Tabular view</button>
+      </div>
+      <div class="home-card">${body}</div>`;
+
+    app.querySelectorAll('[data-v]').forEach((b) => {
+      b.onclick = () => { F.view = b.dataset.v; paint(); };
+    });
+    app.querySelector('#filt-tog')?.addEventListener('click', () => { showFilt = !showFilt; paint(); });
+    app.querySelector('#f-type')?.addEventListener('change', (e) => { F.type = e.target.value; paint(); });
+    app.querySelector('#f-status')?.addEventListener('change', (e) => { F.status = e.target.value; paint(); });
+    app.querySelector('#seed')?.addEventListener('click', async () => {
+      const ok = await confirmAction('Create default accounts?', 'Default accounts can be edited or deleted after they are created. They are seeded for the subsidiary currently selected on the left.');
+      if (!ok) return;
+      await seedDefaultAccounts();
+      toast('Default accounts created');
+      paint();
+    });
+    app.querySelector('#exp-all')?.addEventListener('click', () => {
+      app.querySelectorAll('.coa-tree ul').forEach((u) => { u.style.display = ''; });
+    });
+    app.querySelector('#col-all')?.addEventListener('click', () => {
+      app.querySelectorAll('.coa-tree > li > ul').forEach((u) => { u.style.display = 'none'; });
+    });
+    app.querySelectorAll('[data-fold]').forEach((n) => {
+      n.onclick = () => {
+        const ul = n.nextElementSibling;
+        if (ul) ul.style.display = ul.style.display === 'none' ? '' : 'none';
+      };
+    });
+    app.querySelectorAll('[data-act="toggle"]').forEach((b) => {
+      b.onclick = async () => {
+        const id = b.dataset.id;
+        const row = raw.find((a) => String(a.id) === String(id));
+        if (!row) return;
+        const next = row.status === 'Inactive' ? 'Active' : 'Inactive';
+        const ok = await confirmAction(next === 'Inactive' ? 'Deactivate account?' : 'Activate account?', row.name);
+        if (!ok) return;
+        await saveRow('chart_of_accounts', KEYS.accounts, { ...row, status: next });
+        toast(next === 'Inactive' ? 'Account deactivated' : 'Account activated');
+        paint();
+      };
+    });
+    if (!empty && F.view === 'table') bindTable(app, { title: 'Chart of accounts', storageKey: 'coa-v2' });
+  }
+
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

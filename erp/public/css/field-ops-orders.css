@@ -1,0 +1,42 @@
+/* Field Ops — Order List + Floor hydrate (ACM column set) */
+.fo-ol-wrap { display:flex; flex-direction:column; gap:14px; }
+.fo-ol-kpis {
+  display:grid;
+  grid-template-columns: repeat(6, minmax(0,1fr));
+  gap:10px;
+}
+.fo-ol-kpi {
+  background: var(--ult-card, #fff);
+  border: 1px solid var(--ult-border, var(--ult-border));
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.fo-ol-kpi .k { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; }
+.fo-ol-kpi .v { font-size:22px; font-weight:700; margin-top:4px; color:var(--ult-text); }
+.fo-ol-kpi.is-danger .v { color:#b91c1c; }
+.fo-ol-kpi.is-ok .v { color:#0f766e; }
+.fo-ol-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.fo-ol-chip {
+  border:1px solid var(--ult-border); background:var(--ult-card); border-radius:999px;
+  padding:5px 12px; font-size:12px; cursor:pointer; color:#374151;
+}
+.fo-ol-chip.is-on { background:#0f766e; border-color:#0f766e; color:#fff; }
+.fo-ol-chip.is-warn { background:#fff7ed; border-color:#fdba74; color:#9a3412; }
+.fo-ol-chip.is-warn.is-on { background:#c2410c; border-color:#c2410c; color:#fff; }
+.fo-ol-pill {
+  display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+}
+.fo-ol-pill.normal { background:#ecfdf5; color:#047857; }
+.fo-ol-pill.overdue1 { background:#fff7ed; color:#c2410c; }
+.fo-ol-pill.overdue26 { background:#ffedd5; color:#9a3412; }
+.fo-ol-pill.overdue6 { background:#fee2e2; color:#b91c1c; }
+.fo-ol-pill.finished { background:var(--ult-card-2); color:#4b5563; }
+.fo-ol-table-wrap { overflow:auto; background:var(--ult-card); border:1px solid var(--ult-border); border-radius:12px; }
+.fo-ol-table { width:100%; border-collapse:collapse; font-size:13px; }
+.fo-ol-table th { text-align:left; padding:8px 10px; background:#f9fafb; font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--ult-border); white-space:nowrap; }
+.fo-ol-table td { padding:8px 10px; border-bottom:1px solid #f3f4f6; vertical-align:top; }
+.fo-ol-table tr:hover td { background:var(--ult-card-2); }
+.fo-ol-note { font-size:12px; color:#6b7280; }
+@media (max-width: 960px) {
+  .fo-ol-kpis { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}

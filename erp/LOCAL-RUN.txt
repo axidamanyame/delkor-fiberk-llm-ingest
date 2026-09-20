@@ -1,0 +1,21 @@
+Delkor-Fiberk ERP — run on your computer first, then Vercel.
+
+1. Extract this zip to a folder (example: Documents\delkor-fiberk-erp).
+   index.html, js\, css\, start-local.bat, vercel.json must sit in that folder.
+
+2. Windows: double-click start-local.bat
+   Mac:     double-click start-local.sh  (or Terminal:  sh start-local.sh)
+
+3. Browser opens http://127.0.0.1:5500/login.html
+   Sign in with the same HQ email/password you use on the live site.
+   Leave the black window open while you work. Ctrl+C stops it.
+
+4. After a page looks right locally, upload THIS SAME FOLDER to Vercel
+   (overwrite the previous root). Hard-refresh the live site.
+
+One-time (Supabase → Authentication → URL Configuration → Redirect URLs)
+  add:  http://127.0.0.1:5500/**   and   http://localhost:5500/**
+  Site URL stays your Vercel address.
+
+Need Node.js from nodejs.org if the start file says it is missing.
+Do not open the HTML files by double-clicking them — the server must be running.

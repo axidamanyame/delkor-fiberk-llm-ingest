@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Suppliers — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:#111}.page h1{margin:0;font-size:22px;color:#111}
+    .sub{margin:0 0 12px;color:#111;font-size:13px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;width:100%;box-sizing:border-box;margin-bottom:12px}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .head h2{margin:0;font-size:16px;color:#111}
+    .add{background:#4f46e5;color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button,.filters select{border:1px solid #111;background:#fff;color:#111;border-radius:8px;padding:5px 10px;font-size:12px}
+    .filt-toggle{width:100%;text-align:left;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;color:#111;margin-bottom:10px}
+    .filters{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    table.ult-table th,table.ult-table td{color:#111;white-space:nowrap}
+    table.ult-table tfoot td{background:#d1d5db;font-weight:800;color:#111}
+    .act-btn{color:#0284c7;border:1px solid #7dd3fc;background:#fff;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+    .act-menu{position:absolute;background:#fff;border:1px solid #e5e7eb;border-radius:8px;min-width:190px;z-index:30;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+    .act-menu a,.act-menu button{display:block;width:100%;text-align:left;border:0;background:#fff;padding:8px 12px;color:#111;text-decoration:none;font-size:13px;cursor:pointer}
+    .pager{display:flex;justify-content:flex-end;gap:6px}
+    .pager button{border:1px solid #111;background:#fff;color:#111;padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pdf-orient button{display:block;width:100%;margin:4px 0;border:1px solid #111;background:#fff;padding:6px}
+  </style>
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { SCOPE_EVENT, filterBySidebar, scopeCaption, filterAgentHtml, inferRowScope, findLocation } from './js/scope.js';
+    import { bindTable, openFlyout, closeFlyout } from './js/home-tables.js';
+    import { subsidiaryLabel, ghanaAddressLine } from './js/entity-scope.js';
+    import { loadRows, safeFrom } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_SUPPLIERS, SEED_USERS } from './js/catalog-seed.js';
+    import { persistEnrichedSuppliers } from './js/supplier-enrich.js';
+    await mountUltimateShell();
+
+    try {
+      const raw = localStorage.getItem('df_suppliers') || '';
+      if (raw.length < 400000) persistEnrichedSuppliers('df_suppliers');
+    } catch { /* ignore */ }
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    let showFilt = false;
+    const F = { purchDue:false, purchRet:false, adv:false, open:false, assigned:'', status:'' };
+    const scope = filterBySidebar;
+    function inferSupplierScope(p) {
+      const n = String(p?.name || p?.business_name || '').toLowerCase();
+      if (/furniture|delkor/.test(n)) return { subsidiary_code: 'delkor', location_code: 'DEL-ONLINE' };
+      if (/oraimo|axida/.test(n)) return { subsidiary_code: 'axidigetek', location_code: 'AXI-ONLINE' };
+      return { subsidiary_code: p?.subsidiary_code || 'fiberk', location_code: p?.location_code || 'FIB-SHOP' };
+    }
+
+    async function load() {
+      function lsLite(key, cap) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw || raw.length > 400000) return [];
+          const p = JSON.parse(raw);
+          return Array.isArray(p) ? p.slice(0, cap || 400) : [];
+        } catch { return []; }
+      }
+      const [partiesRemote, pos, rets, profiles] = await Promise.all([
+        Promise.race([
+          loadRows('suppliers', CAT_KEYS.suppliers, SEED_SUPPLIERS),
+          new Promise((resolve) => setTimeout(() => resolve(lsLite(CAT_KEYS.suppliers, 400)), 2000)),
+        ]),
+        Promise.race([
+          safeFrom('purchase_orders'),
+          new Promise((resolve) => setTimeout(() => resolve([]), 2000)),
+        ]),
+        Promise.race([
+          safeFrom('purchase_returns'),
+          new Promise((resolve) => setTimeout(() => resolve([]), 2000)),
+        ]),
+        Promise.resolve(lsLite(CAT_KEYS.users, 80)),
+      ]);
+      const parties = (Array.isArray(partiesRemote) && partiesRemote.length)
+        ? partiesRemote.slice(0, 400)
+        : (lsLite(CAT_KEYS.suppliers, 400).length ? lsLite(CAT_KEYS.suppliers, 400) : SEED_SUPPLIERS.slice());
+      const dueMap = {}, retMap = {};
+      (pos || []).forEach((s) => {
+        if (!s.supplier_id) return;
+        dueMap[s.supplier_id] = (dueMap[s.supplier_id] || 0) + Math.max(0, Number(s.total_amount||0)-Number(s.amount_paid||0));
+      });
+      (rets || []).forEach((s) => {
+        if (!s.supplier_id) return;
+        retMap[s.supplier_id] = (retMap[s.supplier_id] || 0) + Number(s.total || s.total_amount || 0);
+      });
+      let rows = scope((parties || []).map((p) => {
+        const scoped = p.subsidiary_code ? inferRowScope(p) : inferSupplierScope(p);
+        return {
+          ...p,
+          subsidiary_code: scoped.subsidiary_code || p.subsidiary_code,
+          location_code: scoped.location_code || p.location_code,
+        };
+      })).map((p) => ({
+        ...p,
+        purch_due: dueMap[p.id] || Number(p.total_due || 0),
+        ret_due: retMap[p.id] || 0,
+      }));
+      if (F.purchDue) rows = rows.filter((r) => r.purch_due > 0);
+      if (F.purchRet) rows = rows.filter((r) => r.ret_due > 0);
+      if (F.adv) rows = rows.filter((r) => Number(r.advance_balance||0) > 0);
+      if (F.open) rows = rows.filter((r) => Number(r.opening_balance||0) > 0);
+      if (F.assigned) rows = rows.filter((r) => r.assigned_to === F.assigned);
+      if (F.status === 'active') rows = rows.filter((r) => r.is_active !== false);
+      if (F.status === 'inactive') rows = rows.filter((r) => r.is_active === false);
+      const totDue = rows.reduce((a,r)=>a+Number(r.purch_due||0),0);
+      const totRet = rows.reduce((a,r)=>a+Number(r.ret_due||0),0);
+      const asgOpts = (profiles||[]).map((p)=>`<option value="${p.id}" ${F.assigned===p.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('');
+
+      window.__dfSupplierRows = rows;
+      app.innerHTML = `
+        <h1>Suppliers</h1>
+        <p class="sub">${esc(scopeCaption())} — Manage your Suppliers</p>
+        <div class="filter-section${showFilt ? ' open' : ''}" data-page-filters>
+          <div class="filter-header">Filters <span class="filter-chevron">▼</span></div>
+          <div class="filter-body">
+          <div class="filters">
+            <div class="filt-checks">
+              <label class="filt-check"><input type="checkbox" id="f-due" ${F.purchDue?'checked':''}/> Purchase Due</label>
+              <label class="filt-check"><input type="checkbox" id="f-ret" ${F.purchRet?'checked':''}/> Purchase Return</label>
+              <label class="filt-check"><input type="checkbox" id="f-adv" ${F.adv?'checked':''}/> Advance Balance</label>
+              <label class="filt-check"><input type="checkbox" id="f-open" ${F.open?'checked':''}/> Opening Balance</label>
+            </div>
+            <div>Assigned to:<br><select id="f-asg"><option value="">None</option>${asgOpts}</select></div>
+            ${filterAgentHtml()}
+            <div>Status:<br><select id="f-st"><option value="">None</option><option value="active" ${F.status==='active'?'selected':''}>Active</option><option value="inactive" ${F.status==='inactive'?'selected':''}>Inactive</option></select></div>
+          </div>
+          </div>
+        </div>
+        <div class="card" data-tbl="sup">
+          <div class="head"><h2>All your Suppliers</h2></div>
+          <div class="bar">
+            <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>200</option><option>500</option><option>1000</option><option>All</option></select> entries</label>
+            <div class="grow"></div>
+            <button type="button" data-exp="csv">Export CSV</button>
+            <button type="button" data-exp="xls">Export Excel</button>
+            <button type="button" data-exp="print">Print</button>
+            <button type="button" data-exp="cols">Column visibility</button>
+            <button type="button" data-exp="pdf">Export PDF</button>
+            <input data-tbl-search placeholder="Search …" />
+          </div>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr>
+              <th>Action</th><th>Contact ID</th><th>Subsidiary</th><th>Department</th><th>Business Name</th><th>Name</th><th>Email</th>
+              <th>Tax number</th><th>Pay term</th><th>Opening Balance</th><th>Advance Balance</th>
+              <th>Added On</th><th>Address</th><th>Mobile</th>
+              <th>Total Purchase Due</th><th>Total Purchase Return Due</th>
+              <th>Custom Field 1</th><th>Custom Field 2</th><th>Custom Field 3</th>
+              <th>Custom Field 4</th><th>Custom Field 5</th><th>Custom Field 6</th>
+              <th>Custom Field 7</th><th>Custom Field 8</th><th>Custom Field 9</th><th>Custom Field 10</th>
+            </tr></thead>
+            <tbody>${rows.map((p)=>`<tr data-id="${esc(p.id)}">
+              <td class="act" style="position:relative"><button type="button" class="act-btn" data-act="${p.id}">Actions ▾</button></td>
+              <td>${esc(p.contact_code||p.code||p.contact_id||'')}</td>
+              <td>${esc(subsidiaryLabel(p.subsidiary_code))}</td>
+              <td>${esc(p.department_name||p.department_code||'')}</td>
+              <td>${esc(p.business_name||'')}</td>
+              <td>${esc(p.full_name||p.name||'')}</td>
+              <td>${esc(p.email||'')}</td>
+              <td>${esc(p.tin||p.tax_number||'')}</td>
+              <td>${esc(p.pay_term||'')}</td>
+              <td>${fmt(p.opening_balance)}</td>
+              <td>${fmt(p.advance_balance)}</td>
+              <td>${esc(String(p.created_at||'').slice(0,10))}</td>
+              <td>${esc(ghanaAddressLine(p) || p.address || '')}</td>
+              <td>${esc(p.phone||p.mobile||'')}</td>
+              <td>${fmt(p.purch_due)}</td>
+              <td>${fmt(p.ret_due)}</td>
+              <td>${esc(p.custom_field_1||'')}</td><td>${esc(p.custom_field_2||'')}</td>
+              <td>${esc(p.custom_field_3||'')}</td><td>${esc(p.custom_field_4||'')}</td>
+              <td>${esc(p.custom_field_5||'')}</td><td>${esc(p.custom_field_6||'')}</td>
+              <td>${esc(p.custom_field_7||'')}</td><td>${esc(p.custom_field_8||'')}</td>
+              <td>${esc(p.custom_field_9||'')}</td><td>${esc(p.custom_field_10||'')}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="26" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          </table></div>
+          <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+        </div>`;
+
+      bindTable(app.querySelector('[data-tbl="sup"]'), { title:'Suppliers', storageKey:'suppliers', skipFilters: true });
+      const bindF = () => {
+        F.purchDue = document.getElementById('f-due').checked;
+        F.purchRet = document.getElementById('f-ret').checked;
+        F.adv = document.getElementById('f-adv').checked;
+        F.open = document.getElementById('f-open').checked;
+        F.assigned = document.getElementById('f-asg').value;
+        F.status = document.getElementById('f-st').value;
+        showFilt = true;
+        load();
+      };
+      ['f-due','f-ret','f-adv','f-open','f-asg','f-st'].forEach((id) => { document.getElementById(id).onchange = bindF; });
+      app.querySelectorAll('[data-act]').forEach((b) => {
+        b.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const id = b.dataset.act;
+          if (document.querySelector(`.act-flyout[data-for="${CSS.escape(String(id))}"]`)) { closeFlyout(); return; }
+          const menu = openFlyout(b, `
+            <a href="/supplier-form.html?id=${id}&pay=1">Pay</a>
+            <a href="/contact-view.html?id=${id}&kind=supplier">View</a>
+            <a href="/supplier-form.html?id=${id}">Edit</a>
+            <button type="button" data-del="${id}">Delete</button>
+            <button type="button" data-off="${id}">Deactivate</button>
+            <a href="/supplier-form.html?id=${id}&tab=ledger">Ledger</a>
+            <a href="/purchase-orders.html?supplier=${id}">Purchases</a>
+            <a href="/supplier-form.html?id=${id}&tab=docs">Documents & Note</a>`);
+          menu.dataset.for = String(id);
+          menu.querySelector('[data-del]').onclick = async () => {
+            closeFlyout();
+            if (!(await confirmAction('Delete this supplier?', 'This cannot be undone.'))) return;
+            const { error } = await supabase.from('suppliers').delete().eq('id', id);
+            if (error) { ackResult(false, error.message); return; }
+            ackResult(true);
+            load();
+          };
+          menu.querySelector('[data-off]').onclick = async () => {
+            closeFlyout();
+            const { error } = await supabase.from('suppliers').update({ is_active:false }).eq('id', id);
+            if (error) { ackResult(false, error.message); return; }
+            ackResult(true);
+            load();
+          };
+        };
+      });
+    }
+    window.addEventListener(SCOPE_EVENT, () => load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; }));
+    load().catch((e) => { app.innerHTML = `<p>${esc(e.message)}</p>`; });
+  </script>
+</body>
+</html>

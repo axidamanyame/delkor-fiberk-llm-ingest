@@ -1,0 +1,20 @@
+Vercel 404 = the project root on Vercel is not this folder.
+
+In Vercel → Project → Settings → General:
+  Framework Preset: Other
+  Root Directory: (blank)
+  Output Directory: (blank)
+  Build Command: (blank)
+
+Upload THIS unzipped folder so you can see these files immediately:
+  index.html
+  login.html
+  vercel.json
+  api/
+  js/
+  css/
+
+Do not upload a small patch zip (Delkor-role-view-*.zip). Those replace the whole site and 404.
+Do not leave the files nested in a public/ folder.
+
+After deploy, open /login.html then the site home.

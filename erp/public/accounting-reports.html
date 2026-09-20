@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accounting reports — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import {
+    accNav, esc, loadAccounts, loadJournals, loadTransfers, scopeAccounts, scopeDocs,
+    accountBalance, accountPeriod, tableBar, tableFoot, dateFilterBtn, bindDateFilter, subLabel,
+    ensureDemoBooks, fiberkDateRange,
+  } from './js/accounting.js';
+  import { officialReportHtml, bindOfficialReport } from './js/report-template.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  let report = q.get('r') || 'tb';
+  const fk = fiberkDateRange();
+  const state = { preset: fk.preset, from: fk.from, to: fk.to };
+  const R = [
+    { id: 'tb', label: 'Trial Balance' },
+    { id: 'bs', label: 'Balance Sheet' },
+    { id: 'pl', label: 'Profit / Loss' },
+    { id: 'cf', label: 'Cash Flow' },
+  ];
+
+  async function paint() {
+    await ensureDemoBooks();
+    const accounts = scopeAccounts(await loadAccounts());
+    const journals = scopeDocs(await loadJournals());
+    const transfers = scopeDocs(await loadTransfers());
+    const rows = accounts.map((a) => ({
+      ...a,
+      bal: accountBalance(a, journals, transfers, state.from, state.to),
+    }));
+    const byType = (t) => rows.filter((a) => a.account_type === t);
+
+    let body = '';
+    let kpis = [];
+    let charts = [];
+    if (report === 'tb') {
+      const lined = rows.map((a) => ({ ...a, ...accountPeriod(a, journals, transfers, state.from, state.to) }));
+      const td = lined.reduce((s, a) => s + a.debit, 0);
+      const tc = lined.reduce((s, a) => s + a.credit, 0);
+      const to = lined.reduce((s, a) => s + a.opening, 0);
+      const tcl = lined.reduce((s, a) => s + a.closing, 0);
+      kpis = [
+        { label: 'Opening', value: fmt(to), tone: 'slate' },
+        { label: 'Debit', value: fmt(td), tone: 'blue' },
+        { label: 'Credit', value: fmt(tc), tone: 'amber' },
+        { label: 'Closing', value: fmt(tcl), tone: 'green' },
+      ];
+      charts = [{ type: 'donut', title: 'Debit vs credit', items: [
+        { label: 'Debit', value: td, tone: 'blue' },
+        { label: 'Credit', value: tc, tone: 'amber' },
+      ] }];
+      body = `${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr><th>Account</th><th>GL Code</th><th>Type</th><th>Subsidiary</th><th>Opening</th><th>Debit</th><th>Credit</th><th>Closing</th></tr></thead>
+          <tbody>
+            ${lined.map((a) => `<tr>
+              <td>${esc(a.name)}</td><td>${esc(a.gl_code || '')}</td><td>${esc(a.account_type)}</td>
+              <td>${esc(subLabel(a.subsidiary_code))}</td>
+              <td>${fmt(a.opening)}</td><td>${fmt(a.debit)}</td><td>${fmt(a.credit)}</td><td>${fmt(a.closing)}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="8">No data available in table</td></tr>'}
+          </tbody>
+          <tfoot><tr><td colspan="4"><strong>Total</strong></td>
+            <td><strong>${fmt(to)}</strong></td><td><strong>${fmt(td)}</strong></td>
+            <td><strong>${fmt(tc)}</strong></td><td><strong>${fmt(tcl)}</strong></td></tr></tfoot>
+        </table></div>${tableFoot()}`;
+    } else if (report === 'bs') {
+      const block = (title, types) => {
+        const list = types.flatMap(byType);
+        const tot = list.reduce((s, a) => s + a.bal, 0);
+        return `<h3>${esc(title)}</h3>
+          <table class="ov-table" style="margin-bottom:16px">
+            ${list.map((a) => `<tr><td>${esc(a.name)}</td><td>${fmt(a.bal)}</td></tr>`).join('')}
+            <tr><th>Total ${esc(title)}</th><th>${fmt(tot)}</th></tr>
+          </table>`;
+      };
+      const assets = byType('Asset').reduce((s, a) => s + a.bal, 0);
+      const liab = byType('Liability').reduce((s, a) => s + a.bal, 0);
+      const eq = byType('Equity').reduce((s, a) => s + a.bal, 0);
+      const ni = byType('Income').reduce((s, a) => s + a.bal, 0) - byType('Expenses').reduce((s, a) => s + a.bal, 0);
+      kpis = [
+        { label: 'Assets', value: fmt(assets), tone: 'blue' },
+        { label: 'Liabilities', value: fmt(liab), tone: 'amber' },
+        { label: 'Equity', value: fmt(eq), tone: 'slate' },
+        { label: 'Net income', value: fmt(ni), tone: ni >= 0 ? 'green' : 'red' },
+      ];
+      charts = [{ type: 'donut', title: 'Statement mix', items: [
+        { label: 'Assets', value: Math.abs(assets), tone: 'blue' },
+        { label: 'Liabilities', value: Math.abs(liab), tone: 'amber' },
+        { label: 'Equity', value: Math.abs(eq), tone: 'teal' },
+      ] }];
+      body = `${block('Assets', ['Asset'])}${block('Liabilities', ['Liability'])}${block('Equity', ['Equity'])}
+        <table class="ov-table"><tr><th>Net income (current period)</th><th>${fmt(ni)}</th></tr>
+        <tr><th>Assets</th><th>${fmt(assets)}</th></tr>
+        <tr><th>Liabilities + Equity + NI</th><th>${fmt(liab + eq + ni)}</th></tr></table>`;
+    } else if (report === 'pl') {
+      const inc = byType('Income');
+      const exp = byType('Expenses');
+      const ti = inc.reduce((s, a) => s + a.bal, 0);
+      const te = exp.reduce((s, a) => s + a.bal, 0);
+      kpis = [
+        { label: 'Income', value: fmt(ti), tone: 'green' },
+        { label: 'Expenses', value: fmt(te), tone: 'red' },
+        { label: 'Net', value: fmt(ti - te), tone: ti - te >= 0 ? 'blue' : 'red' },
+      ];
+      charts = [{ type: 'bar', title: 'Income vs expenses', items: [
+        { label: 'Income', value: ti, tone: 'green' },
+        { label: 'Expenses', value: te, tone: 'red' },
+      ] }];
+      body = `<table class="ov-table">
+        <tr><th colspan="2">Income</th></tr>
+        ${inc.map((a) => `<tr><td>${esc(a.name)}</td><td>${fmt(a.bal)}</td></tr>`).join('')}
+        <tr><th>Total Income</th><th>${fmt(ti)}</th></tr>
+        <tr><th colspan="2">Expenses</th></tr>
+        ${exp.map((a) => `<tr><td>${esc(a.name)}</td><td>${fmt(a.bal)}</td></tr>`).join('')}
+        <tr><th>Total Expenses</th><th>${fmt(te)}</th></tr>
+        <tr><th>Net Profit / Loss</th><th>${fmt(ti - te)}</th></tr>
+      </table>`;
+    } else {
+      const cash = rows.filter((a) => /cash|bank|mobile money|undeposited/i.test(a.name + ' ' + (a.sub_type || '')));
+      const tot = cash.reduce((s, a) => s + a.bal, 0);
+      kpis = [
+        { label: 'Cash accounts', value: String(cash.length), tone: 'slate' },
+        { label: 'Net cash', value: fmt(tot), tone: tot >= 0 ? 'green' : 'red' },
+      ];
+      charts = [{ type: 'bar', title: 'Cash accounts', items: cash.slice(0, 8).map((a) => ({ label: a.name, value: Math.abs(a.bal) })) }];
+      body = `<p class="sub">Cash and cash equivalents movement for the selected range (opening included in account balance).</p>
+        <table class="ov-table">
+          ${cash.map((a) => `<tr><td>${esc(a.name)}</td><td>${fmt(a.bal)}</td></tr>`).join('') || '<tr><td colspan="2">No cash accounts</td></tr>'}
+          <tr><th>Net cash position</th><th>${fmt(tot)}</th></tr>
+        </table>`;
+    }
+
+    const title = R.find((x) => x.id === report)?.label || 'Reports';
+    app.innerHTML = `
+      ${accNav('reports')}
+      ${officialReportHtml({
+        title,
+        category: 'Finance Reports',
+        status: 'Books',
+        statusTone: 'blue',
+        range: `${state.from} – ${state.to}`,
+        filtersHtml: `<div class="acc-top">${dateFilterBtn(state.preset)}</div>
+          <div class="acc-inner-tabs">${R.map((r) => `<button type="button" class="${r.id === report ? 'on' : ''}" data-r="${r.id}">${esc(r.label)}</button>`).join('')}</div>`,
+        kpis,
+        charts,
+        extraHtml: `<div class="home-card">${body}</div>`,
+        notes: scopeCaption(),
+      })}`;
+    bindOfficialReport(app);
+    bindDateFilter(app, state, paint);
+    app.querySelectorAll('[data-r]').forEach((b) => {
+      b.onclick = () => {
+        report = b.dataset.r;
+        history.pushState({ spa: `/accounting-reports.html?r=${report}` }, '', `/accounting-reports.html?r=${report}`);
+        paint();
+      };
+    });
+    if (report === 'tb') bindTable(app.querySelector('.home-card'), { title: 'Trial Balance', storageKey: 'tb' });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  window.addEventListener('popstate', () => {
+    report = new URLSearchParams(location.search).get('r') || 'tb';
+    paint();
+  });
+  paint().catch((err) => {
+    console.error(err);
+    app.innerHTML = `${accNav('reports')}<div class="ult-card"><h1>Trial Balance</h1><p>Could not open this report. ${esc(err.message || err)}</p></div>`;
+  });
+</script>
+</body>
+</html>

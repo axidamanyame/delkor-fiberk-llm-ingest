@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Product stock history</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)} h1{margin:0 0 12px;font-size:22px}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:18px 20px;margin:0 0 14px}
+    .filt3{display:grid;grid-template-columns:1.4fr 1fr .9fr;gap:18px}
+    .filt3 label{display:block;font-size:13px;font-weight:700;margin:0 0 6px}
+    select{width:100%;height:38px;border:1px solid var(--ult-border);border-radius:8px;padding:6px 10px;background:var(--ult-card)}
+    .sum-title{margin:0 0 12px;font-size:16px;font-weight:700}
+    .sum3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px}
+    .sum3 h3{margin:0 0 8px;font-size:14px}
+    .kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eef2f7;font-size:13px}
+    .kv b{font-weight:800}
+    .hist-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+    table.hist{width:100%;border-collapse:collapse;font-size:13px}
+    table.hist th{background:#2563eb;color:#fff;text-align:left;padding:8px 10px}
+    table.hist td{padding:8px 10px;border-bottom:1px solid #eef2f7;background:var(--ult-card)}
+    .in{color:#16a34a;font-weight:800}
+    .out{color:#dc2626;font-weight:800}
+    @media(max-width:900px){.filt3,.sum3{grid-template-columns:1fr}}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { findLocation, locationsFor, getActiveSubsidiary } from './js/scope.js';
+  import { loadRows, esc } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { displaySku, movementsFor } from './js/sku-lifecycle.js';
+  import { hardForkMerge, liveDeskRows } from './js/fiberk-silo.js';
+  import { bindTable } from './js/home-tables.js';
+  await mountUltimateShell();
+  const params = new URLSearchParams(location.search);
+  let pid = String(params.get('id') || params.get('product') || '').replace(/-u\d+$/i, '');
+  let loc = params.get('loc') || '';
+
+  function toIso(v) {
+    const s = String(v || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 16).replace('T', ' ');
+    const us = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    if (us) {
+      const a = Number(us[1]); const b = Number(us[2]); const y = us[3];
+      const md = a > 12 ? [b, a] : [a, b];
+      const t = us[4] ? ` ${us[4]}:${us[5]}` : '';
+      return `${y}-${String(md[0]).padStart(2,'0')}-${String(md[1]).padStart(2,'0')}${t}`;
+    }
+    return s.slice(0, 16);
+  }
+  function qtyOf(v) {
+    const n = Number(String(v || '').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  }
+  function lineBlob(l) {
+    if (!l || typeof l !== 'object') return String(l || '');
+    return `${l.product || ''} ${l.name || ''} ${l.sku || ''} ${(l.cells || []).join(' ')}`;
+  }
+  function matchesProduct(p, blob) {
+    const t = String(blob || '').toUpperCase();
+    const sku = String(p.sku || '').toUpperCase();
+    const name = String(p.name || '').toUpperCase();
+    if (sku && t.includes(sku)) return true;
+    if (name && t.includes(name)) return true;
+    if (String(p.id) && t.includes(String(p.id))) return true;
+    return false;
+  }
+
+  try { await hardForkMerge(); } catch { /* pack optional */ }
+  const [book, pack, salesPack, purchPack, xferPack] = await Promise.all([
+    loadRows('products', KEYS.products, []),
+    liveDeskRows('products'),
+    liveDeskRows('sales'),
+    liveDeskRows('purchases'),
+    liveDeskRows('transfers'),
+  ]);
+  const catalog = [...(pack || []), ...(book || [])].filter((x, i, a) => a.findIndex((y) => String(y.id) === String(x.id)) === i);
+
+  function historyFor(p) {
+    if (!p) return [];
+    const out = [];
+    (salesPack || []).forEach((s) => {
+      (s.lines || [{ product: s.note || '', qty: s.total_items || 1 }]).forEach((l) => {
+        if (!matchesProduct(p, lineBlob(l))) return;
+        out.push({
+          date: toIso(s.order_date || s.created_at),
+          type: String(s.status || '').toLowerCase().includes('return') ? 'Sell Return' : 'Sale',
+          qty: String(s.status || '').toLowerCase().includes('return')
+            ? Math.abs(qtyOf(l.qty || l.quantity || 1))
+            : -Math.abs(qtyOf(l.qty || l.quantity || 1)),
+          ref: s.invoice_no || s.reference || s.so_number || '',
+          location: s.location_name || s.location_code || '',
+          party: s.customer_name || '',
+        });
+      });
+    });
+    (purchPack || []).forEach((s) => {
+      (s.lines || []).forEach((l) => {
+        if (!matchesProduct(p, lineBlob(l) + ' ' + (l.name || ''))) return;
+        out.push({
+          date: toIso(s.order_date),
+          type: 'Purchase',
+          qty: Math.abs(qtyOf(l.qty || l.quantity || 1)),
+          ref: s.reference || '',
+          location: s.location_name || '',
+          party: s.supplier_name || '',
+        });
+      });
+    });
+    (xferPack || []).forEach((s) => {
+      (s.lines || []).forEach((l) => {
+        if (!matchesProduct(p, lineBlob(l))) return;
+        const q = Math.abs(qtyOf(l.qty || (l.cells || [])[2] || 1));
+        out.push({
+          date: toIso(s.date || s.order_date),
+          type: 'Stock Transfers (Out)',
+          qty: -q,
+          ref: s.ref || s.reference || '',
+          location: s.from || '',
+          party: s.to || '',
+        });
+        out.push({
+          date: toIso(s.date || s.order_date),
+          type: 'Stock Transfers (In)',
+          qty: q,
+          ref: s.ref || s.reference || '',
+          location: s.to || '',
+          party: s.from || '',
+        });
+      });
+    });
+    movementsFor(p.id).forEach((l) => {
+      const t = String(l.type || 'Adjustment');
+      const label = /open/i.test(t) ? 'Opening Stock'
+        : /adjust/i.test(t) ? 'Stock Adjustment'
+        : /return/i.test(t) ? t
+        : t;
+      out.push({
+        date: toIso(l.created_at),
+        type: label,
+        qty: Number(l.qty || 0),
+        ref: l.reference || '',
+        location: l.to_location || l.from_location || '',
+        party: l.party || '',
+      });
+    });
+    out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    let run = 0;
+    return out.map((r) => {
+      const before = run;
+      run += Number(r.qty || 0);
+      return { ...r, before, after: run };
+    });
+  }
+
+  function sumType(hist, type) {
+    return hist.filter((r) => r.type === type).reduce((s, r) => s + Math.abs(Number(r.qty || 0)), 0);
+  }
+  function pc(n) { return Number(n || 0).toFixed(2) + ' Pc(s)'; }
+
+  function paint() {
+    const match = (x) => String(x.id) === String(pid)
+      || String(x.sku || '').toUpperCase() === String(pid).toUpperCase()
+      || String(x.sku || '').toUpperCase() === ('FBK' + pid).toUpperCase()
+      || String(x.sku || '').toUpperCase() === ('DKF' + pid).toUpperCase();
+    const p = catalog.find(match);
+    const locName = findLocation(loc)?.name || loc;
+    const hist = p ? historyFor(p).filter((r) => {
+      if (!loc) return true;
+      const rl = String(r.location || '');
+      return rl === loc || rl === locName || rl.toLowerCase().includes(String(locName || loc).toLowerCase());
+    }) : [];
+    const purchase = sumType(hist, 'Purchase');
+    const opening = sumType(hist, 'Opening Stock');
+    const sellRet = sumType(hist, 'Sell Return');
+    const xIn = sumType(hist, 'Stock Transfers (In)');
+    const sold = sumType(hist, 'Sale');
+    const adj = sumType(hist, 'Stock Adjustment');
+    const pRet = sumType(hist, 'Purchase Return');
+    const xOut = sumType(hist, 'Stock Transfers (Out)');
+    const onHand = p ? Number(p.stock ?? p.current_stock ?? (hist.at(-1)?.after ?? 0)) : 0;
+    const variation = p?.variation || p?.variant || p?.color || '';
+    const shops = locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true });
+    const locOpts = shops.map((l) => `<option value="${esc(l.code)}" ${loc===l.code||loc===l.name?'selected':''}>${esc(l.name)}</option>`).join('');
+    document.getElementById('app').innerHTML = `
+      <h1>Product stock history</h1>
+      <div class="card">
+        <div class="filt3">
+          <div><label>Product:</label>
+            <select id="prod">
+              <option value="">Please Select</option>
+              ${catalog.slice(0, 1200).map((x) => `<option value="${esc(x.id)}" ${match(x)?'selected':''}>${esc(x.name)} - ${esc(displaySku(x) || x.sku || '')}</option>`).join('')}
+            </select>
+          </div>
+          <div><label>Business Location:</label>
+            <select id="loc">
+              <option value="">All locations</option>
+              ${locOpts}
+            </select>
+          </div>
+          <div><label>Variations:</label>
+            <select id="var">
+              <option>${variation ? esc(variation) : 'Default'}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      ${p ? `<div class="card" data-tbl="hist">
+        <h2 class="sum-title">${esc(p.name)}${variation ? ' - ' + esc(variation) : ''}</h2>
+        <div class="sum3">
+          <div>
+            <h3>Quantities In</h3>
+            <div class="kv"><span>Total Purchase</span><b>${pc(purchase)}</b></div>
+            <div class="kv"><span>Opening Stock</span><b>${pc(opening)}</b></div>
+            <div class="kv"><span>Total Sell Return</span><b>${pc(sellRet)}</b></div>
+            <div class="kv"><span>Stock Transfers (In)</span><b>${pc(xIn)}</b></div>
+          </div>
+          <div>
+            <h3>Quantities Out</h3>
+            <div class="kv"><span>Total Sold</span><b>${pc(sold)}</b></div>
+            <div class="kv"><span>Total Stock Adjustment</span><b>${pc(adj)}</b></div>
+            <div class="kv"><span>Total Purchase Return</span><b>${pc(pRet)}</b></div>
+            <div class="kv"><span>Stock Transfers (Out)</span><b>${pc(xOut)}</b></div>
+          </div>
+          <div>
+            <h3>Totals</h3>
+            <div class="kv"><span>Current stock</span><b>${pc(onHand)}</b></div>
+          </div>
+        </div>
+        <div class="hist-tools" data-tbl-tools></div>
+        <div class="ult-table-wrap">
+        <table class="hist ult-table">
+          <thead><tr>
+            <th>Type</th><th>Quantity change</th><th>New Quantity</th>
+            <th>Date</th><th>Reference No</th><th>Customer/Supplier information</th>
+          </tr></thead>
+          <tbody>${hist.length ? hist.slice().reverse().map((l) => `<tr>
+            <td>${esc(l.type)}</td>
+            <td class="${l.qty >= 0 ? 'in' : 'out'}">${l.qty > 0 ? '+' : ''}${Number(l.qty).toFixed(2)}</td>
+            <td>${Number(l.after).toFixed(2)}</td>
+            <td>${esc(l.date)}</td>
+            <td>${esc(l.ref || '--')}</td>
+            <td>${esc(l.party || '--')}</td>
+          </tr>`).join('') : `<tr><td colspan="6">No stock movements for this product yet.</td></tr>`}</tbody>
+        </table></div>
+      </div>` : '<div class="card">Select a product to load its stock history.</div>'}`;
+    document.getElementById('prod').onchange = () => {
+      pid = document.getElementById('prod').value;
+      history.replaceState({}, '', '?id=' + encodeURIComponent(pid) + (loc ? '&loc=' + encodeURIComponent(loc) : ''));
+      paint();
+    };
+    document.getElementById('loc').onchange = () => {
+      loc = document.getElementById('loc').value;
+      history.replaceState({}, '', '?id=' + encodeURIComponent(pid) + (loc ? '&loc=' + encodeURIComponent(loc) : ''));
+      paint();
+    };
+    const box = document.querySelector('[data-tbl="hist"]');
+    if (box) try { bindTable(box, { title: 'Product stock history', skipFilters: true, readonly: true }); } catch { /* optional */ }
+  }
+  paint();
+</script>
+</body>
+</html>

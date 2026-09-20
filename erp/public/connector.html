@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connector API</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:#111}
+    .page h1{margin:0 0 6px;font-size:22px}
+    .sub{margin:0 0 16px;font-size:13px;color:#111}
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:16px}
+    @media(max-width:960px){.grid{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px}
+    .ep{display:flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;margin:6px 0;cursor:pointer;background:#fff;width:100%;text-align:left;color:#111}
+    .ep.on{border-color:#4f46e5;background:#eef2ff}
+    .verb{font-size:11px;font-weight:800;padding:2px 6px;border-radius:4px;color:#fff}
+    .GET{background:#059669}.POST{background:#1d4ed8}.PUT{background:#d97706}.DELETE{background:#dc2626}
+    .path{font-family:ui-monospace,monospace;font-size:12px}
+    label{display:block;font-size:12px;font-weight:700;margin:8px 0 4px}
+    input,select,textarea{width:100%;padding:8px 10px;border:1px solid #111;border-radius:8px;box-sizing:border-box;color:#111;background:#fff}
+    textarea{min-height:120px;font-family:ui-monospace,monospace;font-size:12px}
+    pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto;max-height:420px;font-size:12px}
+    .tok{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { ENDPOINTS, executeConnector, CONNECTOR_VERSION } from './js/connector-api.js';
+  import { confirmAction } from './js/confirm-action.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+  let tokens = [];
+  let pick = ENDPOINTS[3];
+  let last = null;
+
+  async function loadTokens() {
+    const { data } = await supabase.from('connector_tokens').select('*').order('created_at', { ascending: false }).limit(20);
+    tokens = data || [];
+  }
+
+  async function paint() {
+    const groups = {};
+    ENDPOINTS.forEach((e) => { (groups[e.tag] ||= []).push(e); });
+    app.innerHTML = `
+      <h1>Connector API</h1>
+      <p class="sub">The Connector publishes Delkor-Fiberk ERP resources (contacts, products, sells, registers, attendance) and stamps <strong>subsidiary_code</strong> + <strong>location_code</strong> on every record. Version ${esc(CONNECTOR_VERSION)}.</p>
+      <div class="grid">
+        <div class="card">
+          <h3 style="margin:0 0 8px">Access tokens</h3>
+          <p style="font-size:13px;margin:0 0 8px">Issue a Bearer token for Woo, mobile, or field apps. Run <code>25_connector.sql</code> in Supabase once if token create fails.</p>
+          <button type="button" class="ult-btn ult-btn-primary" id="iss">Issue token</button>
+          <div id="toks" style="margin-top:10px">${tokens.map((t)=>`<div class="tok">${esc(t.name||'token')} · <code>${esc((t.token||'').slice(0,18))}…</code></div>`).join('') || '<p>No tokens yet</p>'}</div>
+          <hr style="margin:16px 0;border:0;border-top:1px solid #e5e7eb" />
+          <h3 style="margin:0 0 8px">Endpoints</h3>
+          ${Object.entries(groups).map(([tag, list]) => `
+            <div style="margin-bottom:10px">
+              <strong style="font-size:12px">${esc(tag)}</strong>
+              ${list.map((e)=>`<button type="button" class="ep ${pick===e?'on':''}" data-path="${esc(e.path)}" data-method="${e.method}">
+                <span class="verb ${e.method}">${e.method}</span>
+                <span><div class="path">${esc(e.path)}</div><div style="font-size:11px">${esc(e.summary)}</div></span>
+              </button>`).join('')}
+            </div>`).join('')}
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 8px">${esc(pick.method)} ${esc(pick.path)}</h3>
+          <p style="font-size:13px">${esc(pick.summary)}</p>
+          <label>Path id / user_id</label>
+          <input id="pid" placeholder="uuid when the path has {id} or {user_id}" />
+          <label>JSON body (POST / PUT)</label>
+          <textarea id="body">{
+  "subsidiary_code": "fiberk",
+  "location_code": "FIB-SHOP"
+}</textarea>
+          <p style="margin-top:12px">
+            <button type="button" class="ult-btn ult-btn-primary" id="run">Try it</button>
+          </p>
+          ${last ? `<pre>${esc(JSON.stringify(last, null, 2))}</pre>` : '<p>Response appears here.</p>'}
+        </div>
+      </div>`;
+    document.getElementById('iss').onclick = async () => {
+      if (!(await confirmAction('Issue a connector token?', 'This token can read and write the selected subsidiary.'))) return;
+      last = await executeConnector('POST', '/connector/api/token', { body: { name: 'Console token ' + new Date().toISOString().slice(0,16) } });
+      await loadTokens();
+      paint();
+    };
+    document.querySelectorAll('.ep').forEach((b) => {
+      b.onclick = () => {
+        pick = ENDPOINTS.find((e) => e.path === b.dataset.path && e.method === b.dataset.method) || pick;
+        paint();
+      };
+    });
+    document.getElementById('run').onclick = async () => {
+      let body = {};
+      try { body = JSON.parse(document.getElementById('body').value || '{}'); }
+      catch { last = { success: false, msg: 'Body is not valid JSON' }; paint(); return; }
+      const id = document.getElementById('pid').value.trim();
+      last = await executeConnector(pick.method, pick.path, { params: { id, user_id: id }, body });
+      paint();
+    };
+  }
+
+  await loadTokens();
+  paint();
+</script>
+</body>
+</html>

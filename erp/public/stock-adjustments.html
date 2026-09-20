@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Stock Adjustments — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS, VIRTUAL_WH, filterBySidebar, scopeCaption, SCOPE_EVENT } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, deleteRow, esc, actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { chainOf } from './js/org-chain.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const LOCS = [...BUSINESS_LOCATIONS, VIRTUAL_WH];
+  const locName = (r) => r.location_name || r.legacy_location || LOCS.find((l) => l.code === r.location_code)?.name || r.location_code || '—';
+
+  const seed = [];
+
+  function fmtDt(s) {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (m) return `${m[2]}/${m[3]}/${m[1]}${m[4] ? ' ' + m[4] + ':' + m[5] : ''}`;
+    if (!s) return '';
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return String(s).slice(0, 16);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function cap(s) { return String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
+
+  async function paint() {
+    const all = await loadRows('stock_adjustments', 'df_stock_adjustments', seed);
+    const rows = filterBySidebar(all.map((r) => ({
+      ...r,
+      location_code: r.location_code || r.location,
+      subsidiary_code: r.subsidiary_code || r.home_subsidiary || '',
+    })));
+    app.innerHTML = `
+      <h1>Stock Adjustments</h1>
+      <p class="sub">${esc(scopeCaption())}</p>
+      <section class="home-card" data-tbl="sa">
+        <div class="loc-list-head">
+          <div>All stock adjustments</div>
+          <a class="ult-add" href="/stock-adjustment-form.html">+ Add</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>Subsidiary</th>
+            <th>Business Location</th>
+            <th>Department</th>
+            <th>Adjustment type</th>
+            <th>Total Amount</th>
+            <th>Total amount recovered</th>
+            <th>Reason</th>
+            <th>Added By</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-view="/stock-adjustment-form.html?id=${esc(r.id)}&view=1">
+              <td>${actMenu(r.id, [
+                { href: `/stock-adjustment-form.html?id=${r.id}&view=1`, label: 'View' },
+                { href: `/stock-adjustment-form.html?id=${r.id}`, label: 'Edit' },
+                { href: `/stock-adjustment-form.html?id=${r.id}&print=1`, label: 'Print' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+              <td>${esc(fmtDt(r.adjustment_date || r.created_at))}</td>
+              <td>${esc(r.reference_no || r.reference || '')}</td>
+              <td>${esc(chainOf(r).subsidiary)}</td>
+              <td>${esc(chainOf(r).location)}</td>
+              <td>${esc(chainOf(r).department)}</td>
+              <td><span class="pill ${esc(r.kind || r.adjustment_type || 'normal')}">${esc(cap(r.kind || r.adjustment_type || 'normal'))}</span></td>
+              <td>${fmt(r.total_amount || 0)}</td>
+              <td>${fmt(r.recovered || r.total_amount_recovered || 0)}</td>
+              <td>${esc(r.reason || '')}</td>
+              <td>${esc(r.added_by || 'Admin')}</td>
+            </tr>`).join('')}
+            <tr data-dummy="1"><td colspan="11" style="text-align:center">No data available in table</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <div data-tbl-pager></div>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="sa"]'), { title: 'Stock Adjustments', storageKey: 'stock-adjustments' });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this stock adjustment?', 'This cannot be undone.'))) return;
+        await deleteRow('stock_adjustments', 'df_stock_adjustments', b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+  }
+  paint();
+  window.addEventListener(SCOPE_EVENT, paint);
+</script>
+</body>
+</html>

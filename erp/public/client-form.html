@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/client-desk.css" />
+  <style>
+    label{display:block;font-weight:700;margin:12px 0 6px;color:#111}
+    input,select,textarea{width:100%;border:1px solid #111;border-radius:8px;padding:10px;box-sizing:border-box;color:#111}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bootClientForm } from './js/client-desk.js';
+  await mountUltimateShell();
+  await bootClientForm();
+</script>
+</body>
+</html>

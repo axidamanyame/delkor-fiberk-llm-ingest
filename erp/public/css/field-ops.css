@@ -1,0 +1,201 @@
+/* Field Ops — ACM order list */
+
+.fo-ol { max-width: 1400px; }
+.fo-ol-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: end;
+  margin: 0 0 14px;
+}
+.fo-ol-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ult-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.fo-ol-filters select,
+.fo-ol-filters input[type="date"] {
+  min-height: 40px;
+  min-width: 160px;
+  border: 1px solid var(--ult-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  background: var(--ult-card);
+  color: var(--ult-text);
+}
+.fo-ol-chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.fo-chip {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ult-border);
+  background: var(--ult-card);
+  color: var(--ult-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.fo-chip.on {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #f8fafc;
+}
+.fo-ol-actions { display: flex; gap: 8px; }
+.fo-ol-actions .ult-btn { min-height: 40px; border-radius: 10px; }
+
+.fo-ol-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  background: var(--ult-card);
+  border: 1px solid var(--ult-border);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0 0 16px;
+}
+.fo-ol-kpis article {
+  padding: 16px 12px 14px;
+  text-align: center;
+  border-left: 1px solid var(--ult-border);
+}
+.fo-ol-kpis article:first-child { border-left: 0; }
+.fo-ol-kpis span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ult-muted);
+  margin-bottom: 6px;
+}
+.fo-ol-kpis b {
+  display: block;
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ult-text);
+}
+
+.fo-st {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.fo-st-normal { background: #ecfdf5; color: #0f766e; }
+.fo-st-overdue_1 { background: #fef3c7; color: #92400e; }
+.fo-st-overdue_2_6 { background: #ffedd5; color: #9a3412; }
+.fo-st-overdue_6 { background: #fef2f2; color: #b91c1c; }
+.fo-st-finished { background: #f1f5f9; color: #334155; }
+.fo-mono { font-variant-numeric: tabular-nums; font-size: 12px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fo-num { font-variant-numeric: tabular-nums; text-align: right; }
+
+@media (max-width: 900px) {
+  .fo-ol-kpis { grid-template-columns: 1fr 1fr; }
+  .fo-ol-kpis article { border-left: 0; border-top: 1px solid var(--ult-border); }
+  .fo-ol-kpis article:nth-child(-n+2) { border-top: 0; }
+}
+@media (max-width: 560px) {
+  .fo-ol-kpis { grid-template-columns: 1fr; }
+}
+
+html[data-theme="dark"] .fo-chip.on { background: #e2e8f0; color: #0f172a; border-color: var(--ult-border); }
+html[data-theme="dark"] .fo-st-normal { background: #134e4a; color: #99f6e4; }
+.hp-hit{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#ecfdf5;color:#047857;margin-left:4px}
+
+.fo-int { margin: 0 0 18px; }
+.fo-int-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+.fo-int-head h2 { margin: 0; flex: 1; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; color: var(--ult-muted); }
+.fo-books {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.fo-book {
+  border: 1px solid var(--ult-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: var(--ult-card);
+}
+.fo-book h3 { margin: 0 0 4px; font-size: 16px; }
+.fo-book-n { margin: 0 0 8px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fo-book p { margin: 0 0 8px; font-size: 13px; color: var(--ult-muted); }
+.fo-book-feeds { font-size: 12px !important; font-weight: 650; color: #0f766e !important; }
+.fo-book-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px !important; }
+.fo-book-link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.fo-book-link strong { font-size: 14px; }
+.fo-book-link span { font-size: 12px; color: var(--ult-muted); }
+.fo-book-link:hover { outline: 2px solid #0f766e; }
+.fo-books-floor { margin: 0; }
+
+/* Floor split: Agents + Customers must both fit in the right pane */
+.fo-board .home-card,
+.fo-board .fo-split-card{
+  min-width:0 !important;
+  max-width:100% !important;
+  width:100%;
+  box-sizing:border-box;
+  overflow:hidden;
+  margin-bottom:0;
+  padding:10px 12px;
+}
+.fo-board .erp-top-bar,
+.fo-board .erp-tools,
+.fo-board .bar,
+.fo-board .head{
+  flex-wrap:wrap !important;
+  width:100%;
+  min-width:0;
+}
+.fo-board .erp-search,
+.fo-board [data-tbl-search],
+.fo-board .fb-search{
+  flex:1 1 100% !important;
+  width:100% !important;
+  min-width:0 !important;
+  max-width:none !important;
+}
+.fo-board .ult-table-wrap,
+.fo-board .table-wrapper{
+  width:100% !important;
+  max-width:100% !important;
+  overflow-x:auto !important;
+  overflow-y:auto !important;
+  max-height:min(48vh, 460px) !important;
+}
+.fo-board table{ width:100%; }
+.fo-board .filter-section{ max-width:100%; }
+.fo-board .filter-body .filters{
+  grid-template-columns:repeat(2, minmax(0,1fr)) !important;
+}
+.fo-board th,
+.fo-board td{
+  max-width:160px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.fo-board th:nth-child(2),
+.fo-board td:nth-child(2){
+  max-width:none;
+}
+
+
+

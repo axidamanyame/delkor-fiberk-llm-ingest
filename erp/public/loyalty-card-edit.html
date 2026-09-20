@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Loyalty card</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page { color:var(--ult-text); }
+    .page h1 { margin:0 0 14px; font-size:22px; }
+    .card { background:var(--ult-card); border:1px solid var(--ult-border); border-radius:12px; padding:20px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 18px; }
+    @media (max-width:720px) { .grid { grid-template-columns:1fr; } }
+    .fld { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; color:var(--ult-text); }
+    .fld input, .fld select { font-weight:400; padding:8px 10px; border:1px solid var(--ult-border); border-radius:6px; font:inherit; width:100%; box-sizing:border-box; }
+    .chk { display:flex; align-items:center; gap:8px; font-weight:500; }
+    .actions { display:flex; gap:10px; align-items:center; margin-top:18px; }
+    .save { background:#4f46e5; color:#fff; border:0; border-radius:8px; padding:10px 18px; font-weight:700; cursor:pointer; }
+    .close { color:#111; }
+    #err { color:#b91c1c; margin-top:10px; }
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect, locationSelect } from './js/entity-scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { filterBySidebar } from './js/scope.js';
+  import { loadFormRow, fillForm } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  const customerQ = params.get('customer');
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+
+  let row = { card_no: '', customer_id: customerQ || '', points: 0, is_active: true };
+  let cardId = null;
+
+  if (id) {
+    const found = await loadFormRow('loyalty_cards', 'df_loyalty_cards', id, ['df_customers']);
+    if (found) { row = { ...row, ...found }; cardId = found.id || id; }
+    else {
+      const { data } = await supabase.from('loyalty_cards').select('*').eq('id', id).maybeSingle();
+      if (data) { row = data; cardId = data.id; }
+    }
+  }
+  if (!cardId) {
+    const look = row.customer_id || id;
+    if (look) {
+      const byCust = await supabase.from('loyalty_cards').select('*').eq('customer_id', look).maybeSingle();
+      if (byCust.data) { row = byCust.data; cardId = byCust.data.id; }
+      else {
+        const { data: c } = await supabase.from('customers')
+          .select('id,name,phone,loyalty_card,loyalty_points,subsidiary_code,location_code')
+          .eq('id', look).maybeSingle();
+        if (c) {
+          row = {
+            customer_id: c.id,
+            card_no: c.loyalty_card || '',
+            points: Number(c.loyalty_points) || 0,
+            is_active: true,
+            subsidiary_code: c.subsidiary_code || '',
+            location_code: c.location_code || '',
+          };
+        }
+      }
+    }
+  }
+
+  const { data: custs } = await supabase.from('customers')
+    .select('id,name,phone,subsidiary_code,location_code,loyalty_card')
+    .order('name').limit(800);
+  const options = filterBySidebar(custs || []).map((c) =>
+    `<option value="${c.id}" ${c.id===row.customer_id?'selected':''}>${esc(c.name)} ${c.phone?('· '+c.phone):''}</option>`
+  ).join('');
+
+  function missingCol(msg) {
+    const s = String(msg || '');
+    const m = s.match(/Could not find the '([^']+)' column/i) || s.match(/column "([^"]+)" of relation/i);
+    return m?.[1] || null;
+  }
+
+  async function upsertCard(body) {
+    const payload = { ...body };
+    delete payload.agent_id;
+    for (let i = 0; i < 20; i++) {
+      let q;
+      if (cardId) {
+        q = await supabase.from('loyalty_cards').update(payload).eq('id', cardId).select('id');
+        if (!q.error && (!q.data || !q.data.length)) {
+          cardId = null;
+          continue;
+        }
+      } else {
+        q = await supabase.from('loyalty_cards').insert(payload).select('id');
+      }
+      if (!q.error) return q;
+      if (/relation .* does not exist|42P01/i.test(q.error.message)) return { error: null, skipped: true };
+      const col = missingCol(q.error.message);
+      if (col && col in payload) { delete payload[col]; continue; }
+      return q;
+    }
+    return { error: { message: 'Could not save loyalty card' } };
+  }
+
+  app.innerHTML = `
+    <h1>${(id || customerQ) ? 'Edit' : 'Add'} loyalty card</h1>
+    <form id="f" class="card">
+      <div class="grid">
+        ${subsidiarySelect(row.subsidiary_code || '')}
+        ${locationSelect(row.subsidiary_code || '', row.location_code || '')}
+        <label class="fld">Card No*
+          <input name="card_no" required value="${esc(row.card_no || '')}" />
+        </label>
+        <label class="fld">Customer*
+          <select name="customer_id" required>
+            <option value="">Select</option>${options}
+          </select>
+        </label>
+        <label class="fld">Points
+          <input name="points" type="number" step="1" value="${esc(row.points ?? 0)}" />
+        </label>
+        <label class="chk"><input type="checkbox" name="is_active" ${row.is_active!==false?'checked':''}/> Active</label>
+      </div>
+      <div class="actions">
+        <button type="submit" class="save">Save</button>
+        <a class="close" href="/loyalty-cards.html">Close</a>
+      </div>
+    </form>
+    <p id="err"></p>`;
+  fillForm(document.getElementById('f'), row);
+
+  const subSel = app.querySelector('[name="subsidiary_code"]');
+  const locSel = app.querySelector('[name="location_code"]');
+  if (subSel && locSel) {
+    subSel.addEventListener('change', () => {
+      const wrap = locSel.closest('label');
+      if (!wrap) return;
+      wrap.outerHTML = locationSelect(subSel.value, '');
+    });
+  }
+
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('err');
+    errEl.textContent = '';
+    if (!(await confirmAction('Save this card?', 'Stamped to the selected subsidiary.'))) return;
+    const fd = new FormData(e.target);
+    const body = {
+      card_no: String(fd.get('card_no') || '').trim(),
+      customer_id: fd.get('customer_id') || null,
+      points: Number(fd.get('points') || 0),
+      is_active: !!e.target.is_active.checked,
+    };
+    if (!body.card_no || !body.customer_id) {
+      errEl.textContent = 'Card number and customer are required.';
+      return;
+    }
+    try { stampScope(body, e.target); } catch (ex) { errEl.textContent = ex.message; return; }
+    const q = await upsertCard(body);
+    if (q.error) { errEl.textContent = q.error.message; return; }
+    const custUp = await supabase.from('customers')
+      .update({ loyalty_card: body.card_no, loyalty_points: body.points })
+      .eq('id', body.customer_id);
+    if (custUp.error) {
+      const msg = custUp.error.message || '';
+      if (!/Could not find the '.+' column/i.test(msg)) {
+        errEl.textContent = custUp.error.message;
+        return;
+      }
+    }
+    location.assign('/loyalty-cards.html');
+  };
+</script>
+</body>
+</html>

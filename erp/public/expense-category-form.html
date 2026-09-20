@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Add Expense Category — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .exp-save{background:#6d28d9;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer}
+    .exp-close{background:#111;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-weight:700;text-decoration:none}
+    .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { loadRows, saveRow, esc } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { CAT_SEED, parentsOf } from './js/expense-data.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const cats = await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+  const row = id ? (cats.find((c) => String(c.id) === String(id)) || {}) : {};
+  const dis = view ? 'disabled' : '';
+  const isSub = !!row.parent_id;
+
+  app.innerHTML = `
+    <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} Expense Category</h1>
+    <form id="f" class="sell-card" style="max-width:560px">
+      <label class="fld">Category name:*
+        <input name="name" ${dis} required value="${esc(row.name || '')}" placeholder="Category name">
+      </label>
+      <label class="fld">Category code:
+        <input name="code" ${dis} value="${esc(row.code || '')}" placeholder="Category code">
+      </label>
+      <label class="chk" style="margin:12px 0">
+        <input type="checkbox" name="as_sub" ${dis} ${isSub ? 'checked' : ''}> Add as sub-category
+      </label>
+      <label class="fld" id="parent-wrap" ${isSub ? '' : 'hidden'}>Parent category:*
+        <select name="parent_id" ${dis}>
+          <option value="">Please Select</option>
+          ${parentsOf(cats).filter((c) => c.id !== row.id).map((c) => `<option value="${esc(c.id)}" ${row.parent_id===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </label>
+      <div class="foot">
+        ${view
+          ? `<a class="ult-btn ult-btn-primary" href="/expense-category-form.html?id=${esc(row.id)}">Edit</a>`
+          : `<button class="exp-save" type="submit">Save</button>`}
+        <a class="exp-close" href="/expense-categories.html">Close</a>
+      </div>
+    </form>`;
+
+  const f = document.getElementById('f');
+  f.as_sub?.addEventListener('change', () => {
+    document.getElementById('parent-wrap').hidden = !f.as_sub.checked;
+  });
+  if (!view) f.onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction(row.id ? 'Update this category?' : 'Save this category?', 'It will appear on Add Expense.'))) return;
+    const asSub = f.as_sub.checked;
+    if (asSub && !f.parent_id.value) { toast('Pick a parent category', 'error'); return; }
+    await saveRow('expense_categories', 'df_expense_categories', {
+      id: row.id,
+      name: f.name.value.trim(),
+      code: f.code.value.trim() || null,
+      parent_id: asSub ? f.parent_id.value : null,
+    });
+    toast('Category saved');
+    location.href = '/expense-categories.html';
+  };
+</script>
+</body>
+</html>

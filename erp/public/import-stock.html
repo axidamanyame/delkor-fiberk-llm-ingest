@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import Opening Stock</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:14px}
+    .go{background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+    .tpl{background:#16a34a;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer}
+  </style>
+</head>
+<body>
+<main class="ult-main" id="app"></main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { scopeCaption, findLocation, locationsFor } from './js/scope.js';
+  import { getActiveSubsidiary } from './js/supabaseClient.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { tableFromFile } from './js/read-table.js';
+  await mountUltimateShell();
+  document.getElementById('app').innerHTML = `
+    <h1>Import Opening Stock</h1>
+    <p>${scopeCaption()}</p>
+    <div class="card">
+      <form id="imp" style="display:flex;gap:24px;align-items:end;flex-wrap:wrap">
+        <label>File To Import: <span title="SKU must already exist">i</span><br><input type="file" id="file" accept=".csv,.tsv,.txt,.json,.xls,.xlsx,.ods,.html,.pdf,.png,.jpg,.jpeg" required /></label>
+        <button class="go">Submit</button>
+      </form>
+      <p><button type="button" class="tpl" id="tpl">Download template file</button></p>
+      <p id="msg"></p>
+    </div>
+    <div class="card">
+      <h3>Instructions</h3>
+      <p>The columns of the CSV file should be in the following order.</p>
+      <table class="ult-table">
+        <thead><tr><th>Column Number</th><th>Column Name</th><th>Instruction</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>SKU (Required)</td><td></td></tr>
+          <tr><td>2</td><td>Location (Optional)<br>If blank first business location will be used</td><td>Name of the business location</td></tr>
+          <tr><td>3</td><td>Quantity (Required)</td><td></td></tr>
+          <tr><td>4</td><td>Unit Cost (Before Tax) (Required)</td><td></td></tr>
+          <tr><td>5</td><td>Lot Number (Optional)</td><td></td></tr>
+          <tr><td>6</td><td>Expiry Date (Optional)</td><td>mm/dd/yyyy Example: 09/03/2026</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  document.getElementById('tpl').onclick = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['SKU,Location,Quantity,Unit Cost,Lot Number,Expiry Date\n'], { type: 'text/csv' }));
+    a.download = 'opening-stock-template.csv';
+    a.click();
+  };
+  document.getElementById('imp').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Import opening stock?', 'Adds quantity onto matching SKUs in this company.'))) return;
+    /* read-table handles CSV, TSV, Excel, JSON, HTML, PDF and photographed
+       tables, and gets quoted fields right — the old newline/comma split broke
+       on any value containing a comma. */
+    const table = await tableFromFile(document.getElementById('file').files[0]);
+    const matrix = table.matrix || [];
+    const start = /sku/i.test((matrix[0] || []).join(',')) ? 1 : 0;
+    const fallback = locationsFor(getActiveSubsidiary()?.code || 'group', { forSale: true })[0];
+    let ok = 0, fail = 0;
+    for (const cells of matrix.slice(start)) {
+      const [sku, loc, qty, cost, lot, exp] = cells;
+      if (!sku) { fail++; continue; }
+      const { data: p } = await supabase.from('products').select('id,current_stock_value').eq('sku', sku.trim()).maybeSingle();
+      if (!p) { fail++; continue; }
+      const next = Number(p.current_stock_value || 0) + Number(qty || 0);
+      const locRow = findLocation(loc) || fallback;
+      const { error } = await supabase.from('products').update({
+        current_stock_value: next, cost_price: Number(cost || 0) || undefined, location_code: locRow?.code || null,
+      }).eq('id', p.id);
+      if (error) fail++; else ok++;
+    }
+    document.getElementById('msg').textContent = 'Stocked ' + ok + '. Failed ' + fail + '.';
+  };
+</script>
+</body>
+</html>

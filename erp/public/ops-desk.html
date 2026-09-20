@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Operations desk — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .filt-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:12px}
+    .filt-head{display:flex;justify-content:space-between;padding:12px 16px;cursor:pointer;font-weight:700;color:#1e3a8a}
+    .filt-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px;padding:8px 16px 16px}
+    .filt-grid label{font-size:12px;font-weight:700;display:flex;flex-direction:column;gap:4px}
+    .filt-grid select,.filt-grid input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font:inherit}
+    .tools{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+    .pill{background:#4f46e5;color:#fff;border:0;border-radius:20px;padding:8px 16px;font-weight:700;cursor:pointer}
+    .ghost{background:#f8fafc;border:1px solid #cbd5e1;border-radius:16px;padding:6px 12px;font-size:12px;cursor:pointer}
+    .st{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700}
+    .st-received,.st-completed,.st-final,.st-posted{background:#dcfce7;color:#166534}
+    .st-ordered,.st-pending,.st-open,.st-in_transit{background:#fef9c3;color:#854d0e}
+    .st-draft{background:#e2e8f0;color:#334155}
+    .overlay{position:fixed;inset:0;background:#0006;z-index:50;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:24px}
+    .sheet{background:#fff;width:min(1100px,96vw);border-radius:8px;padding:20px}
+    .lines input{width:80px;padding:4px}
+  </style>
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { getActiveLocation, BUSINESS_LOCATIONS } from './js/scope.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const KINDS = {
+      purchase: { title:'Purchases', types:['purchase','purchase_invoice','purchase_payment','purchase_return','debit_note'],
+        help:'Odoo flow: RFQ/PO → receive (stock +) → vendor bill on received qty → payment (AP −). Ordered PO does not move stock.' },
+      sale: { title:'Sales', types:['sale','draft','quotation','sell_return','shipment'],
+        help:'Quotation/draft = no stock. Final/completed sale = stock − and cash/AR. Sell return puts stock back. Shipment is Delkor last-mile after the sale.' },
+      transfer: { title:'Stock transfers', types:['transfer'],
+        help:'Completed transfer: out of From, into To. Inter-company must hop AXI → VW-GROUP → Fiberk. Pending does not move stock.' },
+      adjustment: { title:'Stock adjustments', types:['adjustment'],
+        help:'Count or damage. Negative qty = shrinkage (expense 5100). Does not go through a supplier.' },
+      expense: { title:'Expenses', types:['expense'],
+        help:'Dr opex 6000 / Cr cash. Categories: ECG, rent, SNNIT/GRA, transport, marketing.' },
+    };
+    const q = new URLSearchParams(location.search);
+    let kind = q.get('kind') || 'purchase';
+    if (!KINDS[kind]) kind = 'purchase';
+    let mode = q.get('mode') || 'list';
+    let filtOpen = true;
+    let statusF = '', partnerF = '', qtext = '';
+    let docs = [], lines = [], products = [];
+    let cart = [];
+    let viewId = null;
+
+    function locCodes(raw) {
+      const v = String(raw || '').trim();
+      if (!v) return [];
+      const hit = BUSINESS_LOCATIONS.find(l => l.code === v || l.name === v || l.warehouse === v);
+      return hit ? [hit.code, hit.name, hit.warehouse] : [v];
+    }
+    function inScope(d) {
+      const sub = getActiveSubsidiary()?.code || 'group';
+      const loc = getActiveLocation();
+      if (sub && sub !== 'group' && d.subsidiary_code && d.subsidiary_code !== sub && d.subsidiary_code !== 'group') return false;
+      if (loc) {
+        const aliases = locCodes(loc);
+        const docLoc = String(d.location_code || '');
+        if (docLoc && !aliases.includes(docLoc) && !aliases.some(a => a && docLoc.includes(a))) return false;
+      }
+      return true;
+    }
+
+    async function load() {
+      const [d, l, p] = await Promise.all([
+        supabase.from('ops_documents').select('*').order('doc_date', { ascending: false }).limit(500),
+        supabase.from('ops_lines').select('*').limit(3000),
+        supabase.from('products').select('id,sku,name,cost_price,selling_price,brand').order('name').limit(400),
+      ]);
+      if (d.error) {
+        app.innerHTML = pageChrome(KINDS[kind].title) + `<p class="ult-alert">${d.error.message}</p>`;
+        return;
+      }
+      const raw = (d.data || []).filter(r => KINDS[kind].types.includes(r.doc_type));
+      window._opsAll = raw.length;
+      docs = raw.filter(inScope);
+      lines = l.data || [];
+      products = p.data || [];
+      render();
+    }
+
+    function linesOf(id) { return lines.filter(x => x.doc_id === id); }
+
+    function render() {
+      const K = KINDS[kind];
+      const shown = docs.filter(d => {
+        if (statusF && d.status !== statusF) return false;
+        if (partnerF && !(d.partner_name||'').toLowerCase().includes(partnerF.toLowerCase())) return false;
+        if (qtext && !(`${d.doc_no} ${d.notes||''} ${d.partner_name||''}`).toLowerCase().includes(qtext.toLowerCase())) return false;
+        return true;
+      });
+      if (mode === 'add') return renderAdd();
+      const view = viewId ? docs.find(d => d.id === viewId) : null;
+
+      app.innerHTML = `
+        ${pageChrome(K.title, K.help)}
+        <div class="filt-card">
+          <div class="filt-head" id="ftog">Filters <span>${filtOpen?'▲':'▼'}</span></div>
+          <div class="filt-grid" style="${filtOpen?'':'display:none'}">
+            <label>Status<select id="fs"><option value="">All</option>${[...new Set(docs.map(d=>d.status))].map(s=>`<option ${s===statusF?'selected':''}>${s}</option>`).join('')}</select></label>
+            <label>Partner / route<input id="fp" value="${partnerF}" placeholder="Franko, Walk-in, VW…" /></label>
+            <label>Search<input id="fq" value="${qtext}" placeholder="PO-AXI, BILL…" /></label>
+            <label>Kind
+              <select id="fk">${Object.keys(KINDS).map(k=>`<option value="${k}" ${k===kind?'selected':''}>${KINDS[k].title}</option>`).join('')}</select>
+            </label>
+          </div>
+        </div>
+        <div class="tools">
+          <button class="pill" id="add">+ Add</button>
+          <button class="ghost" onclick="print()">Print</button>
+          <span class="ult-muted">${shown.length} shown · ${window._opsAll||0} in this kind before scope
+            · sub=${getActiveSubsidiary()?.code||'group'} loc=${getActiveLocation()||'all'}</span>
+          ${(window._opsAll && !shown.length) ? `<button class="ghost" id="clr-scope">Show all companies</button>` : ''}
+        </div>
+        <div class="ult-card">
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th></th><th>Date</th><th>Number</th><th>Type</th><th>Partner / route</th><th>Status</th><th>Amount</th><th>Billed</th><th>Paid</th><th>Parent</th></tr></thead>
+            <tbody>${shown.map(d=>`<tr>
+              <td><button class="ghost vw" data-id="${d.id}">View</button></td>
+              <td>${d.doc_date||''}</td><td><strong>${d.doc_no}</strong></td>
+              <td>${d.doc_type}</td>
+              <td>${d.partner_name||''}${d.from_wh?`<div class="ult-muted">${d.from_wh} → ${d.to_wh||''}</div>`:''}<div class="ult-muted">${d.subsidiary_code||''} · ${d.location_code||''}</div></td>
+              <td><span class="st st-${d.status}">${d.status}</span></td>
+              <td>${fmt(d.total_amount)}</td><td>${fmt(d.billed)}</td><td>${fmt(d.paid)}</td>
+              <td>${d.parent_doc||''}</td>
+            </tr>`).join('')||'<tr><td colspan="10">No documents. Run SQL 72 + 77 or Add.</td></tr>'}</tbody>
+          </table></div>
+        </div>
+        ${view ? renderSheet(view) : ''}`;
+
+      document.getElementById('ftog').onclick = () => { filtOpen = !filtOpen; render(); };
+      document.getElementById('fs').onchange = e => { statusF = e.target.value; render(); };
+      document.getElementById('fp').onchange = e => { partnerF = e.target.value; render(); };
+      document.getElementById('fq').onchange = e => { qtext = e.target.value; render(); };
+      document.getElementById('fk').onchange = e => { kind = e.target.value; history.replaceState({},'','?kind='+kind); load(); };
+      document.getElementById('add').onclick = () => { mode='add'; cart=[]; render(); };
+      document.getElementById('clr-scope')?.addEventListener('click', () => {
+        try { sessionStorage.removeItem('df_active_location'); } catch {}
+        location.reload();
+      });
+      app.querySelectorAll('.vw').forEach(b => b.onclick = () => { viewId = b.dataset.id; render(); });
+      document.getElementById('xsheet')?.addEventListener('click', () => { viewId=null; render(); });
+      document.querySelector('.overlay')?.addEventListener('click', e => { if (e.target.classList.contains('overlay')) { viewId=null; render(); } });
+      document.getElementById('act-receive')?.addEventListener('click', () => actStatus(view, 'received'));
+      document.getElementById('act-bill')?.addEventListener('click', () => spawnChild(view, 'purchase_invoice', 'BILL'));
+      document.getElementById('act-pay')?.addEventListener('click', () => spawnChild(view, 'purchase_payment', 'PAY'));
+      document.getElementById('act-final')?.addEventListener('click', () => actStatus(view, 'final'));
+      document.getElementById('act-complete')?.addEventListener('click', () => actStatus(view, 'completed'));
+    }
+
+    function renderSheet(d) {
+      const ls = linesOf(d.id);
+      const isPO = d.doc_type === 'purchase';
+      const isSale = d.doc_type === 'sale' || d.doc_type === 'draft' || d.doc_type === 'quotation';
+      const isXfer = d.doc_type === 'transfer';
+      return `<div class="overlay"><div class="sheet">
+        <div style="display:flex;justify-content:space-between"><h2>${d.doc_no}</h2><button class="ghost" id="xsheet">✕</button></div>
+        <p>${d.doc_type} · <span class="st st-${d.status}">${d.status}</span> · ${d.partner_name||''}<br>
+          <span class="ult-muted">${d.subsidiary_code||''} / ${d.location_code||''} · ${d.notes||''}</span></p>
+        <table class="ult-table"><thead><tr><th>SKU</th><th>Product</th><th>Qty</th><th>Cost</th><th>Price</th><th>Line</th></tr></thead>
+        <tbody>${ls.map(l=>`<tr><td>${l.sku}</td><td>${l.product_name}</td><td>${l.quantity}</td><td>${fmt(l.unit_cost)}</td><td>${fmt(l.unit_price)}</td><td>${fmt((l.quantity||0)*(l.unit_price||l.unit_cost||0))}</td></tr>`).join('')||'<tr><td colspan="6">No lines</td></tr>'}</tbody></table>
+        <div class="tools" style="margin-top:14px">
+          ${isPO && d.status!=='received' ? `<button class="pill" id="act-receive">Mark received (stock in)</button>` : ''}
+          ${isPO && d.status==='received' ? `<button class="pill" id="act-bill">Create vendor bill</button>` : ''}
+          ${d.doc_type==='purchase_invoice' ? `<button class="pill" id="act-pay">Record payment</button>` : ''}
+          ${d.doc_type==='quotation' || d.doc_type==='draft' ? `<button class="pill" id="act-final">Convert to final sale</button>` : ''}
+          ${isXfer && d.status!=='completed' ? `<button class="pill" id="act-complete">Complete transfer</button>` : ''}
+        </div>
+        <p class="ult-muted">Receive = inventory + / AP. Bill does not double-count stock. Payment = AP − / cash −. Final sale = stock −.</p>
+      </div></div>`;
+    }
+
+    function renderAdd() {
+      const K = KINDS[kind];
+      const typeDefault = K.types[0];
+      app.innerHTML = `
+        ${pageChrome('Add '+K.title, K.help)}
+        <div class="ult-card">
+          <div class="filt-grid">
+            <label>Type<select id="atype">${K.types.map(t=>`<option>${t}</option>`).join('')}</select></label>
+            <label>Status<select id="astat"><option>draft</option><option>ordered</option><option selected>pending</option><option>received</option><option>final</option><option>completed</option></select></label>
+            <label>Partner / supplier<input id="apart" placeholder="Franko Trading…" /></label>
+            <label>From warehouse<input id="afrom" placeholder="axidigetek-MAIN" /></label>
+            <label>To warehouse<input id="ato" placeholder="VW-GROUP or fiberk-MAIN" /></label>
+            <label>Notes<input id="anotes" /></label>
+          </div>
+        </div>
+        <div class="ult-card">
+          <p><input id="scan" placeholder="Add line: SKU or name + Enter" style="width:min(420px,100%);padding:8px" /></p>
+          <table class="ult-table lines"><thead><tr><th>SKU</th><th>Product</th><th>Qty</th><th>Cost</th><th></th></tr></thead>
+          <tbody>${cart.map((L,i)=>`<tr><td>${L.sku}</td><td>${L.name}</td>
+            <td><input type="number" class="cq" data-i="${i}" value="${L.qty}" /></td>
+            <td>${fmt(L.cost)}</td><td><button class="ghost rm" data-i="${i}">✕</button></td></tr>`).join('')||'<tr><td colspan="5">Scan to add</td></tr>'}</tbody></table>
+          <div class="tools"><button class="ghost" id="back">List</button><button class="pill" id="save">Save document</button></div>
+        </div>`;
+      document.getElementById('back').onclick = () => { mode='list'; render(); };
+      document.getElementById('scan').onkeydown = e => {
+        if (e.key!=='Enter') return;
+        const q = e.target.value.trim().toLowerCase();
+        const hit = products.find(p => (p.sku||'').toLowerCase()===q || (p.name||'').toLowerCase().includes(q));
+        if (!hit) return alert('Not in catalog');
+        cart.push({ id:hit.id, sku:hit.sku, name:hit.name, qty:1, cost:Number(hit.cost_price||0), price:Number(hit.selling_price||0) });
+        e.target.value=''; renderAdd();
+      };
+      app.querySelectorAll('.cq').forEach(inp => inp.onchange = e => { cart[+e.target.dataset.i].qty = Number(e.target.value)||1; });
+      app.querySelectorAll('.rm').forEach(b => b.onclick = () => { cart.splice(+b.dataset.i,1); renderAdd(); });
+      document.getElementById('save').onclick = saveNew;
+    }
+
+    async function saveNew() {
+      if (!cart.length) return alert('Add lines');
+      const sub = getActiveSubsidiary()?.code || 'axidigetek';
+      const loc = getActiveLocation() || null;
+      const type = document.getElementById('atype').value;
+      const no = type.slice(0,2).toUpperCase() + '-' + Date.now().toString().slice(-6);
+      const total = cart.reduce((s,L)=>s+L.qty*(L.price||L.cost),0);
+      const row = {
+        doc_type: type, doc_no: no, status: document.getElementById('astat').value,
+        doc_date: new Date().toISOString().slice(0,10),
+        subsidiary_code: sub==='group'?'axidigetek':sub, location_code: loc,
+        partner_name: document.getElementById('apart').value,
+        from_wh: document.getElementById('afrom').value||null,
+        to_wh: document.getElementById('ato').value||null,
+        notes: document.getElementById('anotes').value,
+        total_amount: total,
+      };
+      const { data, error } = await supabase.from('ops_documents').insert(row).select('id').single();
+      if (error) return alert(error.message);
+      for (const L of cart) {
+        await supabase.from('ops_lines').insert({ doc_id:data.id, product_id:L.id, sku:L.sku, product_name:L.name, quantity:L.qty, unit_cost:L.cost, unit_price:L.price });
+      }
+      mode='list'; viewId=data.id; await load();
+    }
+
+    async function actStatus(d, status) {
+      const { error } = await supabase.from('ops_documents').update({ status }).eq('id', d.id);
+      if (error) return alert(error.message);
+      alert(d.doc_no + ' → ' + status + '. Re-run stock bump in SQL if this was a receive/complete on an old row.');
+      await load();
+    }
+
+    async function spawnChild(d, type, prefix) {
+      const no = prefix + '-' + Date.now().toString().slice(-6);
+      const { data, error } = await supabase.from('ops_documents').insert({
+        doc_type: type, doc_no: no, status: 'posted', doc_date: new Date().toISOString().slice(0,10),
+        subsidiary_code: d.subsidiary_code, location_code: d.location_code,
+        partner_name: d.partner_name, total_amount: d.total_amount,
+        notes: type + ' from ' + d.doc_no, parent_doc: d.doc_no,
+      }).select('id').single();
+      if (error) return alert(error.message);
+      for (const L of linesOf(d.id)) {
+        await supabase.from('ops_lines').insert({ doc_id:data.id, product_id:L.product_id, sku:L.sku, product_name:L.product_name, quantity:L.quantity, unit_cost:L.unit_cost, unit_price:L.unit_price });
+      }
+      alert(no + ' created from ' + d.doc_no);
+      await load();
+    }
+
+    load();
+  </script>
+</body>
+</html>

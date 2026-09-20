@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SNNIT — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, loadActiveSubsidiary, getActiveSubsidiary, fmt } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+
+    const PORTAL = 'https://portal.ssnit.org.gh/';
+    const SITE = 'https://www.ssnit.org.gh/';
+
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    await loadActiveSubsidiary(session.user.id);
+    const sub = getActiveSubsidiary();
+    const app = document.getElementById('app');
+
+    async function load() {
+      const [e, c, er] = await Promise.all([
+        supabase.from('hr_employees').select('*').order('full_name'),
+        supabase.from('snnit_contributions').select('*, hr_employees(full_name, snnit_number)').order('period_label', { ascending: false }),
+        supabase.from('snnit_employers').select('*').order('created_at', { ascending: false }),
+      ]);
+      return {
+        employees: e.data || [],
+        contribs: c.data || [],
+        employers: er.data || [],
+        error: e.error || c.error || er.error,
+      };
+    }
+    let data = await load();
+
+    function calc(basic, empR, erR) {
+      const b = Number(basic) || 0;
+      const employee_amount = +(b * (Number(empR) || 5.5) / 100).toFixed(2);
+      const employer_amount = +(b * (Number(erR) || 13) / 100).toFixed(2);
+      const total_amount = +(employee_amount + employer_amount).toFixed(2);
+      const snnit_amount = +(b * 13.5 / 100).toFixed(2);
+      const tier2_amount = +(b * 5 / 100).toFixed(2);
+      return { employee_amount, employer_amount, total_amount, snnit_amount, tier2_amount };
+    }
+
+    function render() {
+      if (data.error) {
+        app.innerHTML = pageChrome('SNNIT') +
+          `<div class="ult-alert">Run <code>sql/15_snnit.sql</code>.<br>${data.error.message}</div>`;
+        return;
+      }
+      const due = data.contribs.filter((x) => x.status === 'due' || x.status === 'overdue');
+      const dueAmt = due.reduce((s, x) => s + Number(x.total_amount), 0);
+      const eopts = data.employees.filter((e) => e.is_active !== false)
+        .map((e) => `<option value="${e.id}">${e.full_name}</option>`).join('');
+
+      app.innerHTML = pageChrome('SNNIT', 'Statutory pension · HRM · ' + (sub?.short || '')) + `
+        <div class="ult-card">
+          <strong>Pay contributions</strong>
+          <p class="ult-muted">Employee 5.5% + employer 13% = 18.5% of basic. Remit 13.5% to SNNIT (includes NHIA 2.5%) and 5% to Tier 2, within 14 days of the following month.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <a class="ult-btn ult-btn-primary" href="${PORTAL}" target="_blank" rel="noopener">Open SNNIT portal</a>
+            <a class="ult-btn ult-btn-outline" href="${SITE}" target="_blank" rel="noopener">ssnit.org.gh</a>
+          </div>
+          <p class="ult-muted" style="margin-top:8px">Also: USSD *711*9# · SNNIT app · partner bank · SNNIT branch</p>
+        </div>
+        <div class="ult-kpis">
+          <div class="ult-kpi"><div class="ult-kpi-icon cyan">👥</div><div class="ult-kpi-body"><div class="ult-kpi-label">Employees</div><div class="ult-kpi-value">${data.employees.length}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-icon amber">📅</div><div class="ult-kpi-body"><div class="ult-kpi-label">Due / overdue</div><div class="ult-kpi-value">${fmt(dueAmt)}</div></div></div>
+        </div>
+        <div class="ult-card">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <strong>Employer registration (ER number)</strong>
+            <button type="button" class="ult-btn ult-btn-outline" id="add-er">+ Add ER</button>
+          </div>
+          <div class="ult-form-grid" id="er-form" style="display:none;margin-bottom:12px">
+            <div class="ult-field"><label>Legal name</label><input id="er-name" /></div>
+            <div class="ult-field"><label>ER number</label><input id="er-num" /></div>
+            <div style="grid-column:1/-1"><button type="button" class="ult-btn ult-btn-success" id="save-er">Save</button></div>
+          </div>
+          <p class="ult-muted">${data.employers.map((e) => `${e.legal_name} · ER ${e.er_number || '—'}`).join(' · ') || 'Add the group / subsidiary ER number from SNNIT.'}</p>
+        </div>
+        <div class="ult-card">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <strong>Employees · SNNIT numbers</strong>
+            <button type="button" class="ult-btn ult-btn-primary" id="add-emp">+ Employee</button>
+          </div>
+          <div class="ult-form-grid" id="emp-form" style="display:none;margin-bottom:14px">
+            <div class="ult-field"><label>Full name</label><input id="emp-name" /></div>
+            <div class="ult-field"><label>SNNIT number</label><input id="emp-ssn" /></div>
+            <div class="ult-field"><label>Ghana Card</label><input id="emp-gc" /></div>
+            <div class="ult-field"><label>Basic salary (GHS)</label><input id="emp-sal" type="number" step="0.01" /></div>
+            <div style="grid-column:1/-1"><button type="button" class="ult-btn ult-btn-success" id="save-emp">Save employee</button></div>
+          </div>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Name</th><th>SNNIT No.</th><th>Ghana Card</th><th>Basic</th><th>Employee 5.5%</th><th>Employer 13%</th></tr></thead>
+            <tbody>
+              ${data.employees.map((e) => {
+                const c = calc(e.basic_salary, e.employee_rate, e.employer_rate);
+                return `<tr>
+                  <td><strong>${e.full_name}</strong></td>
+                  <td>${e.snnit_number || '—'}</td>
+                  <td>${e.ghana_card || '—'}</td>
+                  <td>${fmt(e.basic_salary)}</td>
+                  <td>${fmt(c.employee_amount)}</td>
+                  <td>${fmt(c.employer_amount)}</td>
+                </tr>`;
+              }).join('') || '<tr><td colspan="6" class="ult-muted">Add staff who must be on the scheme</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+        <div class="ult-card">
+          <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+            <strong>Monthly contributions</strong>
+            <button type="button" class="ult-btn ult-btn-success" id="add-c">+ Log month</button>
+          </div>
+          <div class="ult-form-grid" id="c-form" style="display:none;margin-bottom:14px">
+            <div class="ult-field"><label>Employee</label><select id="c-emp">${eopts}</select></div>
+            <div class="ult-field"><label>Period</label><input id="c-period" placeholder="2026-08" /></div>
+            <div class="ult-field"><label>Due date</label><input id="c-due" type="date" /></div>
+            <div class="ult-field"><label>Status</label>
+              <select id="c-st"><option>due</option><option>filed</option><option>paid</option><option>overdue</option></select></div>
+            <div class="ult-field"><label>Payment ref (portal)</label><input id="c-ref" /></div>
+            <div style="grid-column:1/-1"><button type="button" class="ult-btn ult-btn-primary" id="save-c">Save contribution</button></div>
+          </div>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Period</th><th>Employee</th><th>SNNIT No.</th><th>Total 18.5%</th><th>Employer 13%</th><th>Status</th><th>Ledger</th><th></th></tr></thead>
+            <tbody>
+              ${data.contribs.map((r) => `<tr>
+                <td>${r.period_label}</td>
+                <td>${r.hr_employees?.full_name || '—'}</td>
+                <td>${r.hr_employees?.snnit_number || '—'}</td>
+                <td>${fmt(r.total_amount)}</td>
+                <td>${fmt(r.employer_amount)}</td>
+                <td><span class="ult-badge ${r.status === 'paid' ? 'ult-badge-paid' : 'ult-badge-due'}">${r.status}</span></td>
+                <td>${r.posted_to_ledger ? 'posted' : 'pending'}</td>
+                <td>${r.posted_to_ledger
+                  ? '<a class="ult-btn ult-btn-sm ult-btn-outline" href="/expenses.html">Expense</a>'
+                  : `<button type="button" class="ult-btn ult-btn-sm ult-btn-primary post-led" data-id="${r.id}">Post to ledger</button>`}</td>
+              </tr>`).join('') || '<tr><td colspan="8" class="ult-muted">No months logged</td></tr>'}
+            </tbody>
+          </table></div>
+          <p class="ult-muted" style="margin-top:10px">
+            Map: employer 13% → expense <strong>SNNIT — Employer contribution</strong> (company cost).
+            Employee 5.5% is noted on that expense. Journal <code>source_type = snnit</code> when the journal table allows it.
+          </p>
+        </div>`;
+
+      document.getElementById('add-er').onclick = () => {
+        const el = document.getElementById('er-form');
+        el.style.display = el.style.display === 'none' ? 'grid' : 'none';
+      };
+      document.getElementById('add-emp').onclick = () => {
+        const el = document.getElementById('emp-form');
+        el.style.display = el.style.display === 'none' ? 'grid' : 'none';
+      };
+      document.getElementById('add-c').onclick = () => {
+        const el = document.getElementById('c-form');
+        el.style.display = el.style.display === 'none' ? 'grid' : 'none';
+      };
+      document.getElementById('save-er').onclick = async () => {
+        const legal_name = document.getElementById('er-name').value.trim();
+        if (!legal_name) return alert('Name required');
+        const { error } = await supabase.from('snnit_employers').insert({
+          legal_name,
+          er_number: document.getElementById('er-num').value.trim() || null,
+          subsidiary_code: sub?.code,
+        });
+        if (error) return alert(error.message);
+        data = await load(); render();
+      };
+      document.getElementById('save-emp').onclick = async () => {
+        const full_name = document.getElementById('emp-name').value.trim();
+        if (!full_name) return alert('Name required');
+        const { error } = await supabase.from('hr_employees').insert({
+          full_name,
+          snnit_number: document.getElementById('emp-ssn').value.trim() || null,
+          ghana_card: document.getElementById('emp-gc').value.trim() || null,
+          basic_salary: Number(document.getElementById('emp-sal').value) || 0,
+          subsidiary_code: sub?.code,
+        });
+        if (error) return alert(error.message);
+        data = await load(); render();
+      };
+      document.getElementById('save-c').onclick = async () => {
+        const employee_id = document.getElementById('c-emp').value;
+        if (!employee_id) return alert('Add an employee first');
+        const emp = data.employees.find((e) => e.id === employee_id);
+        const amounts = calc(emp?.basic_salary, emp?.employee_rate, emp?.employer_rate);
+        const { error } = await supabase.from('snnit_contributions').insert({
+          employee_id,
+          period_label: document.getElementById('c-period').value.trim() || new Date().toISOString().slice(0, 7),
+          due_date: document.getElementById('c-due').value || null,
+          basic_salary: Number(emp?.basic_salary) || 0,
+          ...amounts,
+          status: document.getElementById('c-st').value,
+          payment_ref: document.getElementById('c-ref').value.trim() || null,
+          posted_to_ledger: false,
+          subsidiary_code: sub?.code,
+        });
+        if (error) return alert(error.message);
+        data = await load(); render();
+      };
+      document.querySelectorAll('.post-led').forEach((b) => {
+        b.onclick = () => postToLedger(b.dataset.id);
+      });
+    }
+
+    async function postToLedger(id) {
+      const row = data.contribs.find((c) => c.id === id);
+      if (!row) return;
+      if (row.posted_to_ledger) return alert('Already posted');
+
+      const name = row.hr_employees?.full_name || 'Employee';
+      const ssn = row.hr_employees?.snnit_number || '—';
+      const employerAmt = Number(row.employer_amount) || 0;
+      const employeeAmt = Number(row.employee_amount) || 0;
+      const totalAmt = Number(row.total_amount) || 0;
+
+      let category_id = null;
+      const { data: cats } = await supabase.from('expense_categories').select('id, name');
+      const cat = (cats || []).find((c) => /SNNIT — Employer/i.test(c.name))
+        || (cats || []).find((c) => /SNNIT/i.test(c.name));
+      if (!cat) {
+        const { data: created } = await supabase.from('expense_categories')
+          .insert({ name: 'SNNIT — Employer contribution' }).select('id').maybeSingle();
+        category_id = created?.id || null;
+      } else {
+        category_id = cat.id;
+      }
+
+      const { data: exp, error: e1 } = await supabase.from('expenses').insert({
+        expense_date: row.due_date || new Date().toISOString().slice(0, 10),
+        description: `SNNIT employer ${row.period_label} · ${name} · ${ssn}`,
+        category_id,
+        category_name: 'SNNIT — Employer contribution',
+        vendor: 'SNNIT',
+        amount: employerAmt,
+        payment_method: 'other',
+        subsidiary_code: row.subsidiary_code || sub?.code,
+        notes: `Employee 5.5% ${employeeAmt} · remitted total ${totalAmt} · SNNIT 13.5% ${row.snnit_amount} · Tier2 ${row.tier2_amount} · ref ${row.payment_ref || '—'} · contrib ${row.id}`,
+      }).select('id').maybeSingle();
+
+      if (e1) return alert('Expense failed: ' + e1.message);
+
+      await supabase.from('journal_entries').insert({
+        entry_date: row.due_date || new Date().toISOString().slice(0, 10),
+        memo: `SNNIT ${row.period_label} ${name} employer ${employerAmt} employee ${employeeAmt}`,
+        source_type: 'snnit',
+        source_id: row.id,
+        total_amount: totalAmt,
+        subsidiary_code: row.subsidiary_code || sub?.code,
+      }).then(() => {}).catch(() => {});
+
+      const { error: e2 } = await supabase.from('snnit_contributions').update({
+        posted_to_ledger: true,
+        expense_id: exp?.id || null,
+        status: row.status === 'due' ? 'paid' : row.status,
+      }).eq('id', row.id);
+
+      if (e2) return alert('Linked, but flag failed: ' + e2.message);
+      data = await load();
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>

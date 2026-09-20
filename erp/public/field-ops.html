@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Ops — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/collections-ops.css" />
+  <link rel="stylesheet" href="/css/field-ops.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading Field Ops…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { bootFieldOpsHub } from './js/field-ops-hub.js';
+  try {
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    await bootFieldOpsHub();
+  } catch (err) {
+    const app = document.getElementById('app');
+    if (app) app.innerHTML = `<div class="st-card"><h1>Field Ops</h1><p>${String(err?.message || err)}</p></div>`;
+  }
+</script>
+</body>
+</html>

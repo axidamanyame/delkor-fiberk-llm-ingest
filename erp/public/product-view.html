@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>View product</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .df-peek-card{background:var(--ult-card);color:var(--ult-text);border-radius:16px;max-width:640px;margin:12px auto;box-shadow:0 8px 28px rgba(15,23,42,.12)}
+    .df-peek-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--ult-border)}
+    .df-peek-h h2{margin:0;font-size:18px}
+    .df-peek-b{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:16px}
+    .df-peek-b img,.df-peek-ph{width:180px;height:180px;object-fit:contain;background:var(--ult-card-2);border:1px solid var(--ult-border);border-radius:12px}
+    .df-peek-ph{display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}
+    .df-peek-b dl{margin:0;display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:13px}
+    .df-peek-b dt{color:#64748b;font-weight:700}
+    .df-peek-b dd{margin:0;font-weight:650}
+    @media(max-width:640px){.df-peek-b{grid-template-columns:1fr}}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { displaySku } from './js/sku-lifecycle.js';
+  import { hardForkMerge, liveDeskRows } from './js/fiberk-silo.js';
+  import { hostedProductImage } from './js/product-images.js';
+  await mountUltimateShell();
+  const raw = new URLSearchParams(location.search).get('id') || '';
+  const pid = raw.replace(/-u\d+$/i, '');
+  try { await hardForkMerge(); } catch { /* pack optional */ }
+  const [book, pack] = await Promise.all([
+    loadRows('products', KEYS.products, []),
+    liveDeskRows('products'),
+  ]);
+  const match = (x) => {
+    const id = String(x.id || '');
+    const sku = String(x.sku || '').toUpperCase();
+    return id === String(raw) || id === String(pid)
+      || sku === String(raw).toUpperCase() || sku === String(pid).toUpperCase()
+      || sku === ('FBK' + pid).toUpperCase();
+  };
+  const p = [...(pack || []), ...(book || [])].find(match);
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  if (!p) {
+    app.innerHTML = `<div class="df-peek-card"><div class="df-peek-h"><h2>Product</h2></div><div class="df-peek-b"><p>No product ${esc(raw)}.</p></div></div>`;
+  } else {
+    const img = hostedProductImage(p.image_url || p.catalog_image_url, p);
+    app.innerHTML = `<div class="df-peek-card">
+      <div class="df-peek-h"><h2>${esc(p.name || 'Product')}</h2></div>
+      <div class="df-peek-b">
+        ${img ? `<img src="${esc(img)}" alt="">` : '<div class="df-peek-ph">No photo</div>'}
+        <dl>
+          <dt>SKU</dt><dd>${esc(displaySku(p) || p.sku || '—')}</dd>
+          <dt>Category</dt><dd>${esc(p.category || '—')}${p.subcategory ? ' / ' + esc(p.subcategory) : ''}</dd>
+          <dt>Brand</dt><dd>${esc(p.brand || '—')}</dd>
+          <dt>Location</dt><dd>${esc(p.location_name || p.location_code || '—')}</dd>
+          <dt>On hand</dt><dd>${Number(p.stock ?? p.current_stock ?? 0)}</dd>
+          <dt>Selling price</dt><dd>${fmt(p.selling_price || p.sell)}</dd>
+          <dt>Cost</dt><dd>${fmt(p.cost_price || p.buy || p.purchase_price)}</dd>
+          <dt>Status</dt><dd>${p.inactive || p.is_active === false ? 'Inactive' : 'Active'}</dd>
+        </dl>
+      </div>
+    </div>`;
+  }
+</script>
+</body>
+</html>

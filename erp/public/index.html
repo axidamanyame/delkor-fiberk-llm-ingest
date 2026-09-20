@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta charset="UTF-8" />
+  <title>Delkor-Fiberk ERP</title>
+  <script>
+    (function () {
+      function safePath(p) {
+        p = String(p || '');
+        if (!p || p.charAt(0) !== '/' || p.charAt(1) === '/') return '';
+        if (/login\.html|javascript:|till-login/i.test(p)) return '';
+        return p;
+      }
+      try {
+        var logged = localStorage.getItem('df_logged_in') === '1'
+          || sessionStorage.getItem('df_logged_in') === '1';
+        var auth = localStorage.getItem('df_auth')
+          || sessionStorage.getItem('df_auth')
+          || localStorage.getItem('df-supabase-auth');
+        if (logged && auth) {
+          var next = safePath(localStorage.getItem('df_last_path'))
+            || safePath(sessionStorage.getItem('df_next'))
+            || '/dashboard.html';
+          location.replace(next);
+          return;
+        }
+      } catch (e) {}
+      location.replace('/login.html');
+    })();
+  </script>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <p>Opening your last screen…</p>
+</body>
+</html>

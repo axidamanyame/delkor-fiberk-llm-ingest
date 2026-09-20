@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Escalations — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { listEscalations, saveEscalation, table } from './js/collections.js';
+  import { bindTable } from './js/home-tables.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const label = { 1: 'Soft', 2: 'Hard', 3: 'Legal prep', 4: 'Legal' };
+
+  async function paint() {
+    const rows = await listEscalations().catch(() => []);
+    app.innerHTML = `
+      ${pageChrome('Escalations', 'Levels 1–4')}
+      <p><a class="ult-btn ult-btn-outline" href="/collections.html">Dashboard</a>
+      <button type="button" class="add ult-btn" id="esc-add">+ Add</button></p>
+      ${table(['When','Customer','Level','Reason','Resolved'],
+        rows.map((r) => `<tr data-id="${r.id || ''}">
+          <td>${String(r.created_at||'').replace('T',' ').slice(0,16)}</td>
+          <td>${r.name || r.customer_id || ''}</td>
+          <td>${r.escalation_level || ''} · ${label[r.escalation_level] || ''}</td>
+          <td>${r.reason || ''}</td>
+          <td>${r.resolved ? 'yes' : 'open'}</td>
+        </tr>`).join(''))}`;
+    bindTable(app.querySelector('[data-tbl="live"]'), { title: 'Escalations', storageKey: 'esc-live', crud: true });
+    app.querySelector('#esc-add')?.addEventListener('click', addEsc);
+    app.querySelector('.crud-add')?.addEventListener('click', (e) => { e.preventDefault(); addEsc(); }, true);
+  }
+
+  async function addEsc() {
+    const name = prompt('Customer name');
+    if (name == null || !String(name).trim()) return;
+    const reason = prompt('Reason') || '';
+    const level = Number(prompt('Level 1–4', '1') || '1') || 1;
+    await saveEscalation({ name: name.trim(), reason, escalation_level: level, customer_id: name.trim() });
+    paint();
+  }
+
+  window.__dfPaint = paint;
+  paint();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Opening home…</title>
+<link rel="stylesheet" href="/css/ultimate-pos.css" /></head>
+<body><main class="ult-main" id="go">Opening your dashboard…</main>
+<script type="module">
+  import { supabase, requireAuth } from './js/supabaseClient.js';
+  import { loadAccess } from './js/rbac.js';
+  import { resolveHome } from './js/dashboards.js';
+  import { ackResult } from './js/confirm-action.js';
+  const box = document.getElementById('go');
+  try {
+    const session = await Promise.race([
+      requireAuth(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('Sign-in check timed out.')), 8000)),
+    ]);
+    if (!session) {
+      ackResult(false, 'Not signed in. Returning to login.');
+      setTimeout(() => { location.replace('/login.html'); }, 800);
+      throw new Error('auth');
+    }
+    try { await loadAccess(); } catch (e) { console.warn('access', e); }
+    let href = '/dashboard.html';
+    try {
+      const { data: profile } = await supabase.from('profiles').select('role,role_name,dashboard_group,user_group').eq('id', session.user.id).maybeSingle();
+      const home = await resolveHome(profile || {});
+      if (home?.href) href = home.href;
+    } catch (e) { console.warn('home', e); }
+    location.replace(href);
+  } catch (ex) {
+    const msg = String(ex?.message || ex);
+    box.innerHTML = `<div class="card"><h1>Could not open home</h1><p>${msg}</p><p><a href="/dashboard.html">Open dashboard</a> · <a href="/login.html">Back to login</a></p></div>`;
+    try { ackResult(false, msg); } catch (_) {}
+  }
+</script></body></html>

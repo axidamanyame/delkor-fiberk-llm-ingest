@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receive Stock — Operations Hub</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { actMenu } from './js/ls-rows.js';
+  import { OPS_HUB } from './js/scope.js';
+  import { loadPurchases, applyReceivedStock, savePurchase, esc } from './js/purchase-docs.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+
+  async function paint() {
+    const rows = (await loadPurchases()).filter((r) => String(r.status || '') !== 'received');
+    app.innerHTML = `
+      ${pageChrome('Receive Stock')}
+      <div class="ult-card" data-tbl="recv">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th><th>Date</th><th>Reference</th><th>Supplier</th><th>Status</th><th>Total</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}">
+            <td>${actMenu(r.id, [
+              { href: `/purchase-form.html?id=${encodeURIComponent(r.id)}&view=1`, label: 'View' },
+              { href: `/purchase-form.html?id=${encodeURIComponent(r.id)}`, label: 'Edit' },
+              { act: 'recv', label: 'Receive at Hub' },
+            ])}</td>
+            <td>${esc(String(r.date || '').slice(0,10))}</td>
+            <td>${esc(r.reference || '')}</td>
+            <td>${esc(r.supplier_name || '')}</td>
+            <td>${esc(r.status || 'ordered')}</td>
+            <td>${Number(r.grand_total || 0).toFixed(2)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="6" style="text-align:center">No incoming stock</td></tr>'}</tbody>
+        </table></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="recv"]'), { title: 'Receive Stock', storageKey: 'recv-stock' });
+    app.querySelectorAll('[data-act="recv"]').forEach((b) => {
+      b.onclick = async () => {
+        const row = rows.find((r) => String(r.id) === String(b.dataset.id));
+        if (!row) return;
+        if (!(await confirmAction('Receive this purchase at Operations Hub?'))) return;
+        await applyReceivedStock(row.lines || [], false, OPS_HUB.code);
+        await savePurchase({ ...row, status: 'received', location_code: OPS_HUB.code, location_name: OPS_HUB.name }, { id: row.id, table: row._table });
+        ackResult(true, 'Received at Operations Hub.');
+        paint();
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

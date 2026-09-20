@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purchases — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, filterAgentHtml, BUSINESS_LOCATIONS, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { peelWrite } from './js/account-rules.js';
+  import { loadPurchases, ensureDemoPurchases, promptStatus, applyReceivedStock, esc } from './js/purchase-docs.js';
+  import { ensureHpOpsFlow } from './js/hp-ops-flow.js';
+  import { subsidiaryColumn, chainOf } from './js/org-chain.js';
+  import { excludeMigrated, siloGateHtml, knownSiloCount } from './js/fiberk-silo.js';
+
+  try { await mountUltimateShell(); } catch (e) { console.warn('shell', e); }
+  try { await ensureHpOpsFlow(); } catch (e) { console.warn('hp flow', e); }
+  const app = document.getElementById('app');
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const yearEnd = iso(new Date(new Date().getFullYear(), 11, 31));
+  let showFilt = false;
+  const F = { loc: '', supplier: '', status: '', pay: '', from: '2025-01-01', to: yearEnd };
+
+  function locName(o) {
+    if (o.source === 'fiberkapp' || o.legacy_location) {
+      return o.location_name || o.legacy_location || o.location_code || '';
+    }
+    return findLocation(o.location_code)?.name || o.location_name || o.location_code || '';
+  }
+  function fmtRange() {
+    const a = F.from ? F.from.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') : '';
+    const b = F.to ? F.to.replace(/(\d{4})-(\d{2})-(\d{2})/, '$2/$3/$1') : '';
+    return a && b ? `${a} - ${b}` : '';
+  }
+  function fmtDate(v) {
+    const s = String(v || '').replace('T', ' ');
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+    if (!m) return esc(s.slice(0, 16));
+    return `${m[2]}/${m[3]}/${m[1]}${m[4] ? ' ' + m[4] + ':' + m[5] : ''}`;
+  }
+  function overdue(o) {
+    const due = Number(o.payment_due || 0);
+    if (due <= 0) return false;
+    const d = new Date(String(o.date || '').slice(0, 10));
+    return Number.isFinite(d.getTime()) && (Date.now() - d.getTime()) / 86400000 > 30;
+  }
+  function payStatus(o) {
+    const raw = String(o.payment_status || 'due').toLowerCase();
+    if (raw === 'paid') return 'paid';
+    if (raw === 'partial') return 'partial';
+    return overdue(o) ? 'overdue' : (raw || 'due');
+  }
+  function cap(s) { return String(s || '').replace(/^./, (c) => c.toUpperCase()); }
+
+  async function load() {
+    let all = [];
+    try {
+      all = filterBySidebar(excludeMigrated(await ensureDemoPurchases())) || [];
+      if (!all.length) all = filterBySidebar(excludeMigrated(await loadPurchases())) || [];
+    } catch (e) {
+      console.warn('purchases load', e);
+      all = [];
+    }
+    window.__dfPurchaseRows = all;
+    const suppliers = [...new Set(all.map((r) => r.supplier_name).filter(Boolean))];
+    let rows = all;
+    F.loc = getActiveLocation();
+    if (F.loc) rows = rows.filter((r) => r.location_code === F.loc);
+    if (F.supplier) rows = rows.filter((r) => String(r.supplier_name) === F.supplier || String(r.supplier_id) === F.supplier);
+    if (F.status) rows = rows.filter((r) => r.status === F.status);
+    if (F.pay) rows = rows.filter((r) => payStatus(r) === F.pay);
+    if (F.from) rows = rows.filter((r) => String(r.date || '').slice(0, 10) >= F.from);
+    if (F.to) rows = rows.filter((r) => String(r.date || '').slice(0, 10) <= F.to);
+
+    const tot = rows.reduce((a, r) => a + Number(r.grand_total || 0), 0);
+    const due = rows.reduce((a, r) => a + Number(r.payment_due || 0), 0);
+    const retDue = rows.reduce((a, r) => a + Number(r.return_due || 0), 0);
+    const stCounts = {}; const payCounts = {};
+    rows.forEach((r) => {
+      const st = cap(r.status || 'received');
+      stCounts[st] = (stCounts[st] || 0) + 1;
+      const ps = cap(payStatus(r));
+      payCounts[ps] = (payCounts[ps] || 0) + 1;
+    });
+    const stTxt = Object.entries(stCounts).map(([k, v]) => `${k} - ${v}`).join(' · ') || '—';
+    const payTxt = Object.entries(payCounts).map(([k, v]) => `${k} - ${v}`).join(' · ') || '—';
+
+    app.innerHTML = `
+      <h1>Purchases</h1>
+      <p class="sub">${esc(scopeCaption())}${fmtRange() ? ' · ' + esc(fmtRange()) : ''}</p>
+      ${siloGateHtml('purchases', knownSiloCount('purchases'))}
+      <p><a class="ult-btn ult-btn-primary" href="/purchase-catchup.html">Purchases catch-up (UBA)</a></p>
+
+      <div class="pf ${showFilt ? 'open' : ''}" id="pf">
+        <button type="button" class="pf-btn" id="filt-tog">
+          <span style="display:flex;align-items:center"><span class="pf-ico">☰</span><span class="label">Filters</span></span>
+          <span class="pf-chev">▾</span>
+        </button>
+        <div class="pf-body">
+          <div class="filters">
+            <label>Business Location:
+              <select id="f-loc" data-scope-loc data-empty-label="All"><option value="">All</option>
+                ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Supplier:
+              <select id="f-sup"><option value="">All</option>
+                ${suppliers.map((s) => `<option ${F.supplier===s?'selected':''}>${esc(s)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Purchase Status:
+              <select id="f-st">
+                <option value="">All</option>
+                ${['received','pending','ordered'].map((s) => `<option value="${s}" ${F.status===s?'selected':''}>${cap(s)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Payment Status:
+              <select id="f-pay">
+                <option value="">All</option>
+                ${['paid','due','partial','overdue'].map((s) => `<option value="${s}" ${F.pay===s?'selected':''}>${cap(s)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Date Range:
+              <span style="display:flex;gap:6px">
+                <input id="f-from" type="date" value="${esc(F.from)}" />
+                <input id="f-to" type="date" value="${esc(F.to)}" />
+              </span>
+            </label>
+            ${filterAgentHtml()}
+          </div>
+        </div>
+      </div>
+
+      <section class="home-card" data-tbl="po">
+        <div class="loc-list-head">
+          <div>All Purchases</div>
+          <a class="ult-add" href="/purchase-form.html">+ Add</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>Subsidiary</th>
+            <th>Business Location</th>
+            <th>Department</th>
+            <th>Supplier</th>
+            <th>Purchase Status</th>
+            <th>Payment Status</th>
+            <th>Grand Total</th>
+            <th>Payment due <span class="info-i" title="-ve value = Amount to receive. +ve value = Amount to pay">i</span></th>
+            <th data-hide="1">Custom Field 1</th>
+            <th data-hide="1">Custom Field 2</th>
+            <th data-hide="1">Custom Field 3</th>
+            <th data-hide="1">Custom Field 4</th>
+            <th>Added By</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => `<tr data-id="${esc(r.id)}">
+            <td><details class="act"><summary class="act-btn">Actions</summary><menu>
+              <button type="button" data-record-view="${esc(r.id)}">View</button>
+              <a href="/purchase-form.html?id=${esc(r.id)}&print=1">Print</a>
+              <a href="/purchase-form.html?id=${esc(r.id)}">Edit</a>
+              <button type="button" data-del="${esc(r.id)}" data-table="${esc(r._table || 'purchases')}">Delete</button>
+              <a href="/print-labels.html?purchase=${esc(r.id)}">Labels</a>
+              <hr style="margin:4px 0;border:0;border-top:1px solid #e5e7eb" />
+              <button type="button" data-pay="${esc(r.id)}">Add payment</button>
+              <a href="/purchase-payments.html?purchase=${esc(r.id)}">View Payments</a>
+              <a href="/purchase-return-form.html?purchase=${esc(r.id)}">Purchase Return</a>
+              <button type="button" data-st="${esc(r.id)}" data-table="${esc(r._table || 'purchases')}" data-cur="${esc(r.status)}">Update Status</button>
+              <button type="button" data-notify="${esc(r.id)}">Items Received Notification</button>
+            </menu></details></td>
+            <td>${fmtDate(r.date)}</td>
+            <td>${esc(r.reference)}</td>
+            <td>${esc(chainOf(r).subsidiary)}</td>
+            <td>${esc(chainOf(r).location)}</td>
+            <td>${esc(chainOf(r).department)}</td>
+            <td>${esc(r.supplier_name)}</td>
+            <td><span class="pill ${esc(r.status)}">${esc(cap(r.status))}</span></td>
+            <td><span class="pill ${esc(payStatus(r))}">${esc(cap(payStatus(r)))}</span></td>
+            <td>${fmt(r.grand_total)}</td>
+            <td>${fmt(r.payment_due)}</td>
+            <td>${esc(r.custom_field_1 || '')}</td>
+            <td>${esc(r.custom_field_2 || '')}</td>
+            <td>${esc(r.custom_field_3 || '')}</td>
+            <td>${esc(r.custom_field_4 || '')}</td>
+            <td>${esc(r.added_by || 'Admin')}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="15" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          <tfoot><tr class="footer-total">
+            <td colspan="6" style="text-align:right"><strong>Total:</strong></td>
+            <td>${esc(stTxt)}</td>
+            <td>${esc(payTxt)}</td>
+            <td><strong>${fmt(tot)}</strong></td>
+            <td>Purchase Due — ${fmt(due)}<br>Purchase Return — ${fmt(retDue)}</td>
+            <td colspan="5"></td>
+          </tr></tfoot>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <span data-tbl-pager></span>
+        </div>
+      </section>`;
+
+    bindTable(app.querySelector('[data-tbl="po"]'), { title: 'Purchases', storageKey: 'purchases-list', skipFilters: true });
+    document.getElementById('filt-tog').onclick = () => {
+      showFilt = !showFilt;
+      document.getElementById('pf').classList.toggle('open', showFilt);
+    };
+    const grab = () => {
+      F.loc = document.getElementById('f-loc').value;
+      F.supplier = document.getElementById('f-sup').value;
+      F.status = document.getElementById('f-st').value;
+      F.pay = document.getElementById('f-pay').value;
+      F.from = document.getElementById('f-from').value;
+      F.to = document.getElementById('f-to').value;
+      load();
+    };
+    ['f-loc','f-sup','f-st','f-pay','f-from','f-to'].forEach((id) => document.getElementById(id)?.addEventListener('change', grab));
+    app.querySelectorAll('[data-fk-year]').forEach((b) => {
+      b.onclick = () => {
+        const y = b.dataset.fkYear;
+        if (y === 'all') { F.from = '2024-01-01'; F.to = yearEnd; }
+        else { F.from = `${y}-01-01`; F.to = `${y}-12-31`; }
+        load();
+      };
+    });
+    app.querySelectorAll('[data-st]').forEach((b) => {
+      b.onclick = async () => {
+        const next = await promptStatus(b.dataset.cur);
+        if (!next) return;
+        if (!(await confirmAction('Update purchase status?', 'Received will add stock; moving away from Received reverses it.'))) return;
+        const row = rows.find((r) => String(r.id) === String(b.dataset.st));
+        await peelWrite(b.dataset.table, { status: next }, { id: b.dataset.st });
+        if (row && next === 'received' && row.status !== 'received') await applyReceivedStock(row.lines, false);
+        if (row && row.status === 'received' && next !== 'received') await applyReceivedStock(row.lines, true);
+        toast('Status updated');
+        load();
+      };
+    });
+    app.querySelectorAll('[data-pay]').forEach((b) => {
+      b.onclick = () => { location.href = '/purchase-payments.html?purchase=' + encodeURIComponent(b.dataset.pay); };
+    });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this purchase?', 'This cannot be undone.'))) return;
+        try { await supabase.from(b.dataset.table).delete().eq('id', b.dataset.del); } catch { /* ignore */ }
+        try {
+          const cur = JSON.parse(localStorage.getItem('df_purchases') || '[]').filter((r) => String(r.id) !== String(b.dataset.del));
+          localStorage.setItem('df_purchases', JSON.stringify(cur));
+        } catch { /* ignore */ }
+        toast('Deleted');
+        load();
+      };
+    });
+  }
+
+  window.addEventListener(SCOPE_EVENT, load);
+  load().catch((e) => {
+    console.warn(e);
+    app.innerHTML = `<h1>Purchases</h1><p class="sub">Could not load purchases. ${esc(e.message || e)}</p>
+      <p><a class="ult-add" href="/purchase-form.html">+ Add</a></p>`;
+  });
+</script>
+</body>
+</html>

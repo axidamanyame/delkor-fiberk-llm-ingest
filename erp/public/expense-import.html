@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import expense — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page h1{margin:0 0 14px;font-size:22px;color:#111}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:18px;margin-bottom:14px}
+    .top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+    .submit{background:#6d28d9;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer;justify-self:center}
+    .tpl{background:#16a34a;color:#fff;border:0;border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;margin-top:16px}
+    table.ult-table th,table.ult-table td{color:#111}
+    table.ult-table td:first-child{width:80px}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { findLocation, scopeCaption, BUSINESS_LOCATIONS } from './js/scope.js';
+  import { loadRows, saveRow, esc } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { tableFromFile } from './js/read-table.js';
+  import { CAT_SEED, PAY_METHODS, nextExpenseRef, payStatus, catByName } from './js/expense-data.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const COLS = [
+    [1, 'Business Location', 'Name or location code. Row is stamped to that shop’s subsidiary.'],
+    [2, 'Expense Category (Optional)', 'Name of the Category (If not found new category with the given name will be created)'],
+    [3, 'Sub category (Optional)', 'Name of the Sub-Category (If not found new sub-category with the given name under the parent Category will be created)'],
+    [4, 'Reference No (Optional)', 'Leave empty to autogenerate'],
+    [5, 'Date (Optional)', 'Expense date time format should be "Y-m-d H:i:s" (2020-07-15 17:45:32)'],
+    [6, 'Expense for (Optional)', 'Choose the user (email/username) for which expense is related to (Optional)'],
+    [7, 'Contact ID (Optional)', 'Customer or supplier contact id'],
+    [8, 'Attach Document', 'File name only on import'],
+    [9, 'Applicable Tax', 'VAT / None'],
+    [10, 'Expense note (Optional)', ''],
+    [11, 'Total amount', 'Required'],
+    [12, 'Paid Amount', ''],
+    [13, 'Paid on', 'Expense date time format should be "Y-m-d H:i:s" (2020-07-15 17:45:32)'],
+    [14, 'Payment Method', PAY_METHODS.map(([,l]) => l).join(', ')],
+    [15, 'Paid from (Optional)', ''],
+    [16, 'Payment note (Optional)', ''],
+  ];
+  const HEAD = COLS.map((c) => c[1].replace(/ \(.+\)$/, ''));
+
+  app.innerHTML = `
+    <h1>Import expense</h1>
+    <div class="card">
+      <form id="imp" class="top">
+        <label>File To Import:<br><input type="file" id="file" accept=".csv,.tsv,.txt,.json,.xls,.xlsx,.ods,.html,.pdf,.png,.jpg,.jpeg" required /></label>
+        <button type="submit" class="submit">Submit</button>
+      </form>
+      <button type="button" class="tpl" id="tpl">Download template file</button>
+      <p id="msg"></p>
+    </div>
+    <div class="card">
+      <h3>Instructions</h3>
+      <p>Rows inherit the shop on column 1. Active sidebar is <strong>${esc(scopeCaption())}</strong>.</p>
+      <p>Carefully follow the instructions before importing. CSV columns must stay in this order.</p>
+      <div class="ult-table-wrap"><table class="ult-table">
+        <thead><tr><th>Column Number</th><th>Column Name</th><th>Instruction</th></tr></thead>
+        <tbody>${COLS.map(([n,name,ins]) => `<tr><td>${n}</td><td>${esc(name)}</td><td>${esc(ins)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+  document.getElementById('tpl').onclick = () => {
+    const csv = HEAD.join(',') + '\n';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'expense-import-template.csv';
+    a.click();
+  };
+
+  /* This page's own parser read quotes correctly but only ever accepted CSV
+     text. read-table returns the same array-of-cells matrix from Excel, JSON,
+     HTML, PDF, Word and photographed tables as well. */
+  async function matrixFromFile(file) {
+    const table = await tableFromFile(file);
+    return (table.matrix || []).filter((cells) => (cells || []).some(Boolean));
+  }
+
+  function locOf(v) {
+    const s = String(v || '').trim().toLowerCase();
+    return BUSINESS_LOCATIONS.find((l) => l.code.toLowerCase() === s || l.name.toLowerCase() === s)
+      || findLocation(v);
+  }
+  function methodOf(v) {
+    const s = String(v || '').toLowerCase();
+    return PAY_METHODS.find(([, l]) => l.toLowerCase() === s)?.[0]
+      || PAY_METHODS.find(([k]) => k === s)?.[0]
+      || 'cash';
+  }
+
+  document.getElementById('imp').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Import these expenses?', 'Each row is stamped to the business location in column 1.'))) return;
+    const file = document.getElementById('file').files[0];
+    if (!file) return;
+    const raw = await matrixFromFile(file);
+    const start = /business location/i.test(raw[0]?.[0] || '') ? 1 : 0;
+    let cats = await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+    const existing = await loadRows('expenses', 'df_expenses', []);
+    let ok = 0, fail = 0;
+    const fails = [];
+    for (const r of raw.slice(start)) {
+      try {
+        const loc = locOf(r[0]);
+        if (!loc) throw new Error('Unknown business location');
+        const catName = (r[1] || '').trim();
+        const subName = (r[2] || '').trim();
+        if (catName && !catByName(cats, catName)) {
+          const rec = { id: undefined, name: catName, code: catName.slice(0, 4).toUpperCase(), parent_id: null };
+          await saveRow('expense_categories', 'df_expense_categories', rec);
+          cats = await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+        }
+        if (subName) {
+          const parent = catByName(cats, catName);
+          if (parent && !catByName(cats, subName)) {
+            await saveRow('expense_categories', 'df_expense_categories', { name: subName, code: subName.slice(0, 4).toUpperCase(), parent_id: parent.id });
+            cats = await loadRows('expense_categories', 'df_expense_categories', CAT_SEED);
+          }
+        }
+        const total = Number(r[10] || 0);
+        const paid = Number(r[11] || 0);
+        await saveRow('expenses', 'df_expenses', {
+          location_code: loc.code,
+          subsidiary_code: loc.subsidiary,
+          category: catName || null,
+          sub_category: subName || null,
+          reference_no: r[3] || nextExpenseRef(existing),
+          expense_date: r[4] || new Date().toISOString(),
+          expense_for: r[5] || null,
+          contact_name: r[6] || null,
+          document_name: r[7] || null,
+          tax: r[8] || null,
+          note: r[9] || null,
+          total_amount: total,
+          amount: total,
+          paid_amount: paid,
+          paid_on: r[12] || r[4] || new Date().toISOString(),
+          payment_method: methodOf(r[13]),
+          payment_account: r[14] || 'None',
+          payment_note: r[15] || null,
+          payment_status: payStatus(total, paid),
+          title: catName || 'Imported expense',
+        });
+        ok++;
+      } catch (ex) {
+        fail++;
+        fails.push((r[3] || r[1] || r[0] || 'row') + ': ' + (ex.message || 'failed'));
+      }
+    }
+    document.getElementById('msg').innerHTML = `Imported ${ok} expense(s). Failed ${fail}.`
+      + (fails.length ? '<ul>' + fails.map((f) => '<li>' + esc(f) + '</li>').join('') + '</ul>' : '');
+    if (ok) toast('Import finished');
+  };
+</script>
+</body>
+</html>

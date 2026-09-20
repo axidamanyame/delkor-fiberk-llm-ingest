@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Manual — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/manual-ref.css" />
+  <style>
+    .man-wrap{max-width:980px}
+    .man-toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+    .man-toc a{background:#fff;border:1px solid #cbd5e1;border-radius:999px;padding:4px 10px;font-size:12px;color:#0f172a;text-decoration:none}
+    .man-cat{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin:0 0 10px;padding:4px 12px 10px}
+    .man-cat-h{font-weight:800;font-size:18px;cursor:pointer;padding:10px 0;color:#0f172a}
+    .man-intro{color:#334155;margin:0 0 8px}
+    .man-topic{border-top:1px solid #e2e8f0;padding:6px 0}
+    .man-topic summary{cursor:pointer;font-weight:700;color:#0f172a}
+    .man-ref{display:block;font-size:11px;color:#64748b;font-weight:600}
+    .man-open{margin:8px 0 0}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading manual…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { manualBodyFromNav } from './js/desk-manual.js';
+  import { isHqRole, isOwnerRole } from './js/access-rules.js';
+  import { getAccess } from './js/rbac.js';
+  try {
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    const app = document.getElementById('app');
+    const ctx = getAccess();
+    const hq = isHqRole(ctx?.roleName) || isOwnerRole(ctx?.roleName) || ctx?.isAdmin;
+    if (!hq) {
+      location.replace('/academy.html?tab=manuals');
+      throw new Error('academy');
+    }
+    app.innerHTML = `
+      ${pageChrome('Technical documentation')}
+      <div class="man-wrap">
+        <p class="kb-kicker">HQ / Owner only</p>
+        <p class="ult-muted">Desk notes and Ref codes for troubleshooting. Staff manuals, knowledge base and policies live in <a href="/academy.html">Academy</a>.</p>
+        ${await manualBodyFromNav()}
+      </div>`;
+    const jump = () => {
+      const id = (location.hash || '').replace(/^#/, '');
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.tagName === 'DETAILS') el.open = true;
+      el.closest('details') && (el.closest('details').open = true);
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    jump();
+    window.addEventListener('hashchange', jump);
+  } catch (err) {
+    if (String(err?.message) === 'academy') { /* redirected */ }
+    else {
+      const app = document.getElementById('app');
+      if (app) app.innerHTML = `<div class="ult-card"><h1>Technical documentation</h1><p>${String(err?.message || err)}</p></div>`;
+    }
+  }
+</script>
+</body>
+</html>

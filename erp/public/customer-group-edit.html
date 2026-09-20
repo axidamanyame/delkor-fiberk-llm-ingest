@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Customer Group — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text);max-width:640px}
+    .page h1{font-size:20px;color:var(--ult-text)}
+    label{display:block;font-weight:700;margin:12px 0 6px;color:var(--ult-text)}
+    input,select{width:100%;border:1px solid #111;border-radius:8px;padding:10px;box-sizing:border-box;color:var(--ult-text)}
+    .row{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+    .save{background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer}
+    .close{background:#111;color:#fff;border:0;border-radius:8px;padding:10px 18px;cursor:pointer}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <main class="ult-main page" id="app">Loading…</main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell } from './js/ultimate-shell.js';
+    import { stampScope, subsidiarySelect } from './js/entity-scope.js';
+    import { confirmAction } from './js/confirm-action.js';
+    import { loadFormRow, fillForm } from './js/ls-rows.js';
+    await mountUltimateShell();
+    const id = new URLSearchParams(location.search).get('id');
+    const app = document.getElementById('app');
+    let row = { name: '', calc_type: 'percentage', calculation_percentage: '', price_group: '' };
+    if (id) {
+      row = (await loadFormRow('customer_groups', 'df_customer_groups', id)) || row;
+    }
+    const v = (k) => row[k] ?? '';
+    app.innerHTML = `
+      <h1>${id ? 'Edit' : 'Add'} Customer Group</h1>
+      <form id="f" class="ult-card">
+        ${subsidiarySelect(row.subsidiary_code||"")}<label>Customer Group Name:*</label>
+        <input name="name" required value="${v('name')}" placeholder="Customer Group Name" />
+        <label>Price calculation type:</label>
+        <select name="calc_type">
+          <option value="percentage" ${v('calc_type')!=='selling_price_group'?'selected':''}>Percentage</option>
+          <option value="selling_price_group" ${v('calc_type')==='selling_price_group'?'selected':''}>Selling Price Group</option>
+        </select>
+        <div id="pct-wrap">
+          <label>Calculation Percentage (%):</label>
+          <input name="calculation_percentage" type="number" step="0.01" value="${v('calculation_percentage')}" placeholder="Calculation Percentage (%)" />
+        </div>
+        <div id="pg-wrap" ${v('calc_type')==='selling_price_group'?'':'hidden'}>
+          <label>Selling Price Group</label>
+          <input name="price_group" value="${v('price_group')||''}" />
+        </div>
+        <div class="row">
+          <button type="submit" class="save">Save</button>
+          <a class="close" href="/customer-groups.html">Close</a>
+        </div>
+      </form>`;
+    fillForm(document.getElementById('f'), row);
+    document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this group?','Writes the group to the selected subsidiary.'))) return;
+      const fd = new FormData(e.target);
+      const body = {
+        name: fd.get('name').trim(),
+        calc_type: fd.get('calc_type'),
+        calculation_percentage: Number(fd.get('calculation_percentage') || 0),
+        price_group: fd.get('price_group') || null,
+      };
+      try { stampScope(body, e.target); } catch (ex) { return alert(ex.message); }
+      const q = id
+        ? supabase.from('customer_groups').update(body).eq('id', id)
+        : supabase.from('customer_groups').insert(body);
+      const { error } = await q;
+      if (error) return alert(error.message);
+      location.href = '/customer-groups.html';
+    };
+    const typeSel = document.querySelector('[name="calc_type"]');
+    const syncType = () => {
+      const spg = typeSel.value === 'selling_price_group';
+      document.getElementById('pct-wrap').hidden = spg;
+      document.getElementById('pg-wrap').hidden = !spg;
+    };
+    typeSel.onchange = syncType;
+    syncType();
+  </script>
+</body>
+</html>

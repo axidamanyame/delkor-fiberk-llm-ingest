@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420">
+  <rect width="920" height="420" fill="#eef4fb"/>
+  <rect x="140" y="28" width="640" height="364" rx="28" fill="#fff" stroke="#dbe7f2"/>
+  <path d="M140 28h640a28 28 0 0 1 28 28v120H112V56a28 28 0 0 1 28-28z" fill="url(#g)"/>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1d4ed8"/><stop offset=".5" stop-color="#0ea5e9"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs>
+  <text x="460" y="78" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="13" letter-spacing="3">TILL</text>
+  <text x="460" y="118" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="36" font-weight="800">Welcome Back</text>
+  <rect x="250" y="140" width="280" height="42" rx="21" fill="#fff"/>
+  <text x="280" y="166" fill="#94a3b8" font-family="Inter,Arial" font-size="18" letter-spacing="6">••••</text>
+  <rect x="540" y="140" width="110" height="42" rx="21" fill="#10b981"/>
+  <text x="595" y="166" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="15" font-weight="800">Login</text>
+  <text x="250" y="220" fill="#475569" font-family="Inter,Arial" font-size="11" font-weight="700">SUBSIDIARY</text>
+  <rect x="250" y="226" width="190" height="34" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="262" y="248" fill="#0f172a" font-family="Inter,Arial" font-size="13">Fiberk Ltd</text>
+  <text x="460" y="220" fill="#475569" font-family="Inter,Arial" font-size="11" font-weight="700">LOCATION</text>
+  <rect x="460" y="226" width="190" height="34" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="472" y="248" fill="#0f172a" font-family="Inter,Arial" font-size="13">Fiberk Shop</text>
+  <text x="250" y="286" fill="#475569" font-family="Inter,Arial" font-size="11" font-weight="700">OPENING FLOAT (GH₵)</text>
+  <rect x="250" y="292" width="190" height="34" rx="10" fill="#fff" stroke="#e2e8f0"/>
+  <text x="262" y="314" fill="#0f172a" font-family="Inter,Arial" font-size="13">200.00</text>
+  <rect x="180" y="330" width="130" height="46" rx="14" fill="#059669"/>
+  <text x="245" y="350" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="13" font-weight="800">Login</text>
+  <text x="245" y="366" text-anchor="middle" fill="#d1fae5" font-family="Inter,Arial" font-size="10">Open the till</text>
+  <rect x="320" y="330" width="130" height="46" rx="14" fill="#1d4ed8"/>
+  <text x="385" y="350" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="13" font-weight="800">Check-in</text>
+  <text x="385" y="366" text-anchor="middle" fill="#dbeafe" font-family="Inter,Arial" font-size="10">When the till opens</text>
+  <text x="20" y="408" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 1 · Till login — PIN, shop, float, then Login</text>
+</svg>

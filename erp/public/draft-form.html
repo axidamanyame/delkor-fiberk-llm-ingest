@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add Draft</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page h1{margin:0 0 14px;font-size:22px;color:#111}
+    .fld{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+    .fld input,.fld select,.fld textarea{font-weight:400;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;width:100%;box-sizing:border-box}
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { mountSellDoc } from './js/doc-forms.js';
+  await mountUltimateShell();
+  await mountSellDoc('draft');
+</script>
+</body>
+</html>

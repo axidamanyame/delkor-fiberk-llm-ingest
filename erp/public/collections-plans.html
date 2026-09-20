@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payment plans — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { listPlans, fmt, table } from './js/collections.js';
+  await mountUltimateShell();
+  const rows = await listPlans().catch(() => []);
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Payment plans', 'Installment schedules')}
+    <p><a class="ult-btn ult-btn-outline" href="/collections.html">Dashboard</a></p>
+    ${table(['Customer','Start','End','Installment','Frequency','Next','Status'],
+      rows.map((r) => `<tr>
+        <td>${r.customer_id || ''}</td><td>${r.plan_start || ''}</td><td>${r.plan_end || ''}</td>
+        <td>${fmt(r.installment_amount)}</td><td>${r.frequency || ''}</td>
+        <td>${r.next_payment_date || ''}</td><td>${r.status || ''}</td>
+      </tr>`).join(''))}`;
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+{
+  "source": "fiberkapp.com",
+  "crawled_at": "2026-09-08T20:04:14.859Z",
+  "list": {
+    "transfers": {
+      "url": "https://fiberkapp.com/stock-transfers",
+      "rows": 313,
+      "headers": [
+        "Date",
+        "Reference No",
+        "Location (From)",
+        "Location (To)",
+        "Status",
+        "Shipping Charges",
+        "Total Amount",
+        "Additional Notes",
+        "Action"
+      ],
+      "n": 0
+    },
+    "adjustments": {
+      "url": "https://fiberkapp.com/stock-adjustments",
+      "rows": 1,
+      "headers": [
+        "Action",
+        "Date",
+        "Reference No",
+        "Location",
+        "Adjustment type",
+        "Total Amount",
+        "Total amount recovered",
+        "Reason",
+        "Added By"
+      ],
+      "n": 0
+    }
+  },
+  "transfers": [],
+  "adjustments": []
+}

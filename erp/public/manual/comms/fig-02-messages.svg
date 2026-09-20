@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 420" width="920" height="420">
+  <rect width="920" height="420" fill="#eef4fb"/>
+  <rect x="24" y="18" width="260" height="384" rx="14" fill="#fff" stroke="#dbe7f2"/>
+  <rect x="40" y="36" width="228" height="34" rx="8" fill="#f1f5f9"/>
+  <text x="54" y="58" fill="#94a3b8" font-family="Inter,Arial" font-size="12">Search rooms…</text>
+  <text x="40" y="96" fill="#64748b" font-family="Inter,Arial" font-size="10" font-weight="800">GROUPS</text>
+  <rect x="40" y="108" width="228" height="48" rx="10" fill="#eff6ff"/>
+  <text x="54" y="128" fill="#1e3a8a" font-family="Inter,Arial" font-size="13" font-weight="700">HQ Desk</text>
+  <text x="54" y="146" fill="#64748b" font-family="Inter,Arial" font-size="11">Valerie: stock for Fiberk…</text>
+  <rect x="40" y="166" width="228" height="48" rx="10" fill="#fff"/>
+  <text x="54" y="186" fill="#0f172a" font-family="Inter,Arial" font-size="13" font-weight="700">Shop Floor</text>
+  <text x="54" y="204" fill="#64748b" font-family="Inter,Arial" font-size="11">Benny: till closed</text>
+  <text x="40" y="242" fill="#64748b" font-family="Inter,Arial" font-size="10" font-weight="800">DIRECT</text>
+  <rect x="40" y="254" width="228" height="48" rx="10" fill="#fff"/>
+  <text x="54" y="274" fill="#0f172a" font-family="Inter,Arial" font-size="13" font-weight="700">Harry Coleman</text>
+  <text x="54" y="292" fill="#64748b" font-family="Inter,Arial" font-size="11">Direct message</text>
+  <rect x="300" y="18" width="596" height="384" rx="14" fill="#fff" stroke="#dbe7f2"/>
+  <rect x="300" y="18" width="596" height="52" fill="#1e3a8a" rx="14"/>
+  <rect x="300" y="40" width="596" height="30" fill="#1e3a8a"/>
+  <text x="324" y="50" fill="#fff" font-family="Inter,Arial" font-size="16" font-weight="800">HQ Desk</text>
+  <rect x="324" y="90" width="280" height="56" rx="12" fill="#f1f5f9"/>
+  <text x="338" y="114" fill="#0f172a" font-family="Inter,Arial" font-size="13">Need Fiberk stock count by 4pm</text>
+  <text x="338" y="134" fill="#94a3b8" font-family="Inter,Arial" font-size="10">Valerie · 09:14</text>
+  <rect x="592" y="160" width="280" height="56" rx="12" fill="#dbeafe"/>
+  <text x="606" y="184" fill="#1e3a8a" font-family="Inter,Arial" font-size="13">On it — Hub has 22 units</text>
+  <text x="606" y="204" fill="#64748b" font-family="Inter,Arial" font-size="10">You · 09:16</text>
+  <rect x="324" y="348" width="480" height="40" rx="20" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="344" y="373" fill="#94a3b8" font-family="Inter,Arial" font-size="13">Write a message…</text>
+  <rect x="816" y="348" width="60" height="40" rx="20" fill="#2563eb"/>
+  <text x="846" y="373" text-anchor="middle" fill="#fff" font-family="Inter,Arial" font-size="12" font-weight="800">Send</text>
+  <text x="24" y="414" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 2 · Messages — rooms on the left, thread on the right</text>
+</svg>

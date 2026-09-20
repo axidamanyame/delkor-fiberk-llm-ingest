@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sync Logs — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { listLogs } from './js/media-sync.js';
+  await mountUltimateShell();
+  const rows = await listLogs().catch(() => []);
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Sync Logs', 'Last 200 supplier media attempts')}
+    <p><a class="ult-btn ult-btn-outline" href="/media-sync.html">Dashboard</a></p>
+    <div class="ult-card"><table class="ult-table">
+      <thead><tr><th>When</th><th>Supplier</th><th>File</th><th>Status</th><th>Message</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td>${(r.created_at || '').replace('T', ' ').slice(0, 19)}</td>
+        <td>${r.supplier || ''}</td>
+        <td>${r.filename || ''}</td>
+        <td>${r.status || ''}</td>
+        <td>${r.message || ''}</td>
+      </tr>`).join('') || '<tr><td colspan="5">No logs yet. Run SQL 106 then try Franko Sync.</td></tr>'}</tbody>
+    </table></div>`;
+</script>
+</body>
+</html>

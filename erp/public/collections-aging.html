@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aging — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { loadArrears, table } from './js/collections.js';
+  await mountUltimateShell();
+  const rows = await loadArrears().catch(() => []);
+  const buckets = ['0-30','31-60','61-90','90+'];
+  const sums = Object.fromEntries(buckets.map((b) => [b, rows.filter((r) => r.bucket === b)]));
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Aging report', 'Days since last contact / due date. No money on this desk.')}
+    <p><a class="ult-btn ult-btn-outline" href="/collections.html">Dashboard</a></p>
+    <div class="ult-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px">
+      ${buckets.map((b) => `<div><strong>${sums[b].length}</strong><div class="ult-muted">${b} days</div></div>`).join('')}
+    </div>
+    ${table(['Bucket','Name','Phone','Days','Risk'],
+      rows.map((c) => `<tr>
+        <td>${c.bucket}</td><td>${c.name || ''}</td><td>${c.phone || ''}</td>
+        <td>${c.days}</td><td>${c.risk}</td>
+      </tr>`).join(''))}`;
+</script>
+</body>
+</html>

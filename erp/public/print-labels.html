@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Print Labels</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+    @media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}}
+    .info-box{border:1px solid #e5e7eb;border-radius:10px;padding:12px}
+    .info-box label{font-weight:600;color:#111;font-size:13px;display:block}
+    .info-box input[type="number"]{width:72px;margin-top:6px;border:1px solid #111;border-radius:6px;padding:4px 8px}
+    .go{background:#4f46e5;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer}
+    .pdf{background:#16a34a;color:#fff;border:0;border-radius:8px;padding:10px 22px;font-weight:700;cursor:pointer}
+    .tip{display:inline-flex;width:16px;height:16px;border-radius:50%;background:#0ea5e9;color:#fff;font-size:11px;align-items:center;justify-content:center;cursor:help;margin-left:4px}
+    .rm{border:0;background:#fee2e2;color:#991b1b;border-radius:6px;padding:4px 8px;cursor:pointer}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { filterBySidebar, scopeCaption } from './js/scope.js';
+  import { withTax } from './js/tax-math.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const picked = [];
+  const show = {
+    name: true, variation: true, price: true, biz: true, date: true, lot: false, sku: true, barcode: true,
+  };
+  const size = { name: 15, variation: 17, price: 17, biz: 20, date: 12 };
+  let priceMode = 'inc';
+  let sheet = '30';
+  const [{ data: products }, { data: groups }] = await Promise.all([
+    supabase.from('products').select('id,name,sku,selling_price,cost_price,brand,barcode,subsidiary_code,location_code').limit(4000),
+    supabase.from('selling_price_groups').select('id,name').limit(80),
+  ]);
+  const catalog = filterBySidebar(products || []);
+  const groupsList = groups && groups.length ? groups : [{ id: '', name: 'Default' }];
+
+  function bars(code) {
+    const s = String(code || '0000');
+    let html = '<span class="bc" aria-hidden="true">';
+    for (let i = 0; i < s.length; i++) {
+      const n = s.charCodeAt(i);
+      html += `<i style="width:${1 + (n % 3)}px"></i><i class="g" style="width:1px"></i>`;
+    }
+    return html + '</span>';
+  }
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (ch) => {
+      if (ch === '&') return '&' + 'amp;';
+      if (ch === '<') return '&' + 'lt;';
+      if (ch === '>') return '&' + 'gt;';
+      if (ch === '"') return '&' + 'quot;';
+      return '&#39;';
+    });
+  }
+
+  function paint() {
+    app.innerHTML = `
+      <h1>Print Labels <span class="tip" title="Search products in the active company, then preview labels.">i</span></h1>
+      <p class="sub">${esc(scopeCaption())}</p>
+
+      <div class="sell-card">
+        <p style="font-weight:700;margin:0 0 8px">Add products to generate Labels</p>
+        <input id="q" placeholder="Enter products name to print labels" style="width:100%;padding:10px;border:1px solid #0ea5e9;border-radius:8px;color:#111" />
+        <div id="hits" class="hits"></div>
+        <div class="ult-table-wrap" style="margin-top:12px">
+          <table class="ult-table">
+            <thead><tr>
+              <th>Products</th>
+              <th>No. of labels</th>
+              <th>Packing Date</th>
+              <th>Selling Price Group</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${picked.map((p, i) => `<tr>
+              <td>${esc(p.name)} (${esc(p.sku || '')})</td>
+              <td><input data-n="${i}" type="number" min="1" value="${p.qty}" style="width:90px;border:1px solid #111;border-radius:6px;padding:4px 8px" /></td>
+              <td><input data-d="${i}" type="date" value="${p.date || ''}" style="border:1px solid #111;border-radius:6px;padding:4px 8px" /></td>
+              <td><select data-g="${i}" style="border:1px solid #111;border-radius:6px;padding:4px 8px">
+                ${groupsList.map((g) => `<option value="${esc(g.name)}" ${p.group===g.name?'selected':''}>${esc(g.name)}</option>`).join('')}
+              </select></td>
+              <td><button type="button" class="rm" data-rm="${i}">×</button></td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="5" style="text-align:center">No products added</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sell-card">
+        <h3 style="margin:0 0 12px;color:#111">Information to show in Labels</h3>
+        <div class="grid4">
+          <div class="info-box"><label><input type="checkbox" id="s-name" ${show.name?'checked':''} /> Product Name</label>Size <input id="z-name" type="number" value="${size.name}" /></div>
+          <div class="info-box"><label><input type="checkbox" id="s-var" ${show.variation?'checked':''} /> Product Variation (recommended)</label>Size <input id="z-var" type="number" value="${size.variation}" /></div>
+          <div class="info-box">
+            <label><input type="checkbox" id="s-price" ${show.price?'checked':''} /> Product Price</label>
+            Size <input id="z-price" type="number" value="${size.price}" />
+            <div style="margin-top:8px">Show Price:
+              <select id="price-mode">
+                <option value="inc" ${priceMode==='inc'?'selected':''}>Inc. tax</option>
+                <option value="exc" ${priceMode==='exc'?'selected':''}>Exc. tax</option>
+              </select>
+            </div>
+          </div>
+          <div class="info-box"><label><input type="checkbox" id="s-biz" ${show.biz?'checked':''} /> Business name</label>Size <input id="z-biz" type="number" value="${size.biz}" /></div>
+          <div class="info-box"><label><input type="checkbox" id="s-date" ${show.date?'checked':''} /> Print packing date</label>Size <input id="z-date" type="number" value="${size.date}" /></div>
+          <div class="info-box"><label><input type="checkbox" id="s-lot" ${show.lot?'checked':''} /> Print lot number</label></div>
+          <div class="info-box"><label><input type="checkbox" id="s-sku" ${show.sku?'checked':''} /> Print SKU</label></div>
+          <div class="info-box"><label><input type="checkbox" id="s-bar" ${show.barcode?'checked':''} /> Print barcode</label></div>
+        </div>
+        <p style="margin:16px 0 8px;font-weight:700;color:#111">Barcode setting:</p>
+        <select id="sheet-size" style="max-width:640px;width:100%;border:1px solid #111;border-radius:8px;padding:8px">
+          <option value="20" ${sheet==='20'?'selected':''}>20 Labels per Sheet, Sheet Size: 8.5" x 11", Label Size: 4" x 1"</option>
+          <option value="30" ${sheet==='30'?'selected':''}>30 Labels per sheet, Sheet Size: 8.5" x 11", Label Size: 2.625" x 1"</option>
+          <option value="32" ${sheet==='32'?'selected':''}>32 Labels per sheet, Sheet Size: 8.5" x 11", Label Size: 2" x 1.25"</option>
+          <option value="40" ${sheet==='40'?'selected':''}>40 Labels per sheet, Sheet Size: 8.5" x 11", Label Size: 2" x 1"</option>
+          <option value="50" ${sheet==='50'?'selected':''}>50 Labels per Sheet, Sheet Size: 8.5" x 11", Label Size: 1.5" x 1"</option>
+          <option value="roll" ${sheet==='roll'?'selected':''}>Continuous Rolls - 31.75mm x 25.4mm</option>
+        </select>
+        <p style="text-align:center;margin:18px 0" class="no-print">
+          <button type="button" class="go" id="prev">Preview</button>
+          <button type="button" class="pdf" id="pdf">Preview PDF</button>
+        </p>
+        <div id="sheet" class="label-sheet"></div>
+      </div>`;
+
+    const q = document.getElementById('q');
+    q.oninput = () => {
+      const n = q.value.trim().toLowerCase();
+      const hits = catalog.filter((p) => n && `${p.name} ${p.sku} ${p.barcode || ''}`.toLowerCase().includes(n)).slice(0, 8);
+      document.getElementById('hits').innerHTML = hits.map((p) =>
+        `<button type="button" data-id="${p.id}">${esc(p.name)} · ${esc(p.sku || '')} · ${fmt(p.selling_price)}</button>`
+      ).join('');
+      document.getElementById('hits').querySelectorAll('button').forEach((b) => {
+        b.onclick = () => {
+          const p = catalog.find((x) => String(x.id) === String(b.dataset.id));
+          if (p && !picked.some((x) => x.id === p.id)) {
+            picked.push({
+              ...p, qty: 1,
+              date: new Date().toISOString().slice(0, 10),
+              group: groupsList[0]?.name || 'Default',
+            });
+          }
+          paint();
+        };
+      });
+    };
+    app.querySelectorAll('[data-n]').forEach((inp) => { inp.onchange = () => { picked[+inp.dataset.n].qty = Number(inp.value || 1); }; });
+    app.querySelectorAll('[data-d]').forEach((inp) => { inp.onchange = () => { picked[+inp.dataset.d].date = inp.value; }; });
+    app.querySelectorAll('[data-g]').forEach((inp) => { inp.onchange = () => { picked[+inp.dataset.g].group = inp.value; }; });
+    app.querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => { picked.splice(+b.dataset.rm, 1); paint(); }; });
+
+    const grabShow = () => {
+      show.name = document.getElementById('s-name').checked;
+      show.variation = document.getElementById('s-var').checked;
+      show.price = document.getElementById('s-price').checked;
+      show.biz = document.getElementById('s-biz').checked;
+      show.date = document.getElementById('s-date').checked;
+      show.lot = document.getElementById('s-lot').checked;
+      show.sku = document.getElementById('s-sku').checked;
+      show.barcode = document.getElementById('s-bar').checked;
+      size.name = Number(document.getElementById('z-name').value || 15);
+      size.variation = Number(document.getElementById('z-var').value || 17);
+      size.price = Number(document.getElementById('z-price').value || 17);
+      size.biz = Number(document.getElementById('z-biz').value || 20);
+      size.date = Number(document.getElementById('z-date').value || 12);
+      priceMode = document.getElementById('price-mode').value;
+      sheet = document.getElementById('sheet-size').value;
+    };
+
+    function renderLabels() {
+      grabShow();
+      const width = { 20: 280, 30: 190, 32: 150, 40: 150, 50: 120, roll: 140 }[sheet] || 190;
+      const html = picked.flatMap((p) => Array.from({ length: Number(p.qty) || 1 }, () => {
+        const split = withTax(Number(p.selling_price || 0), p.tax);
+        const price = priceMode === 'exc' ? split.exc : split.inc;
+        return `<div class="upc-label" style="width:${width}px">
+          ${show.biz ? `<div style="font-size:${size.biz}px;font-weight:700">Delkor-Fiberk</div>` : ''}
+          ${show.name ? `<b style="font-size:${size.name}px">${esc(p.name)}</b>` : ''}
+          ${show.variation ? `<div style="font-size:${size.variation}px">${esc(p.brand || p.group || '')}</div>` : ''}
+          ${show.sku ? `<div>${esc(p.sku || '')}</div>` : ''}
+          ${show.barcode ? `${bars(p.barcode || p.sku)}<div style="letter-spacing:2px;font-size:11px">${esc(p.barcode || p.sku || '')}</div>` : ''}
+          ${show.price ? `<div style="font-size:${size.price}px;font-weight:700">${fmt(price)}</div>` : ''}
+          ${show.date && p.date ? `<div style="font-size:${size.date}px">${esc(p.date)}</div>` : ''}
+          ${show.lot ? `<div>LOT ${esc(p.sku || '').slice(-4)}</div>` : ''}
+        </div>`;
+      })).join('');
+      document.getElementById('sheet').innerHTML = html || '<p>Add products first.</p>';
+    }
+    document.getElementById('prev').onclick = renderLabels;
+    document.getElementById('pdf').onclick = () => { renderLabels(); window.print(); };
+  }
+  paint();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 380" width="920" height="380">
+  <rect width="920" height="380" fill="#f1f5f9"/>
+  <rect x="40" y="24" width="840" height="320" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="60" y="52" fill="#0f172a" font-family="Inter,Arial" font-size="14" font-weight="800">Checkout</text>
+  <g font-family="Inter,Arial" font-size="12">
+    <rect x="56" y="68" width="150" height="54" rx="10" fill="#e2e8f0"/>
+    <text x="131" y="90" text-anchor="middle" fill="#334155" font-weight="800">SUBTOTAL</text>
+    <text x="131" y="110" text-anchor="middle" fill="#0f172a" font-weight="800">GH₵ 1,835</text>
+    <rect x="216" y="68" width="150" height="54" rx="10" fill="#fee2e2"/>
+    <text x="291" y="90" text-anchor="middle" fill="#b91c1c" font-weight="800">DISCOUNT (−)</text>
+    <text x="291" y="110" text-anchor="middle" fill="#b91c1c" font-weight="800">GH₵ 0</text>
+    <rect x="376" y="68" width="150" height="54" rx="10" fill="#fef3c7"/>
+    <text x="451" y="90" text-anchor="middle" fill="#92400e" font-weight="800">ORDER TAX (+)</text>
+    <text x="451" y="110" text-anchor="middle" fill="#92400e" font-weight="800">GH₵ 0</text>
+    <rect x="536" y="68" width="150" height="54" rx="10" fill="#ede9fe"/>
+    <text x="611" y="90" text-anchor="middle" fill="#5b21b6" font-weight="800">SHIPPING (+)</text>
+    <text x="611" y="110" text-anchor="middle" fill="#5b21b6" font-weight="800">GH₵ 0</text>
+  </g>
+  <g font-family="Inter,Arial" font-size="13" font-weight="800">
+    <rect x="56" y="140" width="150" height="40" rx="10" fill="#0f172a"/>
+    <text x="131" y="165" text-anchor="middle" fill="#fff">Multiple Pay</text>
+    <rect x="216" y="140" width="110" height="40" rx="10" fill="#e0f2fe"/>
+    <text x="271" y="165" text-anchor="middle" fill="#075985">Card</text>
+    <rect x="336" y="140" width="110" height="40" rx="10" fill="#facc15"/>
+    <text x="391" y="165" text-anchor="middle" fill="#1c1917">MoMo</text>
+    <rect x="456" y="140" width="110" height="40" rx="10" fill="#16a34a"/>
+    <text x="511" y="165" text-anchor="middle" fill="#fff">Cash</text>
+    <rect x="576" y="140" width="110" height="40" rx="10" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="631" y="165" text-anchor="middle" fill="#334155">Suspend</text>
+    <rect x="56" y="192" width="110" height="40" rx="10" fill="#e0e7ff"/>
+    <text x="111" y="217" text-anchor="middle" fill="#3730a3">Quotation</text>
+    <rect x="176" y="192" width="110" height="40" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+    <text x="231" y="217" text-anchor="middle" fill="#334155">Draft</text>
+    <rect x="296" y="192" width="130" height="40" rx="10" fill="#ffedd5"/>
+    <text x="361" y="217" text-anchor="middle" fill="#9a3412">Credit Sale</text>
+    <rect x="700" y="140" width="160" height="92" rx="12" fill="#fff" stroke="#14b8a6" stroke-width="2"/>
+    <text x="780" y="172" text-anchor="middle" fill="#0d9488" font-size="11">TOTAL PAYABLE</text>
+    <text x="780" y="204" text-anchor="middle" fill="#0f766e" font-size="20">GH₵ 1,835</text>
+  </g>
+  <rect x="56" y="250" width="200" height="36" rx="10" fill="#fff" stroke="#fecaca"/>
+  <text x="156" y="273" text-anchor="middle" fill="#dc2626" font-family="Inter,Arial" font-size="13" font-weight="800">✕ Cancel</text>
+  <text x="40" y="366" fill="#0f766e" font-family="Inter,Arial" font-size="12" font-weight="700">Fig 3 · After Checkout — pick Cash, MoMo, Card, split, or park the ticket</text>
+</svg>

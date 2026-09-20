@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cashier home</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  const session = await mountUltimateShell();
+  const app = document.getElementById('app');
+  const uid = session.user.id;
+  const mail = (session.user.email || '').toLowerCase();
+  const { data: sales } = await supabase.from('sales_orders').select('id,reference,total_amount,status,created_at,cashier_id,cashier_email').order('created_at', { ascending: false }).limit(400);
+  const mine = (sales || []).filter((s) => String(s.cashier_id||'') === uid || String(s.cashier_email||'').toLowerCase() === mail);
+  const today = new Date().toISOString().slice(0,10);
+  const todayAmt = mine.filter((s) => String(s.created_at||'').slice(0,10) === today).reduce((a,s)=>a+Number(s.total_amount||0),0);
+  app.innerHTML = `
+    <h1>Cashier floor</h1>
+    <p>Your till only. Company totals are not loaded.</p>
+    <p><a class="ult-btn ult-btn-primary" href="/till-login.html">Open register</a></p>
+    <div class="ult-card"><b>Today</b> ${fmt(todayAmt)} · <b>Tickets</b> ${mine.length}</div>
+    <div class="ult-card"><h3>My tickets</h3>
+      <table class="ult-table"><thead><tr><th>Ref</th><th>Status</th><th>Amount</th></tr></thead>
+      <tbody>${mine.slice(0,15).map((s)=>`<tr><td>${s.reference||s.id}</td><td>${s.status||''}</td><td>${fmt(s.total_amount)}</td></tr>`).join('') || '<tr><td colspan="3">None yet</td></tr>'}</tbody></table>
+    </div>`;
+</script>
+</body></html>

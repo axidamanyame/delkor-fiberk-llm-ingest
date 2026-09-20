@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Users — Assign Roles</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; background: #f1f5f9; margin: 0; }
+    .wrap { padding: 20px 24px; }
+    h1 { font-size: 22px; margin: 0 0 14px; }
+    .card { background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; overflow: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; background: #f8fafc; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #64748b; }
+    td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+    select { padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; font: inherit; }
+    .btn { padding: 6px 12px; border-radius: 6px; border: none; background: #16a34a; color: #fff; font-weight: 600; cursor: pointer; font-size: 12px; }
+    .alert { background: #fffbeb; border: 1px solid #fcd34d; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Users &amp; role assignment</h1>
+    <div class="alert">Assign <strong>Admin / Cashier / Store Keeper / Accountant</strong> from <code>app_roles</code>. Users need <code>user.edit</code> or admin to save.</div>
+    <div class="card">
+      <table>
+        <thead><tr><th>Name</th><th>Email / ID</th><th>Role</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="4">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <script type="module">
+    import { supabase, loadAccess, can, mountShellRBAC } from './js/shell-rbac.js';
+
+    const ctx = await mountShellRBAC();
+    if (!ctx) throw new Error('auth');
+    if (!can('user.view') && !ctx.isAdmin) {
+      alert('No user.view permission');
+      location.href = '/dashboard.html';
+    }
+
+    const canEdit = can('user.edit') || ctx.isAdmin;
+    const { data: roleList } = await supabase.from('app_roles').select('id, name').order('name');
+    const roles = roleList || [];
+
+    const { data: profiles, error } = await supabase.from('profiles').select('*').order('full_name');
+    const rows = document.getElementById('rows');
+    if (error) {
+      rows.innerHTML = `<tr><td colspan="4">${error.message}</td></tr>`;
+    } else {
+      rows.innerHTML = (profiles || []).map(u => {
+        const current = u.role_id || u.role || '';
+        const opts = roles.map(r =>
+          `<option value="${r.id}" data-name="${r.name}" ${(u.role_id === r.id || u.role === r.name) ? 'selected' : ''}>${r.name}</option>`
+        ).join('');
+        return `<tr data-id="${u.id}">
+          <td>${u.full_name || '—'}</td>
+          <td>${u.email || (u.id || '').slice(0, 8) + '…'}</td>
+          <td>
+            <select ${canEdit ? '' : 'disabled'}>${opts || `<option>${u.role || '—'}</option>`}</select>
+          </td>
+          <td>${canEdit ? `<button type="button" class="btn save">Save</button>` : '—'}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="4">No profiles</td></tr>';
+    }
+
+    rows.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.save');
+      if (!btn) return;
+      if (!canEdit) return alert('Denied');
+      const tr = btn.closest('tr');
+      const id = tr.dataset.id;
+      const sel = tr.querySelector('select');
+      const role_id = sel.value;
+      const role = sel.selectedOptions[0]?.getAttribute('data-name') || sel.selectedOptions[0]?.textContent;
+      const { error: err } = await supabase.from('profiles').update({ role_id, role }).eq('id', id);
+      if (err) alert(err.message);
+      else { btn.textContent = 'Saved'; setTimeout(() => btn.textContent = 'Save', 1200); }
+    });
+  </script>
+</body>
+</html>

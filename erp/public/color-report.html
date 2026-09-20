@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reports</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { MODULE_BOOKS, moduleKeyFromPath } from './js/module-books.js';
+  import { floorNav, bindHubTabs } from './js/hub-kit.js';
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  function paint() {
+    const mod = moduleKeyFromPath() || new URLSearchParams(location.search).get('m') || 'wms';
+    const book = MODULE_BOOKS[mod] || MODULE_BOOKS.wms;
+    document.title = (book.label || 'Module') + ' · Reports';
+    const app = document.getElementById('app');
+    app.innerHTML = `
+      ${floorNav(book.label, 'reports', '', book.home)}
+      <h1 class="hub-h1">Reports</h1>
+      <p class="ult-lead">Module reports only. These do not appear under ERP Reports.</p>
+      <div class="rpt-index">${(book.reports || []).map((it) =>
+        `<a class="rpt-card" href="${it.href}"><strong>${it.label}</strong><span>Open report</span></a>`).join('') || '<p class="ult-lead">No module reports yet.</p>'}</div>`;
+    bindHubTabs(app, (k) => {
+      if (k === 'setup') location.assign('/color-setup.html?m=' + encodeURIComponent(mod));
+      else if (k === 'reports') return;
+      else location.assign(book.home + (k && k !== 'summary' ? '?tab=' + encodeURIComponent(k) : ''));
+    });
+  }
+  window.addEventListener('df-tab', paint);
+  window.addEventListener('popstate', paint);
+  paint();
+</script>
+</body>
+</html>

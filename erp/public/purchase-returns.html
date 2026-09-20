@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Purchase Return</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}
+    .page h1{margin:0;font-size:22px}
+    .sub{margin:4px 0 12px;font-size:13px;color:var(--ult-text)}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin-bottom:12px}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption, findLocation, filterAgentHtml, BUSINESS_LOCATIONS, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { esc } from './js/purchase-docs.js';
+  import { loadRows, deleteRow, actMenu } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  let showFilt = false;
+  const F = { loc: '', supplier: '', from: '', to: '' };
+  const SEED = [];
+
+  async function load() {
+    const data = await loadRows('purchase_returns', 'df_purchase_returns', SEED);
+    let rows = filterBySidebar(data || []);
+    F.loc = getActiveLocation();
+    if (F.loc) rows = rows.filter((r) => r.location_code === F.loc);
+    if (F.supplier) rows = rows.filter((r) => String(r.supplier_name) === F.supplier);
+    if (F.from) rows = rows.filter((r) => String(r.date || r.created_at || '').slice(0, 10) >= F.from);
+    if (F.to) rows = rows.filter((r) => String(r.date || r.created_at || '').slice(0, 10) <= F.to);
+    const suppliers = [...new Set(rows.map((r) => r.supplier_name).filter(Boolean))];
+    const tot = rows.reduce((a, r) => a + Number(r.grand_total || r.total_amount || r.total || 0), 0);
+    const due = rows.reduce((a, r) => a + Number(r.payment_due || 0), 0);
+    const payCounts = {};
+    rows.forEach((r) => {
+      const p = String(r.payment_status || 'due').toLowerCase();
+      payCounts[p] = (payCounts[p] || 0) + 1;
+    });
+    const countTxt = Object.entries(payCounts).map(([k, v]) => `${k}: ${v}`).join(' · ') || '—';
+
+    app.innerHTML = `
+      <h1>Purchase Return</h1>
+      <p class="sub">${esc(scopeCaption())}</p>
+      <div class="pf ${showFilt ? 'open' : ''}" id="pf">
+        <button type="button" class="pf-btn" id="filt-tog">
+          <span style="display:flex;align-items:center"><span class="pf-ico">☰</span><span class="label">Filters</span></span>
+          <span class="pf-chev">▾</span>
+        </button>
+        <div class="pf-body">
+          <div class="filters">
+            <label>Business Location:
+              <select id="f-loc" data-scope-loc data-empty-label="All"><option value="">All</option>
+                ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${F.loc===l.code?'selected':''}>${esc(l.name)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Supplier:
+              <select id="f-sup"><option value="">All</option>
+                ${suppliers.map((s) => `<option ${F.supplier===s?'selected':''}>${esc(s)}</option>`).join('')}
+              </select>
+            </label>
+            <label>Date Range:
+              <span style="display:flex;gap:6px">
+                <input id="f-from" type="date" value="${esc(F.from)}" />
+                <input id="f-to" type="date" value="${esc(F.to)}" />
+              </span>
+            </label>
+            ${filterAgentHtml()}
+          </div>
+        </div>
+      </div>
+      <div class="card" data-tbl="pr">
+        <div class="tbl-head">
+          <h2>Purchase Return</h2>
+          <a class="ult-add" href="/purchase-return-form.html">+ Add</a>
+        </div>
+        <div class="tbl-bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>Parent Purchase</th>
+            <th>Location</th>
+            <th>Subsidiary</th>
+            <th>Supplier</th>
+            <th>Payment Status</th>
+            <th>Grand Total</th>
+            <th title="-ve value = Amount to receive · +ve value = Amount to pay">Payment due</th>
+          </tr></thead>
+          <tbody>${rows.map((r) => {
+            const pay = String(r.payment_status || 'due').toLowerCase();
+            return `<tr>
+              <td>${actMenu(r.id, [
+                { href: `/purchase-return-form.html?id=${encodeURIComponent(r.id)}&view=1`, label: 'View' },
+                { href: `/purchase-return-form.html?id=${encodeURIComponent(r.id)}`, label: 'Edit' },
+                { href: `/purchase-return-form.html?id=${encodeURIComponent(r.id)}&print=1`, label: 'Print' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+              <td>${esc(String(r.date||r.created_at||'').slice(0,10))}</td>
+              <td>${esc(r.reference_no||r.reference||'')}</td>
+              <td>${esc(r.parent_purchase||r.parent_ref||'')}</td>
+              <td>${esc(findLocation(r.location_code)?.name || r.location_code || '')}</td>
+              <td>${esc(r.subsidiary_code||'')}</td>
+              <td>${esc(r.supplier_name||'')}</td>
+              <td><span class="pill ${pay}">${esc(pay)}</span></td>
+              <td>${fmt(r.grand_total||r.total_amount||r.total)}</td>
+              <td>${fmt(r.payment_due)}</td>
+            </tr>`;
+          }).join('') || '<tr data-dummy="1"><td colspan="10" style="text-align:center">No data available in table</td></tr>'}</tbody>
+          <tfoot><tr>
+            <td colspan="7" style="text-align:right">Total:</td>
+            <td>${esc(countTxt)}</td>
+            <td>${fmt(tot)}</td>
+            <td>${fmt(due)}</td>
+          </tr></tfoot>
+        </table></div>
+        <div data-tbl-info></div>
+        <div data-tbl-pager></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="pr"]'), { title: 'Purchase Return', storageKey: 'purchase-returns' });
+    document.getElementById('filt-tog').onclick = () => {
+      showFilt = !showFilt;
+      document.getElementById('pf').classList.toggle('open', showFilt);
+    };
+    const grab = () => {
+      F.loc = document.getElementById('f-loc').value;
+      F.supplier = document.getElementById('f-sup').value;
+      F.from = document.getElementById('f-from').value;
+      F.to = document.getElementById('f-to').value;
+      load();
+    };
+    ['f-loc','f-sup','f-from','f-to'].forEach((id) => document.getElementById(id)?.addEventListener('change', grab));
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this purchase return?', 'This cannot be undone.'))) return;
+        await deleteRow('purchase_returns', 'df_purchase_returns', b.dataset.id);
+        load();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

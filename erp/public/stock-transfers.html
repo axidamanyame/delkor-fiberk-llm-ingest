@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Stock Transfers — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS, VIRTUAL_WH, filterBySidebar, scopeCaption, findLocation, getActiveLocation, SCOPE_EVENT } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, deleteRow, esc, actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { ensureHpOpsFlow } from './js/hp-ops-flow.js';
+  import { excludeMigrated, siloGateHtml, knownSiloCount } from './js/fiberk-silo.js';
+  import { chainOf } from './js/org-chain.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  try { await ensureHpOpsFlow(); } catch (e) { console.warn('hp flow', e); }
+  const app = document.getElementById('app');
+  const LOCS = [...BUSINESS_LOCATIONS, VIRTUAL_WH];
+
+  const seed = [];
+
+  function locName(r, side) {
+    if (side === 'from') {
+      return r.legacy_from || r.from_location_name || LOCS.find((l) => l.code === r.from_location)?.name || r.from_location || '—';
+    }
+    return r.legacy_to || r.to_location_name || LOCS.find((l) => l.code === r.to_location)?.name || r.to_location || '—';
+  }
+  function fmtDt(s) {
+    const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+    if (m) return `${m[2]}/${m[3]}/${m[1]}${m[4] ? ' ' + m[4] + ':' + m[5] : ''}`;
+    if (!s) return '';
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return String(s).slice(0, 16);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getMonth() + 1)}/${p(d.getDate())}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function cap(s) { return String(s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()); }
+  function matchRow(r) {
+    const loc = findLocation(r.from_location) || findLocation(r.location_code);
+    const stamped = {
+      ...r,
+      subsidiary_code: r.subsidiary_code || r.from_subsidiary || loc?.subsidiary || '',
+      location_code: r.location_code || r.from_location || '',
+    };
+    if (filterBySidebar([stamped]).length) return true;
+    const locCode = getActiveLocation();
+    if (locCode && (r.from_location === locCode || r.to_location === locCode)) {
+      return filterBySidebar([{ ...stamped, location_code: locCode }]).length > 0;
+    }
+    return false;
+  }
+
+  async function paint() {
+    const rawTransfers = await loadRows('stock_transfers', 'df_stock_transfers', seed);
+    window.__dfTransferRows = rawTransfers || [];
+    const all = excludeMigrated(rawTransfers);
+    const rows = all.filter(matchRow).sort((a, b) =>
+      String(b.transfer_date || b.created_at || '').localeCompare(String(a.transfer_date || a.created_at || ''))
+    );
+    const fkN = knownSiloCount('transfers');
+    const tot = rows.reduce((s, r) => s + Number(r.total_amount || r.grand_total || 0), 0);
+    app.innerHTML = `
+      <h1>Stock Transfers</h1>
+      <p class="sub">${esc(scopeCaption())} · Live transfers only. Fiberkapp historical book is siloed. HP path (ST-HP-001 / ST-HP-002) stays here.</p>
+      ${siloGateHtml('transfers', fkN)}
+      <section class="home-card" data-tbl="st">
+        <div class="loc-list-head">
+          <div>All Stock Transfers${rows.length ? ` · ${rows.length} shown · ${fmt(tot)}` : ''}</div>
+          <a class="ult-add" href="/stock-transfer-form.html">+ Add</a>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>Subsidiary</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Department</th>
+            <th>Status</th>
+            <th>Shipping Charges</th>
+            <th>Total Amount</th>
+            <th>Additional Notes</th>
+            <th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-id="${esc(r.id)}">
+              <td>${esc(fmtDt(r.transfer_date || r.created_at))}</td>
+              <td>${esc(r.reference || r.reference_no)}</td>
+              <td>${esc(chainOf({ location_code: r.to_location || r.location_code_to || r.to }).subsidiary)}</td>
+              <td>${esc(chainOf({ location_code: r.from_location || r.location_code_from || r.from }).location)}</td>
+              <td>${esc(chainOf({ location_code: r.to_location || r.location_code_to || r.to }).location)}</td>
+              <td>${esc(chainOf({ location_code: r.to_location || r.location_code_to || r.to }).department)}</td>
+              <td><span class="pill ${esc(r.status)}">${esc(cap(r.status))}</span></td>
+              <td>${fmt(r.shipping || r.shipping_charges || 0)}</td>
+              <td>${fmt(r.total_amount || r.grand_total || 0)}</td>
+              <td>${esc(r.notes || r.additional_notes || '')}</td>
+              <td>${actMenu(r.id, [
+                { label: 'View' },
+                { href: `/stock-transfer-form.html?id=${r.id}`, label: 'Edit' },
+                { href: `/stock-transfer-form.html?id=${r.id}&print=1`, label: 'Print' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+            </tr>`).join('')}
+            <tr data-dummy="1"><td colspan="11" style="text-align:center">No data available in table</td></tr>
+          </tbody>
+        </table></div>
+        <div class="tbl-foot">
+          <span data-tbl-info></span>
+          <div data-tbl-pager></div>
+        </div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="st"]'), { title: 'Stock Transfers', storageKey: 'stock-transfers' });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this stock transfer?', 'This cannot be undone.'))) return;
+        await deleteRow('stock_transfers', 'df_stock_transfers', b.dataset.id);
+        toast('Deleted');
+        paint();
+      };
+    });
+  }
+  paint();
+  window.addEventListener(SCOPE_EVENT, paint);
+</script>
+</body>
+</html>

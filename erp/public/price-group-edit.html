@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Selling Price Group</title><link rel="stylesheet" href="/css/ultimate-pos.css"/></head>
+<body><main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { stampScope, subsidiarySelect } from './js/entity-scope.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { loadRows, saveRow, esc } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const id = new URLSearchParams(location.search).get('id');
+  const SEED = [
+    { id: 'spg-retail', name: 'Retail', description: 'Walk-in till price (Ghana list price)' },
+    { id: 'spg-wholesale', name: 'Wholesale', description: '−12% distributor price' },
+    { id: 'spg-vip', name: 'VIP', description: '−8% corporate price' },
+    { id: 'spg-staff', name: 'Staff', description: '−20% employee purchase' },
+  ];
+  const rows = await loadRows('selling_price_groups', 'df_price_groups', SEED);
+  let row = { name: '' };
+  if (id) row = rows.find((r) => String(r.id) === String(id)) || row;
+  document.getElementById('app').innerHTML = `<h1>${id?'Edit':'Add'} Selling Price Group</h1>
+    <form id="f" class="ult-card" style="max-width:560px">
+      ${subsidiarySelect(row.subsidiary_code||'')}
+      <label>Name*</label><input name="name" required value="${esc(row.name||'')}" />
+      <label>Description</label><input name="description" value="${esc(row.description||'')}" />
+      <p><button class="ult-btn ult-btn-primary">Save</button> <a class="ult-btn ult-btn-outline" href="/price-groups.html">Back</a></p>
+    </form>`;
+  document.getElementById('f').onsubmit = async (e) => {
+    e.preventDefault();
+    if (!(await confirmAction('Save this Selling Price Group?'))) return;
+    const fd = new FormData(e.target);
+    const body = { ...row, name: fd.get('name').trim(), description: fd.get('description') || null };
+    try { stampScope(body, e.target); } catch (ex) { return alert(ex.message); }
+    await saveRow('selling_price_groups', 'df_price_groups', body);
+    location.href = '/price-groups.html';
+  };
+</script></body></html>

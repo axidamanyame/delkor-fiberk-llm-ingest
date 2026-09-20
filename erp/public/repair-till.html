@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Repair till — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    body.pos-focus .ult-side, body.pos-focus .ult-top { display: none !important; }
+    body.pos-focus .ult-main { margin: 0; max-width: none; padding: 12px; }
+    .rt-bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:#fff; border-radius:12px; padding:8px 12px; margin-bottom:10px; box-shadow:0 2px 10px rgba(15,23,42,.06); }
+    .rt-bar a, .rt-bar button { border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; padding:6px 10px; cursor:pointer; font-family:inherit; text-decoration:none; color:#0f172a; font-size:13px; }
+    .rt-when { background:#4f46e5; color:#fff; border-radius:8px; padding:6px 10px; font-size:12px; font-weight:700; }
+    .g3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    @media(max-width:900px){ .g3 { grid-template-columns:1fr; } }
+    .sel-lg { height:40px; width:100%; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; background:#fff; }
+    .info-dot { display:inline-flex;width:16px;height:16px;border-radius:50%;background:#38bdf8;color:#fff;font-size:11px;align-items:center;justify-content:center;margin-left:4px;position:relative;cursor:help; }
+    .info-dot span { display:none; position:absolute; left:20px; top:-4px; width:240px; background:#fff; color:#0f172a; border:1px solid #e2e8f0; border-radius:8px; padding:8px; z-index:20; font-size:12px; }
+    .info-dot:hover span { display:block; }
+    .modal-bg { position:fixed; inset:0; background:rgba(15,23,42,.45); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; z-index:80; }
+    .modal-bg.show { display:flex; }
+    .modal-card { background:#fff; border-radius:12px; width:min(560px,100%); padding:18px 20px; max-height:85vh; overflow:auto; }
+    .modal-card.wide { width:min(820px,100%); }
+    .patt-wrap { position:relative; width:220px; height:220px; background:#1d4ed8; border-radius:12px; }
+    .patt-wrap canvas { position:absolute; inset:0; }
+    .patt-wrap .dots { position:absolute; inset:0; display:grid; grid-template-columns:repeat(3,1fr); }
+    .patt-wrap .dots i { display:flex; align-items:center; justify-content:center; }
+    .patt-wrap .dots i b { width:16px; height:16px; background:#fff; border-radius:50%; display:block; pointer-events:none; }
+    .patt-wrap .dots i.on b { outline:4px solid #93c5fd; }
+    .reg-row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f1f5f9; }
+    .reg-tot { background:#ecfdf5; font-weight:700; padding:8px; border-radius:6px; margin-top:8px; }
+    .hint { font-size:12px; color:#3d4f66; }
+    .parts-search { position:relative; }
+    .parts-dd { position:absolute; left:0; right:0; top:42px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; max-height:220px; overflow:auto; z-index:15; display:none; }
+    .parts-dd button { display:block; width:100%; text-align:left; border:0; background:#fff; padding:8px 10px; cursor:pointer; }
+    .parts-dd button:hover { background:#f1f5f9; }
+    .cat-head { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .cat-head h3 { margin:0; }
+    .cat-mgr { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:600; white-space:nowrap; background:#f8fafc; border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; }
+    .cat-tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0 10px; }
+    .cat-tools input[type=search], .cat-tools select {
+      height:38px; border:1px solid #cbd5e1; border-radius:8px; padding:0 10px; background:#fff; font:inherit; color:#0f172a;
+    }
+    .cat-tools input[type=search] { flex:1 1 220px; min-width:160px; }
+    .cat-tools select { flex:0 0 auto; min-width:140px; }
+    .cat-hits { max-height:52vh; overflow:auto; border:1px solid #e2e8f0; border-radius:10px; }
+    .cat-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    .cat-table th {
+      position:sticky; top:0; background:#f8fafc; z-index:1;
+      text-align:left; font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+      color:#3d4f66; padding:8px 10px; border-bottom:1px solid #e2e8f0; font-weight:700;
+    }
+    .cat-table td { padding:8px 10px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+    .cat-table tbody tr { cursor:pointer; }
+    .cat-table tbody tr:hover td { background:#eff6ff; }
+    .cat-name { font-weight:650; color:#0f172a; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cat-sub { font-size:11px; color:#3d4f66; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .cat-sku { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:nowrap; color:#334155; }
+    .cat-price { font-weight:800; white-space:nowrap; text-align:right; font-variant-numeric:tabular-nums; }
+    .cat-add {
+      border:0; background:#2563eb; color:#fff; border-radius:6px; padding:5px 10px;
+      font-weight:700; cursor:pointer; font-size:12px; white-space:nowrap;
+    }
+    .cat-add:hover { background:#1d4ed8; }
+    .cat-foot { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:10px; }
+  </style>
+</head>
+<body class="pos-focus">
+  <main class="ult-main" id="app">Loading workshop till…</main>
+  <div class="modal-bg" id="modal"></div>
+  <script type="module">
+    import { supabase, getActiveSubsidiary, getAuthSession, fmt } from './js/supabaseClient.js';
+    import { confirmAction, ackResult } from './js/confirm-action.js';
+    import { SUB_PREFIX, isHubWarehouse, findLocation } from './js/scope.js';
+    import { loadRows, saveRow, deleteRow, deleteMany, esc, uid, isTombstoned, tombstone } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, ensureLocalCatalog, isDemoRecord } from './js/catalog-seed.js';
+    import { isTillLive, isInventoryItem, hydrateInventoryBook } from './js/inventory-book.js';
+    import { calcHtml, bindCalc, CALC_ICON } from './js/till-calc.js';
+    import { askTillPin, loadTillPin, toggleFullscreen, ensureFsExit } from './js/pos-gate.js';
+    const app = document.getElementById('app');
+    const modal = document.getElementById('modal');
+    const params = new URLSearchParams(location.search);
+    const sid = params.get('session') || '';
+    const sub = getActiveSubsidiary()?.code || '';
+    const locName = getActiveSubsidiary()?.short || 'Shop';
+    if (sid) localStorage.setItem('dfk-open-session', sid);
+
+    const session = await getAuthSession();
+    if (!session) { location.replace('/login.html'); }
+
+    try { ensureLocalCatalog(); } catch (_) {}
+    try { hydrateInventoryBook(); } catch (_) {}
+    const [{ data: custs }, { data: brands }, localProducts, sessRes, profileRes] = await Promise.all([
+      supabase.from('customers').select('id, name, phone').limit(300),
+      supabase.from('repair_brands').select('id, name').eq('active', true).order('name'),
+      loadRows('products', CAT_KEYS.products, []),
+      sid ? supabase.from('pos_sessions').select('*').eq('id', sid).maybeSingle() : Promise.resolve({ data: null }),
+      supabase.from('profiles').select('role, role_name, pos_pin').eq('id', session.user.id).maybeSingle(),
+    ]);
+    const customers = custs || [];
+    const brandList = brands || [];
+    const productList = localProducts || [];
+    const sess = sessRes?.data || null;
+    const tillSub = String(sess?.subsidiary_code || sub || '').toLowerCase();
+    const tillPrefix = SUB_PREFIX[tillSub] || String(tillSub).slice(0, 3).toUpperCase();
+    const tillLoc = sess?.location_name || locName;
+    const tillLocCode = sess?.location_code || '';
+    const myRole = String(profileRes?.data?.role || profileRes?.data?.role_name || '');
+    const isMgr = /hqadmin|hq_admin|admin|owner|manager/i.test(myRole.replace(/[\s_-]/g, ''));
+    let catalogAll = false;
+    function partOnTill(p) {
+      if (catalogAll) return isInventoryItem(p);
+      const loc = tillLocCode || '';
+      const L = findLocation(loc);
+      if (isHubWarehouse(loc) || L?.hub) return false;
+      return isTillLive(p, loc);
+    }
+    function visibleParts() { return productList.filter(partOnTill); }
+    async function setCatalogAll(on) {
+      if (!on) { catalogAll = false; return true; }
+      if (isMgr) { catalogAll = true; return true; }
+      const pin = await loadTillPin(session.user.id);
+      if (askTillPin(pin, 'Manager PIN to show all companies')) { catalogAll = true; return true; }
+      catalogAll = false;
+      return false;
+    }
+    let devices = [];
+    let models = [];
+    let checklist = [];
+    let security = { password: '', pattern: [] };
+    let parts = [];
+    let drawing = false;
+
+    const channel = (() => { try { return new BroadcastChannel('dfk-till'); } catch { return null; } })();
+    ensureFsExit();
+
+    function publishDisplay() {
+      const state = {
+        session: sid || 'local',
+        subsidiary: sub,
+        location: locName,
+        mode: 'Repair',
+        customer: document.getElementById('cust')?.selectedOptions?.[0]?.text || 'Walk-In Customer',
+        brand: document.getElementById('brand')?.selectedOptions?.[0]?.text || '',
+        device: document.getElementById('device')?.selectedOptions?.[0]?.text || '',
+        model: document.getElementById('model')?.selectedOptions?.[0]?.text || '',
+        serial: document.getElementById('sn')?.value || '',
+        lines: parts.map(p => ({ name: p.product_name, sku: p.sku, qty: p.quantity, price: p.unit_price })),
+      };
+      const key = 'dfk-till-display:' + (sid || 'local');
+      try { localStorage.setItem(key, JSON.stringify(state)); } catch {
+        try {
+          const drop = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('dfk-till-display:')) drop.push(k);
+          }
+          drop.forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
+          localStorage.setItem(key, JSON.stringify(state));
+        } catch { /* ignore */ }
+      }
+      channel?.postMessage(state);
+    }
+
+    const JOB_KEY = 'df_repair_jobs';
+    function openModal(html, wide) {
+      modal.classList.add('show');
+      modal.innerHTML = `<div class="modal-card ${wide ? 'wide' : ''}">${html}</div>`;
+      modal.onclick = (e) => { if (e.target === modal) modal.classList.remove('show'); };
+    }
+
+    async function loadDevices(brandId) {
+      devices = [];
+      models = [];
+      if (!brandId) return;
+      const { data } = await supabase.from('repair_devices').select('id, name').eq('brand_id', brandId).eq('active', true).order('name');
+      devices = data || [];
+    }
+    async function loadModels(deviceId) {
+      models = [];
+      if (!deviceId) return;
+      const { data } = await supabase.from('repair_models').select('id, name').eq('device_id', deviceId).eq('active', true).order('name');
+      models = data || [];
+    }
+    async function loadChecklist(modelId) {
+      if (!modelId) { checklist = []; return; }
+      const { data } = await supabase.from('repair_checklists').select('item, sort_order').eq('model_id', modelId).order('sort_order');
+      checklist = (data || []).map(c => ({ item: c.item, ok: false, na: false }));
+    }
+
+    function options(list, placeholder) {
+      return `<option value="">${placeholder}</option>` + list.map(x => `<option value="${x.id}">${x.name}</option>`).join('');
+    }
+
+    function paint(keep) {
+      const snap = keep || {};
+      const now = new Date();
+      app.innerHTML = `
+        <div class="rt-bar">
+          <strong>Location:</strong> ${tillLoc}
+          <span class="rt-when">${now.toLocaleString('en-GB')}</span>
+          <span class="hint">${catalogAll ? 'All companies (manager)' : 'Live parts inventory at this till'}</span>
+          <button type="button" id="btn-back" title="Back to this register">←</button>
+          <button type="button" id="btn-sret" title="Sell return">↩ Sell return</button>
+          <button type="button" id="btn-jobs" title="Jobs on this register">☰ Jobs</button>
+          <button type="button" id="btn-reg" title="Register details (Alt+R)">💼 Register</button>
+          <button type="button" id="btn-close" title="Close register">✕ Close</button>
+          <button type="button" id="btn-calc" title="Calculator (Alt+C)">${CALC_ICON}</button>
+          <button type="button" id="btn-fs" title="Full screen">⛶</button>
+          <button type="button" id="btn-disp" title="Customer display">🖥 Display</button>
+          <button type="button" id="btn-topos" title="Same register POS">▦ POS</button>
+          <button type="button" id="btn-exp" title="Add expense">⊕ Expense</button>
+          <button type="button" id="btn-cat" title="Parts catalog">⚙ Catalog</button>
+        </div>
+        <p class="hint">Shortcuts: F2 save · F4 add customer · F8 checklist · F9 security · F11 fullscreen · / search parts · Alt+D display</p>
+        <div class="ult-card">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <select id="cust" class="sel-lg" style="flex:1">
+              <option value="">Walk-In Customer</option>
+              ${customers.map((c) => `<option value="${c.id}">${c.name || c.phone}</option>`).join('')}
+            </select>
+            <button type="button" class="ult-btn ult-btn-primary" id="btn-addc" title="Add customer">+</button>
+            <button type="button" class="ult-btn ult-btn-outline" id="btn-pay" title="Receive payment">₵</button>
+          </div>
+          <div class="parts-search" style="margin-bottom:12px">
+            <input id="sku" class="sel-lg" placeholder="Enter Product name / SKU / Scan bar code" autocomplete="off" />
+            <div class="parts-dd" id="parts-dd"></div>
+          </div>
+          <div class="g3">
+            <label>Delivery Date <span class="info-dot">i<span>The date the technician should return the item after repairing to the customer.</span></span>
+              <input id="due" type="date" class="sel-lg" /></label>
+            <label>Repair Completed On <input id="done" type="date" class="sel-lg" /></label>
+            <label>Status
+              <select id="st" class="sel-lg">
+                <option value="">Please Select</option>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In progress</option>
+                <option value="completed">Completed</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </label>
+            <label>Brand
+              <select id="brand" class="sel-lg">${options(brandList, brandList.length ? 'Please Select' : 'Run sql/53')}</select>
+            </label>
+            <label>Device
+              <select id="device" class="sel-lg">${options(devices, 'Please Select')}</select>
+            </label>
+            <label>Device Model
+              <select id="model" class="sel-lg">${options(models, 'Please Select')}</select>
+            </label>
+            <label>Serial Number <input id="sn" class="sel-lg" placeholder="Serial Number" /></label>
+            <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap">
+              <button type="button" class="ult-btn ult-btn-primary" id="btn-chk">+ Pre Repair Checklist</button>
+              <button type="button" class="ult-btn ult-btn-primary" id="btn-sec">🔒 Security</button>
+            </div>
+          </div>
+          <label style="display:block;margin-top:12px">Problem Reported By The Customer
+            <textarea id="prob" rows="3" style="width:100%;margin-top:6px"></textarea>
+          </label>
+          <h3 style="margin-top:18px">Parts on this ticket</h3>
+          <table class="ult-table" style="margin-top:8px">
+            <thead><tr><th>Part</th><th>Qty</th><th>Price</th><th>Line</th><th></th></tr></thead>
+            <tbody id="parts-body">${parts.map((p,i) => `<tr>
+              <td>${p.product_name}<div class="hint">${p.sku||''}</div></td>
+              <td><input data-qty="${i}" type="number" min="1" value="${p.quantity}" style="width:70px" /></td>
+              <td><input data-price="${i}" type="number" step="0.01" value="${p.unit_price}" style="width:90px" /></td>
+              <td>${fmt(Number(p.quantity)*Number(p.unit_price))}</td>
+              <td><button data-rm="${i}">✕</button></td>
+            </tr>`).join('') || '<tr><td colspan="5">No parts yet</td></tr>'}</tbody>
+          </table>
+          <p style="margin-top:14px">
+            <button type="button" class="ult-btn ult-btn-primary" id="save">Save job sheet (F2)</button>
+            <button type="button" class="ult-btn ult-btn-outline" id="all-jobs">All jobs</button>
+          </p>
+        </div>`;
+
+      if (snap.cust) document.getElementById('cust').value = snap.cust;
+      if (snap.due) document.getElementById('due').value = snap.due;
+      if (snap.done) document.getElementById('done').value = snap.done;
+      if (snap.st) document.getElementById('st').value = snap.st;
+      if (snap.brand) document.getElementById('brand').value = snap.brand;
+      if (snap.device) document.getElementById('device').value = snap.device;
+      if (snap.model) document.getElementById('model').value = snap.model;
+      if (snap.sn) document.getElementById('sn').value = snap.sn;
+      if (snap.prob) document.getElementById('prob').value = snap.prob;
+
+      document.getElementById('btn-fs').onclick = () => toggleFullscreen();
+      document.getElementById('btn-calc').onclick = () => {
+        openModal(`<h3>Calculator</h3>${calcHtml()}<p style="text-align:right;margin-top:12px"><button type="button" class="ult-btn" id="c-x">Close</button></p>`);
+        bindCalc(modal.querySelector('.till-calc'));
+        modal.querySelector('#c-x').onclick = () => modal.classList.remove('show');
+      };
+      document.getElementById('btn-addc').onclick = showContact;
+      document.getElementById('btn-pay').onclick = () => {
+        if (sid) window.location.href = '/pos.html?session=' + encodeURIComponent(sid);
+        else openModal('<p>Open the sales till from this same register session to take payment.</p>');
+      };
+      document.getElementById('btn-chk').onclick = showChecklist;
+      document.getElementById('btn-sec').onclick = showSecurity;
+      document.getElementById('btn-reg').onclick = showRegister;
+      document.getElementById('btn-back').onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('btn-sret').onclick = () => {
+        openModal(`<h3>Sell return</h3><input id="r-inv" placeholder="Invoice number" style="width:100%;padding:8px;margin:8px 0"/><button type="button" id="r-go">Look up on this till</button>`);
+        modal.querySelector('#r-go').onclick = () => {
+          const inv = modal.querySelector('#r-inv').value.trim();
+          modal.classList.remove('show');
+          if (sid) window.location.href = '/pos.html?session=' + encodeURIComponent(sid) + '&return=' + encodeURIComponent(inv);
+        };
+      };
+      document.getElementById('btn-jobs').onclick = showJobsSearch;
+      document.getElementById('all-jobs')?.addEventListener('click', showJobsSearch);
+      document.getElementById('btn-close').onclick = () => {
+        openModal(`<h3>Close register?</h3><p>Returns to Open Register, not Home.</p><button type="button" id="cl-yes">Close register</button>`);
+        modal.querySelector('#cl-yes').onclick = () => { window.location.href = '/till-login.html?mode=repair'; };
+      };
+      document.getElementById('btn-disp').onclick = () => {
+        window.open('/customer-display.html' + (sid ? '?session=' + encodeURIComponent(sid) : ''), 'custdisp');
+      };
+      document.getElementById('btn-topos').onclick = () => {
+        if (sid) window.location.href = '/pos.html?session=' + encodeURIComponent(sid);
+        else openModal('<p>No register session is open.</p>');
+      };
+      const expBtn = document.getElementById('btn-exp');
+      if (expBtn) expBtn.style.display = 'none';
+      document.getElementById('btn-cat').onclick = showCatalogSearch;
+      document.getElementById('save').onclick = saveJob;
+      document.getElementById('cust').onchange = publishDisplay;
+      document.getElementById('sn').oninput = publishDisplay;
+
+      document.getElementById('brand').onchange = async () => {
+        const s = snapshot();
+        await loadDevices(s.brand);
+        devices = devices;
+        models = [];
+        checklist = [];
+        paint({ ...s, device: '', model: '' });
+      };
+      document.getElementById('device').onchange = async () => {
+        const s = snapshot();
+        await loadModels(s.device);
+        paint({ ...s, model: '' });
+      };
+      document.getElementById('model').onchange = async () => {
+        const s = snapshot();
+        await loadChecklist(s.model);
+        paint(s);
+        publishDisplay();
+      };
+
+      const dd = document.getElementById('parts-dd');
+      const sku = document.getElementById('sku');
+      sku.oninput = () => {
+        const q = sku.value.trim().toLowerCase();
+        if (q.length < 1) { dd.style.display = 'none'; return; }
+        const hits = visibleParts().filter(p => (p.name||'').toLowerCase().includes(q) || (p.sku||'').toLowerCase().includes(q)).slice(0, 12);
+        dd.style.display = hits.length ? 'block' : 'none';
+        dd.innerHTML = hits.map(p => `<button type="button" data-pid="${p.id}">${p.name} <span class="hint">${p.sku||''} · ${fmt(p.selling_price||0)}</span></button>`).join('');
+        dd.querySelectorAll('[data-pid]').forEach(btn => {
+          btn.onclick = () => {
+            const p = productList.find(x => x.id === btn.dataset.pid);
+            parts.push({ product_id: p.id, product_name: p.name, sku: p.sku, quantity: 1, unit_price: Number(p.selling_price||0), image_url: p.image_url });
+            sku.value = '';
+            dd.style.display = 'none';
+            paint(snapshot());
+            publishDisplay();
+          };
+        });
+      };
+      app.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+        parts.splice(Number(b.dataset.rm), 1);
+        paint(snapshot());
+        publishDisplay();
+      });
+      app.querySelectorAll('[data-qty]').forEach(inp => inp.onchange = () => {
+        parts[Number(inp.dataset.qty)].quantity = Number(inp.value || 1);
+        paint(snapshot());
+        publishDisplay();
+      });
+      app.querySelectorAll('[data-price]').forEach(inp => inp.onchange = () => {
+        parts[Number(inp.dataset.price)].unit_price = Number(inp.value || 0);
+        paint(snapshot());
+        publishDisplay();
+      });
+      publishDisplay();
+    }
+
+    function snapshot() {
+      return {
+        cust: document.getElementById('cust')?.value,
+        due: document.getElementById('due')?.value,
+        done: document.getElementById('done')?.value,
+        st: document.getElementById('st')?.value,
+        brand: document.getElementById('brand')?.value,
+        device: document.getElementById('device')?.value,
+        model: document.getElementById('model')?.value,
+        sn: document.getElementById('sn')?.value,
+        prob: document.getElementById('prob')?.value,
+      };
+    }
+
+    function showChecklist() {
+      openModal(`<h3>Pre Repair Checklist</h3>
+        <p class="hint">N/A = Not Applicable. Templates load from the selected model (sql/53).</p>
+        <div id="chk-list">${checklist.length ? checklist.map((c,i)=>`
+          <div style="display:flex;gap:10px;align-items:center;margin:6px 0">
+            <label><input type="checkbox" data-ok="${i}" ${c.ok?'checked':''}/> OK</label>
+            <label><input type="checkbox" data-na="${i}" ${c.na?'checked':''}/> N/A</label>
+            <span>${c.item}</span>
+          </div>`).join('') : '<p>No Repair Checklist — pick a model or add a line.</p>'}</div>
+        <p><input id="chk-new" class="sel-lg" placeholder="Add extra item for this job only" /></p>
+        <button type="button" class="ult-btn ult-btn-outline" id="chk-add">Add</button>
+        <button type="button" class="ult-btn ult-btn-primary" id="chk-save">Save</button>`);
+      modal.querySelector('#chk-add').onclick = () => {
+        const v = modal.querySelector('#chk-new').value.trim();
+        if (v) { checklist.push({ item: v, ok: false, na: false }); showChecklist(); }
+      };
+      modal.querySelector('#chk-save').onclick = () => {
+        modal.querySelectorAll('[data-ok]').forEach((cb) => { checklist[Number(cb.dataset.ok)].ok = cb.checked; });
+        modal.querySelectorAll('[data-na]').forEach((cb) => { checklist[Number(cb.dataset.na)].na = cb.checked; });
+        modal.classList.remove('show');
+      };
+    }
+
+    function showSecurity() {
+      openModal(`<h3>Security</h3>
+        <label>Device password / PIN <input id="sec-pw" type="password" class="sel-lg" value="${security.password||''}" /></label>
+        <p style="margin:10px 0 6px">Draw pattern (mouse or finger)</p>
+        <div class="patt-wrap" id="patt">
+          <canvas id="patt-c" width="220" height="220"></canvas>
+          <div class="dots">${[1,2,3,4,5,6,7,8,9].map(n=>`<i data-n="${n}" class="${security.pattern.includes(n)?'on':''}"><b></b></i>`).join('')}</div>
+        </div>
+        <p class="hint">Current: ${security.pattern.join('-') || 'none'}</p>
+        <button type="button" class="ult-btn ult-btn-outline" id="sec-clr">Clear</button>
+        <button type="button" class="ult-btn ult-btn-primary" id="sec-close">Close</button>`);
+      bindPattern();
+      modal.querySelector('#sec-clr').onclick = () => { security.pattern = []; showSecurity(); };
+      modal.querySelector('#sec-close').onclick = () => {
+        security.password = modal.querySelector('#sec-pw').value;
+        modal.classList.remove('show');
+      };
+    }
+
+    function bindPattern() {
+      const wrap = modal.querySelector('#patt');
+      const canvas = modal.querySelector('#patt-c');
+      const ctx = canvas.getContext('2d');
+      const cells = [...wrap.querySelectorAll('.dots i')];
+      const centers = cells.map((el) => {
+        const r = el.getBoundingClientRect();
+        const w = wrap.getBoundingClientRect();
+        return { n: Number(el.dataset.n), x: r.left - w.left + r.width/2, y: r.top - w.top + r.height/2, el };
+      });
+      function hit(x, y) {
+        return centers.find(c => Math.hypot(c.x - x, c.y - y) < 28);
+      }
+      function draw() {
+        ctx.clearRect(0,0,220,220);
+        ctx.strokeStyle = '#bfdbfe';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        security.pattern.forEach((n, i) => {
+          const c = centers.find(z => z.n === n);
+          if (!c) return;
+          if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y);
+        });
+        ctx.stroke();
+      }
+      function add(n, el) {
+        if (security.pattern.includes(n)) return;
+        security.pattern.push(n);
+        el.classList.add('on');
+        draw();
+      }
+      function pos(ev) {
+        const r = wrap.getBoundingClientRect();
+        const t = ev.touches ? ev.touches[0] : ev;
+        return { x: t.clientX - r.left, y: t.clientY - r.top };
+      }
+      const start = (ev) => { drawing = true; security.pattern = []; cells.forEach(c => c.classList.remove('on')); const p = pos(ev); const h = hit(p.x,p.y); if (h) add(h.n, h.el); ev.preventDefault(); };
+      const move = (ev) => { if (!drawing) return; const p = pos(ev); const h = hit(p.x,p.y); if (h) add(h.n, h.el); ev.preventDefault(); };
+      const end = () => { drawing = false; };
+      wrap.addEventListener('mousedown', start);
+      wrap.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end, { once: true });
+      wrap.addEventListener('touchstart', start, { passive: false });
+      wrap.addEventListener('touchmove', move, { passive: false });
+      wrap.addEventListener('touchend', end);
+      draw();
+    }
+
+    function showContact() {
+      openModal(`<h3>Add a new contact</h3>
+        <label>Type <select id="c-kind" class="sel-lg"><option>Individual</option><option>Business</option></select></label>
+        <label>Contact ID <input id="c-code" class="sel-lg" placeholder="Leave empty to autogenerate" /></label>
+        <label>Mobile * <input id="c-mob" class="sel-lg" /></label>
+        <label>Alternate <input id="c-alt" class="sel-lg" /></label>
+        <label>Landline <input id="c-land" class="sel-lg" /></label>
+        <label>Email <input id="c-em" class="sel-lg" /></label>
+        <label>Name <input id="c-name" class="sel-lg" /></label>
+        <p style="margin-top:10px">
+          <button type="button" class="ult-btn ult-btn-primary" id="c-save">Save</button>
+          <button type="button" class="ult-btn ult-btn-outline" id="c-x">Close</button>
+        </p>`);
+      modal.querySelector('#c-x').onclick = () => modal.classList.remove('show');
+      modal.querySelector('#c-save').onclick = async () => {
+        const name = modal.querySelector('#c-name').value.trim() || modal.querySelector('#c-mob').value.trim();
+        if (!name) return alert('Name or mobile required');
+        const row = {
+          name,
+          phone: modal.querySelector('#c-mob').value.trim(),
+          email: modal.querySelector('#c-em').value.trim() || null,
+          type: modal.querySelector('#c-kind').value.toLowerCase(),
+          subsidiary_code: sub || null,
+        };
+        const { data, error } = await supabase.from('customers').insert(row).select('id, name, phone').single();
+        if (error) return alert(error.message);
+        customers.unshift(data);
+        modal.classList.remove('show');
+        const s = snapshot();
+        paint(s);
+        document.getElementById('cust').value = data.id;
+        publishDisplay();
+      };
+    }
+
+    async function showRegister() {
+      const openAt = sess?.opened_at || sess?.created_at || new Date().toISOString();
+      const openAmt = Number(sess?.opening_float || sess?.opening_cash || 0);
+      const { data: sales } = await supabase.from('sales_orders').select('total_amount, created_at, pos_session_id, session_id')
+        .gte('created_at', openAt).limit(500);
+      const cash = (sales || []).filter((r) => String(r.pos_session_id || r.session_id || '') === String(sid))
+        .reduce((s, r) => s + Number(r.total_amount || 0), 0);
+      openModal(`<h3>Register Details</h3>
+        <p class="hint">${new Date(openAt).toLocaleString()} — now</p>
+        <h4>Cash Drawer Summary</h4>
+        <div class="reg-row"><span>Opening Balance</span><span>${fmt(openAmt)}</span></div>
+        <div class="reg-row"><span>(+) Cash Received (Sales)</span><span>${fmt(cash)}</span></div>
+        <div class="reg-tot">Expected Cash in Drawer: ${fmt(openAmt + cash)}</div>
+        <p class="hint">User: ${session.user.email}<br>Location: ${locName}</p>
+        <p>
+          <button type="button" class="ult-btn ult-btn-primary" onclick="print()">Print</button>
+          <button type="button" class="ult-btn ult-btn-outline" id="reg-x">Cancel</button>
+        </p>`);
+      modal.querySelector('#reg-x').onclick = () => modal.classList.remove('show');
+    }
+
+
+    async function fetchTillJobs() {
+      let remote = [];
+      try {
+        const { data } = await supabase.from('repair_jobs')
+          .select('id,job_number,customer_name,status,serial_number,created_at,origin,phone,device,brand,device_model,session_id,problem')
+          .order('created_at', { ascending: false }).limit(200);
+        remote = data || [];
+      } catch { /* local */ }
+      const local = await loadRows('repair_jobs', JOB_KEY, []);
+      const map = new Map();
+      [...local, ...remote].forEach((j) => {
+        if (!j) return;
+        if (isDemoRecord(j)) {
+          const id = j.id || j.job_number;
+          if (id) {
+            tombstone('repair_jobs', id);
+            tombstone(JOB_KEY, id);
+            if (j.id) supabase.from('repair_jobs').delete().eq('id', j.id).then(() => {}).catch(() => {});
+          }
+          return;
+        }
+        if (isTombstoned('repair_jobs', j) || isTombstoned(JOB_KEY, j)) return;
+        const id = String(j.id || j.job_number || '');
+        if (!id) return;
+        map.set(id, { ...(map.get(id) || {}), ...j });
+      });
+      return [...map.values()];
+    }
+
+    function applyJobToSheet(j) {
+      if (!j) return;
+      const custSel = document.getElementById('cust');
+      if (custSel && j.customer_id) custSel.value = j.customer_id;
+      const st = document.getElementById('st');
+      if (st && j.status) st.value = j.status;
+      const sn = document.getElementById('sn');
+      if (sn) sn.value = j.serial_number || '';
+      const prob = document.getElementById('prob');
+      if (prob) prob.value = j.problem || '';
+      ackResult(true, (j.job_number || 'Job') + ' loaded on this till.');
+    }
+
+    async function showJobsSearch() {
+      openModal(`<h3>Jobs on this till</h3>
+        <p class="hint">Shop tickets on this register. Test sheets are hidden. Use Actions to view, load, or delete.</p>
+        <input id="job-q" placeholder="Customer name, phone or job number" style="width:100%;padding:8px;margin:8px 0;box-sizing:border-box" />
+        <div class="tbl-bulk" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0">
+          <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="job-all" /> Select all</label>
+          <button type="button" class="ult-btn ult-btn-outline" id="job-invert">Invert</button>
+          <button type="button" class="ult-btn ult-btn-danger" id="job-bulk">Delete selected</button>
+          <span id="job-count" class="hint"></span>
+        </div>
+        <div id="job-hits" class="ult-muted">Loading…</div>
+        <p style="margin-top:12px"><button type="button" class="ult-btn ult-btn-outline" id="job-x">Close</button></p>`, true);
+      const qel = modal.querySelector('#job-q');
+      const hits = modal.querySelector('#job-hits');
+      modal.querySelector('#job-x').onclick = () => modal.classList.remove('show');
+      let rows = [];
+
+      const vis = () => {
+        const needle = (qel.value || '').trim().toLowerCase();
+        return rows.filter((j) => !needle || [j.job_number, j.customer_name, j.serial_number, j.status, j.phone, j.device].join(' ').toLowerCase().includes(needle));
+      };
+
+      const paintJobs = () => {
+        const list = vis();
+        modal.querySelector('#job-count').textContent = list.length + ' job' + (list.length === 1 ? '' : 's');
+        hits.innerHTML = `<div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th></th><th>Job</th><th>Customer</th><th>Device</th><th>Status</th><th></th></tr></thead>
+          <tbody>${list.map((j) => `<tr data-id="${esc(j.id)}">
+            <td><input type="checkbox" data-pick="${esc(j.id)}" /></td>
+            <td><b>${esc(j.job_number || '')}</b><div class="hint">${esc(String(j.created_at || '').slice(0, 16).replace('T', ' '))}</div></td>
+            <td>${esc(j.customer_name || 'Walk-In')}<div class="hint">${esc(j.phone || j.serial_number || '')}</div></td>
+            <td>${esc([j.brand, j.device, j.device_model].filter(Boolean).join(' · '))}</td>
+            <td>${esc(j.status || 'pending')}</td>
+            <td style="white-space:nowrap">
+              <button type="button" class="ult-btn ult-btn-sm" data-load="${esc(j.id)}">Load</button>
+              <button type="button" class="ult-btn ult-btn-sm ult-btn-danger" data-del="${esc(j.id)}">Delete</button>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="6">No shop tickets</td></tr>'}</tbody>
+        </table></div>`;
+        hits.querySelectorAll('[data-load]').forEach((b) => {
+          b.onclick = () => {
+            const j = rows.find((x) => String(x.id) === String(b.dataset.load));
+            modal.classList.remove('show');
+            applyJobToSheet(j);
+          };
+        });
+        hits.querySelectorAll('[data-del]').forEach((b) => {
+          b.onclick = async () => {
+            if (!(await confirmAction('Delete this job sheet?', 'This cannot be undone.'))) return;
+            const r = await deleteRow('repair_jobs', JOB_KEY, b.dataset.del);
+            if (r?.cancelled) return;
+            ackResult(true, 'Job deleted.');
+            rows = rows.filter((x) => String(x.id) !== String(b.dataset.del));
+            paintJobs();
+          };
+        });
+      };
+
+      rows = await fetchTillJobs();
+      paintJobs();
+      qel.oninput = paintJobs;
+      modal.querySelector('#job-all').onchange = (e) => {
+        hits.querySelectorAll('[data-pick]').forEach((c) => { c.checked = e.target.checked; });
+      };
+      modal.querySelector('#job-invert').onclick = () => {
+        hits.querySelectorAll('[data-pick]').forEach((c) => { c.checked = !c.checked; });
+      };
+      modal.querySelector('#job-bulk').onclick = async () => {
+        const ids = [...hits.querySelectorAll('[data-pick]:checked')].map((c) => c.dataset.pick).filter(Boolean);
+        if (!ids.length) return ackResult(false, 'Tick at least one job.');
+        const r = await deleteMany('repair_jobs', JOB_KEY, ids);
+        if (r?.cancelled) return;
+        ackResult(true, (r.count || ids.length) + ' job(s) deleted.');
+        rows = rows.filter((x) => !ids.includes(String(x.id)));
+        paintJobs();
+      };
+    }
+    function showCatalogSearch() {
+      const pool = () => visibleParts();
+      const brands = [...new Set(pool().map((p) => String(p.brand || '').trim()).filter(Boolean))].sort();
+      const cats = [...new Set(pool().map((p) => String(p.category || p.cat || '').trim()).filter(Boolean))].sort();
+      openModal(`<div class="cat-head">
+          <div>
+            <h3>Parts / replacement catalog</h3>
+            <p class="hint" id="cat-scope" style="margin:4px 0 0">${catalogAll ? 'All companies (manager override)' : 'Live parts inventory at this till'}</p>
+          </div>
+          <label class="cat-mgr"><input type="checkbox" id="cat-all" ${catalogAll ? 'checked' : ''} /> Manager: all companies</label>
+        </div>
+        <div class="cat-tools">
+          <input type="search" id="cat-q" placeholder="Search name, SKU or model…" autocomplete="off" />
+          <select id="cat-brand"><option value="">All brands</option>${brands.map((b) => `<option>${esc(b)}</option>`).join('')}</select>
+          <select id="cat-cat"><option value="">All categories</option>${cats.map((c) => `<option>${esc(c)}</option>`).join('')}</select>
+        </div>
+        <div class="cat-hits" id="cat-hits"></div>
+        <div class="cat-foot">
+          <span class="hint" id="cat-count"></span>
+          <button type="button" class="ult-btn ult-btn-outline" id="cat-x">Close</button>
+        </div>`, true);
+
+      const addPart = (id) => {
+        const p = productList.find((x) => String(x.id) === String(id));
+        if (!p) return;
+        parts.push({ product_id: p.id, product_name: p.name, sku: p.sku, quantity: 1, unit_price: Number(p.selling_price || 0) });
+        modal.classList.remove('show');
+        paint();
+        ackResult(true, (p.sku || p.name) + ' added to this ticket.');
+      };
+
+      const run = () => {
+        const q = (modal.querySelector('#cat-q').value || '').trim().toLowerCase();
+        const brand = modal.querySelector('#cat-brand').value;
+        const cat = modal.querySelector('#cat-cat').value;
+        const all = pool().filter((p) => {
+          if (brand && String(p.brand || '') !== brand) return false;
+          if (cat && String(p.category || p.cat || '') !== cat) return false;
+          if (!q) return true;
+          return [p.name, p.sku, p.model, p.brand, p.barcode].join(' ').toLowerCase().includes(q);
+        });
+        const rows = all.slice(0, 80);
+        modal.querySelector('#cat-count').textContent = all.length
+          ? `Showing ${rows.length} of ${all.length}`
+          : 'No match in this till catalog';
+        modal.querySelector('#cat-hits').innerHTML = `<table class="cat-table">
+          <colgroup><col style="width:42%"><col style="width:22%"><col style="width:20%"><col style="width:16%"></colgroup>
+          <thead><tr><th>Product</th><th>SKU</th><th style="text-align:right">Price</th><th></th></tr></thead>
+          <tbody>${rows.map((p) => `<tr data-add="${esc(p.id)}">
+            <td>
+              <div class="cat-name" title="${esc(p.name || '')}">${esc(p.name || '')}</div>
+              <div class="cat-sub">${esc([p.brand, p.category || p.cat].filter(Boolean).join(' · '))}</div>
+            </td>
+            <td class="cat-sku">${esc(p.sku || '')}</td>
+            <td class="cat-price">${fmt(p.selling_price)}</td>
+            <td style="text-align:right"><button type="button" class="cat-add" data-add="${esc(p.id)}">Add</button></td>
+          </tr>`).join('') || '<tr><td colspan="4" class="hint" style="padding:18px;text-align:center">No match in this till catalog</td></tr>'}</tbody>
+        </table>`;
+        modal.querySelectorAll('[data-add]').forEach((el) => {
+          el.onclick = (e) => { e.stopPropagation(); addPart(el.dataset.add); };
+        });
+      };
+
+      modal.querySelector('#cat-x').onclick = () => modal.classList.remove('show');
+      modal.querySelector('#cat-all').onchange = async (e) => {
+        const ok = await setCatalogAll(e.target.checked);
+        e.target.checked = catalogAll;
+        const scope = modal.querySelector('#cat-scope');
+        if (scope) scope.textContent = catalogAll ? 'All companies (manager override)' : 'Live parts inventory at this till';
+        if (!ok) return;
+        run();
+      };
+      modal.querySelector('#cat-q').oninput = run;
+      modal.querySelector('#cat-brand').onchange = run;
+      modal.querySelector('#cat-cat').onchange = run;
+      run();
+      modal.querySelector('#cat-q').focus();
+    }
+
+    async function saveJob() {
+      if (!(await confirmAction('Save this job sheet?', 'Writes this shop ticket. You stay on the till.'))) return;
+      const s = snapshot();
+      const brandName = document.getElementById('brand').selectedOptions[0]?.text || '';
+      const deviceName = document.getElementById('device').selectedOptions[0]?.text || '';
+      const modelName = document.getElementById('model').selectedOptions[0]?.text || '';
+      const job_number = 'JS-' + new Date().toISOString().slice(0,10).replace(/-/g,'') + '-' + String(Math.floor(Math.random()*900+100));
+      const payload = {
+        id: uid(),
+        job_number,
+        subsidiary_code: sub,
+        location_name: locName,
+        customer_id: s.cust || null,
+        customer_name: document.getElementById('cust').selectedOptions[0]?.text || 'Walk-In Customer',
+        product_query: parts.map(p => p.sku || p.product_name).join(', '),
+        brand: brandName === 'Please Select' ? '' : brandName,
+        device: deviceName === 'Please Select' ? '' : deviceName,
+        device_model: modelName === 'Please Select' ? '' : modelName,
+        brand_id: s.brand || null,
+        device_id: s.device || null,
+        model_id: s.model || null,
+        serial_number: s.sn,
+        status: s.st || 'pending',
+        delivery_date: s.due || null,
+        completed_on: s.done || null,
+        problem: s.prob,
+        origin: 'pos_shop',
+        source: 'pos_shop',
+        checklist,
+        security_note: security.pattern.join('-') || null,
+        security_password: security.password || null,
+        security_pattern: security.pattern.join('-') || null,
+        session_id: sid || null,
+      };
+      const saved = await saveRow('repair_jobs', JOB_KEY, payload);
+      if (saved?.error && !saved?.id) return alert(saved.error.message || 'Could not save job');
+      const job = { id: saved?.id || payload.id };
+      if (parts.length) {
+        const rows = parts.map(p => ({
+          job_id: job.id,
+          product_id: p.product_id,
+          product_name: p.product_name,
+          sku: p.sku,
+          quantity: p.quantity,
+          unit_price: p.unit_price,
+        }));
+        const { error: pe } = await supabase.from('repair_job_parts').insert(rows);
+        if (pe) alert('Job saved, parts: ' + pe.message);
+      }
+      openModal(`<h3>Job saved</h3><p>${job_number} stays on this till and was sent to the Repair module.</p><button type="button" id="js-ok">Stay on sheet</button>`);
+      modal.querySelector('#js-ok').onclick = () => modal.classList.remove('show');
+      parts = [];
+      paint();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName) && !['F2','F4','F8','F9','F11','Escape'].includes(e.key) && e.key !== '/' && !e.altKey) return;
+      if (e.key === 'F2') { e.preventDefault(); saveJob(); }
+      if (e.key === 'F4') { e.preventDefault(); showContact(); }
+      if (e.key === 'F8') { e.preventDefault(); showChecklist(); }
+      if (e.key === 'F9') { e.preventDefault(); showSecurity(); }
+      if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); }
+      if (e.key === 'Escape') modal.classList.remove('show');
+      if (e.key === '/' && document.activeElement?.id !== 'sku') { e.preventDefault(); document.getElementById('sku')?.focus(); }
+      if (e.altKey && e.key.toLowerCase() === 'c') { e.preventDefault(); document.getElementById('btn-calc')?.click(); }
+      if (e.altKey && e.key.toLowerCase() === 'r') { e.preventDefault(); showRegister(); }
+      if (e.altKey && e.key.toLowerCase() === 'd') { e.preventDefault(); window.open('/customer-display.html' + (sid?('?session='+sid):''), '_blank'); }
+    });
+
+    paint();
+  </script>
+</body>
+</html>

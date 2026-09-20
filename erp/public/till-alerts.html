@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Till discrepancies — HQ</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page h1 { margin: 0 0 4px; font-size: 22px; }
+    .lead { color: #475569; margin: 0 0 16px; }
+    .card { background: var(--ult-card); border: 1px solid var(--ult-border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .pill.pending { background: #fee2e2; color: #991b1b; }
+    .pill.under_review { background: #fef3c7; color: #92400e; }
+    .pill.resolved { background: #dcfce7; color: #166534; }
+    .kv { display: grid; grid-template-columns: 180px 1fr; gap: 6px 12px; font-size: 14px; }
+    .kv b { color: #64748b; font-weight: 700; }
+    .diff { font-weight: 800; color: #b91c1c; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { getAccess } from './js/rbac.js';
+  import { isHqRole, isOwnerRole } from './js/access-rules.js';
+  import { pullAlerts, setAlertStatus, enrollThisDevice, listAlerts } from './js/till-open.js';
+  import { fmt } from './js/supabaseClient.js';
+  import { esc } from './js/ls-rows.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+
+  await mountUltimateShell();
+  const ctx = getAccess();
+  const hq = isHqRole(ctx?.roleName) || isOwnerRole(ctx?.roleName);
+  const app = document.getElementById('app');
+
+  async function paint() {
+    const rows = hq ? await pullAlerts() : [];
+    const open = rows.filter((a) => a.status === 'pending' || a.status === 'under_review');
+    app.innerHTML = `
+      <div class="page">
+        <h1>Till discrepancies</h1>
+        <p class="lead">Silent flags from till opening. Cashiers are not told. Investigate MoMo + cash against the system expected total, then mark resolved.</p>
+        ${hq ? `<p><button type="button" class="ult-btn ult-btn-outline" id="enroll">This computer is the shop till</button>
+          <span class="ult-muted">Saves this device + public IP for Fiberk Shop attendance.</span></p>` : ''}
+        ${!hq ? '<p>Only HQ / Owner can review till alerts.</p>' : ''}
+        <div class="card"><strong>${open.length} open</strong> · ${rows.length} recorded</div>
+        ${rows.map((a) => {
+          const p = a.payload || {};
+          const loc = p.location_name || p.location_code || 'Till';
+          const st = a.status || 'pending';
+          return `<article class="card" data-id="${esc(a.id)}">
+            <h2 style="margin:0 0 8px">Till discrepancy – ${esc(loc)} <span class="pill ${esc(st)}">${esc(st.replace('_', ' '))}</span></h2>
+            <div class="kv">
+              <b>Cashier</b><span>${esc(p.cashier || '—')}</span>
+              <b>MoMo on hand</b><span>${fmt(p.momo_on_hand)}</span>
+              <b>Cash on hand</b><span>${fmt(p.cash_on_hand)}</span>
+              <b>Total entered</b><span>${fmt(p.total_entered)}</span>
+              <b>System expected</b><span>${fmt(p.system_expected_total)}</span>
+              <b>Difference</b><span class="diff">${fmt(a.difference)}</span>
+              <b>Opened at</b><span>${esc(String(p.opened_at || a.created_at || '').replace('T', ' ').slice(0, 19))}</span>
+            </div>
+            ${hq && st !== 'resolved' ? `<div class="actions">
+              <button type="button" class="ult-btn" data-st="under_review">Under review</button>
+              <button type="button" class="ult-btn ult-btn-primary" data-st="resolved">Mark resolved</button>
+            </div>` : ''}
+            ${a.review_note ? `<p class="ult-muted">${esc(a.review_note)}</p>` : ''}
+          </article>`;
+        }).join('') || '<p class="ult-muted">No discrepancies yet. Mismatches appear here the moment a till opens off the expected cash + MoMo.</p>'}
+      </div>`;
+    app.querySelector('#enroll')?.addEventListener('click', async () => {
+      if (!(await confirmAction('Enrol this computer as the Fiberk Shop till?'))) return;
+      await enrollThisDevice({ locationCode: 'FIB-SHOP', locationName: 'Fiberk Shop', enrolledBy: ctx?.email });
+      ackResult(true, 'This device and its public IP are now the shop till fingerprint.');
+    });
+    app.querySelectorAll('[data-st]').forEach((b) => {
+      b.onclick = async () => {
+        const card = b.closest('[data-id]');
+        const st = b.dataset.st;
+        const note = st === 'resolved' ? (prompt('Investigation note (optional)') || '') : '';
+        await setAlertStatus(card.dataset.id, st, note);
+        ackResult(true, st === 'resolved' ? 'Alert closed.' : 'Marked under review.');
+        paint();
+      };
+    });
+  }
+  paint();
+</script>
+</body>
+</html>

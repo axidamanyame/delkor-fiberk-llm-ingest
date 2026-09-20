@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transactions — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption, filterBySidebar } from './js/scope.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, actMenu, readLs, isTombstoned, deleteRow } from './js/ls-rows.js';
+  import {
+    accNav, esc, tableBar, tableFoot, fmtDate, subLabel, loadSettings, ensureDemoBooks, KEYS,
+  } from './js/accounting.js';
+  import { KEYS as CAT_KEYS, isDemoRecord, purgeTestSales } from './js/catalog-seed.js';
+  import { loadPayrolls } from './js/hrm-payroll.js';
+  import { purchaseBookMetrics } from './js/fiberk-purchases.js';
+  import { fiberkSaleMapped, salesBookMetrics } from './js/fiberk-sales.js';
+  import { excludeMigrated, siloGateHtml, isMigratedRow } from './js/fiberk-silo.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  let tab = q.get('tab') || 'sell';
+  const TABS = [
+    { id: 'sell', label: 'Sales' },
+    { id: 'sell_payment', label: 'Sales Payments' },
+    { id: 'purchase', label: 'Purchases' },
+    { id: 'purchase_payment', label: 'Purchase Payments' },
+    { id: 'expense', label: 'Expenses' },
+    { id: 'payroll', label: 'Payroll' },
+  ];
+
+  async function loadSales() {
+    await purgeTestSales();
+    let extra = [];
+    try {
+      const { data } = await supabase.from('sales_orders').select('*').order('created_at', { ascending: false }).limit(400);
+      extra = data || [];
+    } catch { extra = []; }
+    const local = await loadRows('sales_orders', CAT_KEYS.sales, []);
+    const acc = readLs(KEYS.sales, []);
+    const fk = [];
+    const byId = new Map();
+    [...fk, ...acc, ...local, ...extra].forEach((r) => {
+      if (!r || isDemoRecord(r) || isTombstoned('sales_orders', r) || isTombstoned(CAT_KEYS.sales, r) || isMigratedRow(r)) return;
+      const id = String(r.id || r.reference || r.ref_no || '');
+      if (!id) return;
+      byId.set(id, { ...(byId.get(id) || {}), ...r });
+    });
+    return [...byId.values()];
+  }
+
+  function tabStore(id) {
+    if (id.startsWith('sell')) return { table: 'sales_orders', key: CAT_KEYS.sales };
+    if (id.startsWith('purchase')) return { table: 'purchases', key: KEYS.purchases };
+    if (id === 'payroll') return { table: 'hrm_payroll', key: 'df_hrm_payroll' };
+    return { table: 'expenses', key: KEYS.expenses };
+  }
+
+  function actionItems(tabId, r, mapped) {
+    const id = r.src_id || r.id;
+    const enc = encodeURIComponent(id);
+    if (tabId.startsWith('sell')) {
+      const viewHref = (r.source === 'fiberkapp' || String(r.id || '').startsWith('so-upos-'))
+        ? `/sales-form.html?id=${enc}&view=1`
+        : `/pos-sales.html?view=${enc}`;
+      return [
+        { href: viewHref, label: 'View' },
+        { href: `/sales-form.html?id=${enc}`, label: 'Edit' },
+        { act: 'del', label: 'Delete' },
+        { href: `/accounting-map-form.html?type=${tabId}&id=${enc}`, label: mapped ? 'Edit mapping' : 'Map Transaction' },
+      ];
+    }
+    if (tabId.startsWith('purchase')) {
+      return [
+        { href: `/purchase-form.html?id=${enc}&view=1`, label: 'View' },
+        { href: `/purchase-form.html?id=${enc}`, label: 'Edit' },
+        { act: 'del', label: 'Delete' },
+        { href: `/accounting-map-form.html?type=${tabId}&id=${enc}`, label: mapped ? 'Edit mapping' : 'Map Transaction' },
+      ];
+    }
+    if (tabId === 'payroll') {
+      return [
+        { href: `/hrm.html?tab=payroll&id=${enc}`, label: 'Open in HRM' },
+        { href: `/accounting-map-form.html?type=payroll&id=${enc}`, label: mapped ? 'Edit mapping' : 'Map Transaction' },
+      ];
+    }
+    return [
+      { href: `/expense-form.html?id=${enc}&view=1`, label: 'View' },
+      { href: `/expense-form.html?id=${enc}`, label: 'Edit' },
+      { act: 'del', label: 'Delete' },
+      { href: `/accounting-map-form.html?type=${tabId}&id=${enc}`, label: mapped ? 'Edit mapping' : 'Map Transaction' },
+    ];
+  }
+
+  async function loadTab(id) {
+    if (id === 'sell' || id === 'sell_payment') {
+      let rows = filterBySidebar(await loadSales());
+      if (id === 'sell_payment') {
+        rows = rows.filter((r) => Number(r.amount_paid || 0) > 0).map((r) => ({
+          ...r,
+          id: 'pay-' + r.id,
+          src_id: r.id,
+          reference: 'PAY-' + (r.reference || r.ref_no || r.id),
+          ref_no: 'PAY-' + (r.reference || r.ref_no || r.id),
+          total_amount: r.amount_paid || r.total_amount,
+          amount: r.amount_paid || r.total_amount,
+        }));
+      }
+      return rows;
+    }
+    if (id === 'purchase' || id === 'purchase_payment') {
+      const pos = excludeMigrated(filterBySidebar(await loadRows('purchases', KEYS.purchases, [])));
+      if (id === 'purchase_payment') {
+        const pays = (readLs('df_purchase_payments', []) || []).filter((r) => !isMigratedRow(r) && r.purchase_id);
+        if (pays.length) {
+          const byPo = new Map(pos.map((p) => [String(p.id), p]));
+          return filterBySidebar(pays.map((p) => {
+            const po = byPo.get(String(p.purchase_id)) || {};
+            return {
+              ...po,
+              ...p,
+              src_id: p.purchase_id || po.id,
+              reference: p.reference || p.ref_no,
+              reference_no: p.reference || p.ref_no,
+              ref_no: p.reference || p.ref_no,
+              amount: p.amount,
+              amount_paid: p.amount,
+              total_amount: p.amount,
+              date: p.date,
+              payment_status: 'paid',
+            };
+          }));
+        }
+        return pos.filter((r) => Number(r.amount_paid || 0) > 0).map((r) => ({
+          ...r,
+          id: 'ppay-' + r.id,
+          src_id: r.id,
+          reference_no: 'PAY-' + (r.reference_no || r.ref_no || r.id),
+          ref_no: 'PAY-' + (r.reference_no || r.ref_no || r.id),
+          total_amount: r.amount_paid,
+          amount: r.amount_paid,
+        }));
+      }
+      return pos;
+    }
+    if (id === 'payroll') {
+      return filterBySidebar(await loadPayrolls());
+    }
+    return filterBySidebar(await loadRows('expenses', KEYS.expenses, []));
+  }
+
+  function payPill(s) {
+    const k = String(s || '').toLowerCase();
+    const cls = k === 'paid' ? 'paid' : k === 'partial' ? 'partial' : 'overdue';
+    const label = k ? k.replace(/^./, (c) => c.toUpperCase()) : '—';
+    return `<span class="pill ${cls}">${esc(label)}</span>`;
+  }
+
+  async function paint() {
+    await ensureDemoBooks();
+    const rows = await loadTab(tab);
+    const maps = loadSettings().maps || {};
+    const mapKey = (r) => {
+      if (tab === 'sell_payment') return `sell_payment:${r.src_id || r.id}`;
+      if (tab === 'purchase_payment') return `purchase_payment:${r.src_id || r.id}`;
+      return `${tab}:${r.id}`;
+    };
+    const mapped = (r) => {
+      if (tab.startsWith('sell') && (r.source === 'fiberkapp' || String(r.id || '').startsWith('so-upos-'))) {
+        return maps[mapKey(r)] || fiberkSaleMapped(r.src_id || r.id);
+      }
+      return maps[mapKey(r)];
+    };
+    const isPay = tab.includes('payment');
+    const partyLabel = tab === 'payroll' ? 'Employee' : tab.startsWith('purchase') ? 'Supplier' : tab === 'expense' ? 'Payee' : 'Customer';
+    const book = tab.startsWith('purchase') ? purchaseBookMetrics() : (tab.startsWith('sell') ? salesBookMetrics() : null);
+    const gateId = tab.startsWith('purchase') ? 'purchases' : (tab.startsWith('sell') ? 'sales' : '');
+
+    app.innerHTML = `
+      ${accNav('tx')}
+      <h1>Transactions</h1>
+      <p class="sub">${esc(scopeCaption())} · Map POS documents and payroll runs to the chart of accounts.</p>
+      ${gateId ? siloGateHtml(gateId, book?.n) : ''}
+      <div class="acc-inner-tabs">
+        ${TABS.map((t) => `<button type="button" class="${t.id === tab ? 'on' : ''}" data-tx="${t.id}">${esc(t.label)}</button>`).join('')}
+      </div>
+      <div class="home-card">
+        ${tableBar()}
+        <div class="tbl-bulk">
+          <span class="tbl-bulk-count" data-bulk-count>0 selected</span>
+          <button type="button" data-bulk-all>Select all</button>
+          <button type="button" data-bulk-invert>Invert</button>
+          <button type="button" class="tbl-bulk-del" data-bulk-del>Delete selected</button>
+          <button type="button" data-bulk-clear>Clear</button>
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th data-col="Date">Date</th>
+            <th data-col="Reference No">Reference No</th>
+            <th data-col="${partyLabel}">${esc(partyLabel)}</th>
+            <th data-col="Location">Location</th>
+            <th data-col="Subsidiary">Subsidiary</th>
+            <th data-col="Amount">Amount</th>
+            <th data-col="Payment status">Payment status</th>
+            <th data-col="Mapped">Mapped</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => {
+              const dt = r.order_date || r.transaction_date || r.expense_date || r.period_end || r.paid_on || r.date || r.created_at;
+              const ref = r.reference || r.ref_no || r.reference_no || r.invoice_no || '';
+              const amt = isPay ? (r.amount_paid || r.amount || r.total_amount || 0) : (r.total_amount || r.final_total || r.grand_total || r.net_pay || r.amount || 0);
+              const pay = r.payment_status || r.status || '';
+              const party = r.employee_name || r.customer_name || r.supplier_name || r.payment_to || r.title || '';
+              const m = mapped(r);
+              const docId = r.src_id || r.id;
+              return `<tr data-id="${esc(docId)}">
+                <td>${actMenu(docId, actionItems(tab, r, m))}</td>
+                <td>${esc(fmtDate(dt))}</td>
+                <td>${esc(ref)}</td>
+                <td>${esc(party)}</td>
+                <td>${esc(r.legacy_location || r.location_name || r.location_code || '')}</td>
+                <td>${esc(subLabel(r.subsidiary_code))}</td>
+                <td>${fmt(amt)}</td>
+                <td>${payPill(pay)}</td>
+                <td>${m ? '<span class="pill paid">Yes</span>' : '<span class="pill pending">No</span>'}</td>
+              </tr>`;
+            }).join('') || '<tr data-dummy="1"><td colspan="9">No data available in table</td></tr>'}
+          </tbody>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+    const store = tabStore(tab);
+    bindTable(app, { title: 'Transactions', storageKey: 'acc-tx-' + tab, table: store.table, key: store.key, onDone: paint });
+    app.querySelectorAll('[data-tx]').forEach((b) => {
+      b.onclick = () => {
+        tab = b.dataset.tx;
+        history.pushState({ spa: `/accounting-transactions.html?tab=${tab}` }, '', `/accounting-transactions.html?tab=${tab}`);
+        paint();
+      };
+    });
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async (e) => {
+        e.preventDefault();
+        const id = b.dataset.id;
+        if (!id) return;
+        if (!(await confirmAction('Delete this transaction?', 'This cannot be undone.'))) return;
+        const r = await deleteRow(store.table, store.key, id);
+        if (r?.cancelled) return;
+        ackResult(true, 'Transaction deleted.');
+        paint();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

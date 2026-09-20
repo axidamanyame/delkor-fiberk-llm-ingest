@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Discounts</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)}.page h1{margin:0;font-size:22px}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px;margin-top:12px}
+    .add{background:#4f46e5;color:#fff;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none}
+    .head{display:flex;justify-content:space-between;align-items:center}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, filterBySidebar, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction } from './js/confirm-action.js';
+  import { loadRows } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_DISCOUNTS } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+
+  async function load() {
+    const data = await loadRows('discounts', CAT_KEYS.discounts, SEED_DISCOUNTS);
+    const error = null;
+    const rows = data.length ? data : SEED_DISCOUNTS;
+    app.innerHTML = `
+      <h1>Discounts</h1>
+      <p>${esc(scopeCaption())} — price rules for the till and Add Sale</p>
+      <div class="card" data-tbl="disc">
+        <div class="head"><h2>All discounts</h2><a class="add" href="/discount-form.html">+ Add</a></div>
+        ${error ? `<p>${esc(error.message)} — table is created on first save, or add a discounts table in Supabase.</p>` : ''}
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Name</th><th>Type</th><th>Value</th><th>Starts</th><th>Ends</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>${rows.map((r)=>`<tr>
+            <td>${esc(r.name)}</td>
+            <td>${esc(r.discount_type||r.type||'percentage')}</td>
+            <td>${esc(r.value ?? r.discount_amount ?? 0)}${(r.discount_type||r.type)==='fixed'?' GHS':' %'}</td>
+            <td>${esc(String(r.starts_at||r.start_date||'').slice(0,10))}</td>
+            <td>${esc(String(r.ends_at||r.end_date||'').slice(0,10))}</td>
+            <td>${r.is_active===false?'Inactive':'Active'}</td>
+            <td><a href="/discount-form.html?id=${r.id}">Edit</a> · <button type="button" data-del="${r.id}">Delete</button></td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="7" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </div>`;
+    bindTable(app.querySelector('[data-tbl="disc"]'), { title: 'Discounts', storageKey: 'discounts' });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this discount?'))) return;
+        await supabase.from('discounts').delete().eq('id', b.dataset.del);
+        load();
+      };
+    });
+  }
+  window.addEventListener(SCOPE_EVENT, load);
+  load();
+</script>
+</body>
+</html>

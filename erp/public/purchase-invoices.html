@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Purchase Invoices</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, fmt } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { tableFoot } from './js/accounting.js';
+    import { bindTable } from './js/home-tables.js';
+    import { mergeRows, readLs, esc, actMenu } from './js/ls-rows.js';
+
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const INV_KEY = 'df_purchase_invoices';
+
+    async function load() {
+      let remote = [];
+      try {
+        const r = await supabase.from('purchase_invoices').select('*').order('created_at', { ascending: false }).limit(400);
+        if (!r.error) remote = r.data || [];
+      } catch { /* local */ }
+      const rows = mergeRows([remote, readLs(INV_KEY, [])]);
+      const unpaid = rows.filter((x) => x.status === 'unpaid').length;
+      const paid = rows.filter((x) => x.status === 'paid').length;
+      const outstanding = rows
+        .filter((x) => x.status !== 'paid')
+        .reduce((a, x) => a + (Number(x.total_amount) - Number(x.amount_paid || 0)), 0);
+      app.innerHTML = `
+        ${pageChrome('Purchase Invoices')}
+        <div class="ult-kpis">
+          <div class="ult-kpi"><div class="ult-kpi-icon blue">#</div><div class="ult-kpi-body"><div class="ult-kpi-label">Total</div><div class="ult-kpi-value">${rows.length}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-icon amber">!</div><div class="ult-kpi-body"><div class="ult-kpi-label">Unpaid</div><div class="ult-kpi-value">${unpaid}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-icon green" style="background:#16a34a">✓</div><div class="ult-kpi-body"><div class="ult-kpi-label">Paid</div><div class="ult-kpi-value">${paid}</div></div></div>
+          <div class="ult-kpi"><div class="ult-kpi-icon orange">$</div><div class="ult-kpi-body"><div class="ult-kpi-label">Outstanding</div><div class="ult-kpi-value">${fmt(outstanding)}</div></div></div>
+        </div>
+        <div class="ult-card" data-tbl="purchase-invoices">
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Action</th><th>Invoice #</th><th>Vendor</th><th>Date</th><th>Total</th><th>Due</th><th>Status</th></tr></thead>
+            <tbody>
+              ${rows.map((r) => {
+                const due = Math.max(0, Number(r.total_amount || 0) - Number(r.amount_paid || 0));
+                return `<tr data-id="${esc(r.id)}">
+                  <td>${actMenu(r.id, [
+                    { href: `/purchase-invoice-form.html?id=${encodeURIComponent(r.id)}&view=1`, label: 'View' },
+                    { href: `/purchase-invoice-form.html?id=${encodeURIComponent(r.id)}`, label: 'Edit' },
+                    { href: `/purchase-invoice-form.html?id=${encodeURIComponent(r.id)}&print=1`, label: 'Print' },
+                  ])}</td>
+                  <td><strong>${esc(r.reference || '—')}</strong>${r.vendor_invoice_no ? `<div class="ult-muted" style="font-size:11px">${esc(r.vendor_invoice_no)}</div>` : ''}${r.attachment_url || (r.attachments && r.attachments[0]) ? `<div><a href="${esc((r.attachment_url || r.attachments[0].url))}" target="_blank" rel="noopener" style="font-size:11px;font-weight:700">Paper slip</a></div>` : ''}</td>
+                  <td>${esc(r.supplier_name || '—')}</td>
+                  <td>${esc(String(r.invoice_date || r.created_at || '').slice(0, 10) || '—')}</td>
+                  <td>${fmt(r.total_amount)}</td>
+                  <td>${fmt(due)}</td>
+                  <td><span class="ult-badge ${r.status === 'paid' ? 'ult-badge-paid' : 'ult-badge-due'}">${esc(String(r.status || '').toUpperCase())}</span></td>
+                </tr>`;
+              }).join('') || '<tr data-dummy="1"><td colspan="7" class="ult-muted">No invoices yet.</td></tr>'}
+            </tbody>
+          </table></div>
+          ${tableFoot()}
+        </div>`;
+      bindTable(app.querySelector('[data-tbl]'), { title: 'Purchase invoices', storageKey: INV_KEY, table: 'purchase_invoices', skipFilters: true });
+    }
+    load();
+  </script>
+</body>
+</html>

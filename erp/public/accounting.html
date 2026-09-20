@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Accounting — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/field-ops.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import {
+    accNav, esc, loadAccounts, loadJournals, loadTransfers, scopeAccounts, scopeDocs,
+    typeTotals, TYPES, TYPE_COLORS, chartCard, bindChartMenus, dateFilterBtn, bindDateFilter,
+    pieSvg, pieLegend, ensureDemoBooks, slicesForType, ACC_TABS, fiberkDateRange,
+    loadSettings, loadSubTypes, loadDetailTypes, mapTransactionsHtml, bindMapForm,
+    resetAccounting, tableBar, tableFoot,
+  } from './js/accounting.js';
+  import { bindOverflowTabs, bindHubTabs, tryPaintFloor, floorNav } from './js/hub-kit.js';
+  import { nestsFor } from './js/hub-nests.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { actMenu } from './js/ls-rows.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const fk = fiberkDateRange();
+  const state = { preset: fk.preset, from: fk.from, to: fk.to };
+
+  async function paint() {
+    const nestTab = new URLSearchParams(location.search).get('tab') || '';
+    if (tryPaintFloor(app, nestTab || 'dash', { brand: 'Accounting', file: '/accounting.html', go: goTab })) return;
+    const nest = nestsFor('/accounting.html').find((n) => n.key === nestTab);
+    if (nest) {
+      app.innerHTML = `
+        ${accNav(nest.key)}
+        <h1>Accounting · ${esc(nest.label)}</h1>
+        <p class="ult-lead">Related topics in this group. Pick one to continue.</p>
+        <div class="nest-grid">${nest.children.map((k) => {
+          const item = ACC_TABS.find((x) => x.key === k);
+          if (!item) return '';
+          return `<a class="nest-card" href="/accounting.html?tab=${esc(k)}" data-htab="${esc(k)}"><strong>${esc(item.label)}</strong><span>Open this topic</span></a>`;
+        }).join('')}</div>`;
+      bindOverflowTabs(app);
+      bindHubTabs(app, goTab);
+      return;
+    }
+    const on = nestTab || 'dash';
+    if (on && on !== 'dash') {
+      await paintPane(on);
+      return;
+    }
+    await ensureDemoBooks();
+    const [rawAcc, rawJe, rawTr] = await Promise.all([loadAccounts(), loadJournals(), loadTransfers()]);
+    const accounts = scopeAccounts(rawAcc);
+    const journals = scopeDocs(rawJe);
+    const transfers = scopeDocs(rawTr);
+    const { totals, bySub } = typeTotals(accounts, journals, transfers, state.from, state.to);
+    const typeSlices = TYPES.map((k) => ({ label: k, value: Math.abs(totals[k] || 0), color: TYPE_COLORS[k] }));
+
+    app.innerHTML = `
+      ${accNav('dash')}
+      <div class="acc-top">
+        <div>
+          <h1>Chart of accounts overview</h1>
+          <p class="sub">Activity ${esc(state.from || '…')} → ${esc(state.to || '…')} · ${esc(scopeCaption())}</p>
+        </div>
+        ${dateFilterBtn(state.preset, state.from, state.to)}
+      </div>
+      <div class="ov-card pie-card" data-chart="${encodeURIComponent(JSON.stringify({ title: 'Chart of accounts overview', slices: typeSlices }))}">
+        <div class="pie-head">
+          <h2>Chart of accounts overview</h2>
+          <button type="button" class="pie-menu-btn" aria-label="Chart menu">☰</button>
+        </div>
+        <div class="ov-grid">
+          <table class="ov-table">
+            <thead><tr><th>Account Type</th><th>Current Balance</th></tr></thead>
+            <tbody>
+              ${TYPES.map((k) => `<tr><td>${esc(k)}</td><td>${fmt(totals[k] || 0)}</td></tr>`).join('')}
+            </tbody>
+          </table>
+          <div class="ov-pie pie-body">
+            ${pieSvg(typeSlices, 260)}
+            ${pieLegend(typeSlices, false)}
+          </div>
+        </div>
+      </div>
+      <div class="pie-grid">
+        ${chartCard('Asset', slicesForType('Asset', bySub))}
+        ${chartCard('Expenses', slicesForType('Expenses', bySub))}
+        ${chartCard('Income', slicesForType('Income', bySub))}
+        ${chartCard('Equity', slicesForType('Equity', bySub))}
+      </div>
+      <div class="pie-grid pie-grid-last">
+        ${chartCard('Liability', slicesForType('Liability', bySub))}
+      </div>`;
+    bindChartMenus(app);
+    bindDateFilter(app, state, paint);
+    bindHubTabs(app, goTab);
+  }
+
+  function goTab(k) {
+    const u = new URL('/accounting.html', location.origin);
+    if (k && k !== 'dash') u.searchParams.set('tab', k);
+    history.pushState({ spa: u.pathname + u.search }, '', u.pathname + u.search);
+    paint();
+  }
+
+  async function paintPane(on) {
+    await ensureDemoBooks();
+    const title = (ACC_TABS.find((t) => t.key === on) || {}).label || on;
+    let rows = [];
+    let head = '';
+    let body = '';
+    if (on === 'coa') {
+      rows = scopeAccounts(await loadAccounts());
+      head = '<tr><th>Name</th><th>Type</th><th>Code</th></tr>';
+      body = rows.slice(0, 400).map((r) => `<tr><td>${esc(r.name || r.account_name)}</td><td>${esc(r.account_type || r.type)}</td><td>${esc(r.account_code || r.code || '')}</td></tr>`).join('') || '<tr><td colspan="3">No accounts.</td></tr>';
+    } else if (on === 'je') {
+      rows = scopeDocs(await loadJournals());
+      head = '<tr><th>Date</th><th>Ref</th><th>Note</th></tr>';
+      body = rows.slice(0, 400).map((r) => `<tr><td>${esc(r.journal_date || r.date || '')}</td><td>${esc(r.ref || r.number || r.id)}</td><td>${esc(r.note || r.narration || '')}</td></tr>`).join('') || '<tr><td colspan="3">No journals.</td></tr>';
+    } else if (on === 'xfer') {
+      rows = scopeDocs(await loadTransfers());
+      head = '<tr><th>Date</th><th>From</th><th>To</th><th>Amount</th></tr>';
+      body = rows.slice(0, 400).map((r) => `<tr><td>${esc(r.date || r.transfer_date || '')}</td><td>${esc(r.from_account || r.from || '')}</td><td>${esc(r.to_account || r.to || '')}</td><td>${fmt(r.amount)}</td></tr>`).join('') || '<tr><td colspan="4">No transfers.</td></tr>';
+    } else if (on === 'settings') {
+      const accounts = scopeAccounts(await loadAccounts());
+      const settings = loadSettings();
+      const inner = new URLSearchParams(location.search).get('inner') || 'map';
+      const subTypes = await loadSubTypes();
+      const details = await loadDetailTypes();
+      const subTable = `<div class="ult-table-wrap"><table class="ult-table"><thead><tr><th>Account Sub Type</th><th>Account Type</th></tr></thead>
+        <tbody>${subTypes.map((s) => `<tr><td>${esc(s.name)}</td><td>${esc(s.account_type)}</td></tr>`).join('') || '<tr><td colspan="2">No sub types</td></tr>'}</tbody></table></div>`;
+      const detTable = `<div class="ult-table-wrap"><table class="ult-table"><thead><tr><th>Name</th><th>Parent Type</th><th>Description</th></tr></thead>
+        <tbody>${details.map((d) => `<tr><td>${esc(d.name)}</td><td>${esc(d.parent || d.parent_type || '')}</td><td>${esc(d.description || '')}</td></tr>`).join('') || '<tr><td colspan="3">No detail types</td></tr>'}</tbody></table></div>`;
+      app.innerHTML = `${accNav('settings')}
+        <h1>Settings</h1>
+        <div class="acc-inner-tabs">
+          <a class="${inner==='map'?'on':''}" href="/accounting.html?tab=settings&inner=map" data-htab="settings">Accounting Settings / Map Transactions</a>
+          <a class="${inner==='sub'?'on':''}" href="/accounting.html?tab=settings&inner=sub" data-htab="settings">Account Sub Type</a>
+          <a class="${inner==='detail'?'on':''}" href="/accounting.html?tab=settings&inner=detail" data-htab="settings">Detail Type</a>
+        </div>
+        <div class="home-card">${inner==='map' ? mapTransactionsHtml(accounts, settings) : inner==='sub' ? subTable : detTable}</div>`;
+      if (inner === 'map') bindMapForm(app, { resetAccounting, toast, confirmAction });
+      bindHubTabs(app, goTab);
+      return;
+    } else if (on === 'reports') {
+      app.innerHTML = `${accNav('reports')}
+        <h1>Reports</h1>
+        <div class="nest-grid">
+          <a class="nest-card" href="/account-trial-balance.html"><strong>Trial Balance</strong><span>Open</span></a>
+          <a class="nest-card" href="/account-balance-sheet.html"><strong>Balance Sheet</strong><span>Open</span></a>
+          <a class="nest-card" href="/account-cash-flow.html"><strong>Cash Flow</strong><span>Open</span></a>
+          <a class="nest-card" href="/accounting-reports.html"><strong>Account reports</strong><span>Open</span></a>
+        </div>`;
+      bindHubTabs(app, goTab);
+      return;
+    } else if (on === 'budget') {
+      const { budgetVsActual, varianceTableHtml } = await import('./js/budget-vs-actual.js');
+      const y = new Date().getFullYear();
+      const result = await budgetVsActual(state.from || `${y}-01-01`, state.to || `${y}-12-31`);
+      app.innerHTML = `${accNav('budget')}<div class="acc-top"><div><h1>Budget</h1>
+        <p class="sub">${esc(state.from || '')} to ${esc(state.to || '')}</p></div>
+        ${dateFilterBtn(state.preset, state.from, state.to)}</div>
+        <div class="ult-card">${varianceTableHtml(result)}
+        <p style="margin:12px 0 0"><a class="ult-btn ult-btn-primary" href="/accounting-budget.html">Monthly budget book</a></p></div>`;
+      bindDateFilter(app, state, paint);
+      bindHubTabs(app, goTab);
+      return;
+    } else {
+      app.innerHTML = `${accNav(on)}<div class="acc-top"><div><h1>${esc(title)}</h1></div></div>`;
+      bindHubTabs(app, goTab);
+      return;
+    }
+    app.innerHTML = `${accNav(on)}<div class="acc-top"><div><h1>${esc(title)}</h1><p class="sub">${esc(scopeCaption())} · ${rows.length.toLocaleString()} rows</p></div></div>
+      <div class="ult-card"><div class="ult-table-wrap"><table class="ult-table"><thead>${head}</thead><tbody>${body}</tbody></table></div></div>`;
+    bindHubTabs(app, goTab);
+  }
+
+  window.addEventListener(SCOPE_EVENT, paint);
+  window.addEventListener('popstate', paint);
+  window.addEventListener('df-tab', paint);
+  paint();
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Module — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, fmt, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { getActiveLocation, productMatchesScope } from './js/scope.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const m = new URLSearchParams(location.search).get('m') || 'units';
+
+    function scopeDoc(d) {
+      const sub = getActiveSubsidiary()?.code || 'group';
+      const loc = getActiveLocation();
+      if (sub && sub !== 'group' && d.subsidiary_code && d.subsidiary_code !== sub && d.subsidiary_code !== 'group') return false;
+      if (loc && d.location_code && d.location_code !== loc) return false;
+      return true;
+    }
+    function table(headers, rows) {
+      return `<div class="ult-table-wrap"><table class="ult-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+        <tbody>${rows.length ? rows.join('') : `<tr><td colspan="${headers.length}">No rows in this scope. Run SQL 72/73/76 if empty.</td></tr>`}</tbody></table></div>`;
+    }
+
+    async function docs(type) {
+      const { data } = await supabase.from('ops_documents').select('*').eq('doc_type', type).order('doc_date', { ascending: false }).limit(200);
+      return (data || []).filter(scopeDoc);
+    }
+    async function catalog() {
+      const { data } = await supabase.from('products').select('id,sku,name,brand,category,selling_price,cost_price,home_subsidiary,barcode').limit(400);
+      const sub = getActiveSubsidiary()?.code || 'group';
+      return (data || []).filter(p => productMatchesScope(p, sub, getActiveLocation()));
+    }
+
+    async function saveDoc(row) {
+      const sub = getActiveSubsidiary()?.code || 'group';
+      const loc = getActiveLocation() || null;
+      const { error } = await supabase.from('ops_documents').insert({
+        ...row, subsidiary_code: sub === 'group' ? row.subsidiary_code || 'axidigetek' : sub, location_code: loc
+      });
+      if (error) alert(error.message); else location.reload();
+    }
+
+    async function render() {
+      let title = m.replace(/_/g,' ');
+      let blurb = '';
+      let body = '';
+
+      if (m === 'update_price') {
+        title = 'Update Price'; blurb = 'Change selling price on live SKUs. Logged against the product row.';
+        const rows = await catalog();
+        body = table(['SKU','Name','Brand','Cost','Selling','New price'],
+          rows.slice(0,80).map(p => `<tr><td>${p.sku}</td><td>${p.name}</td><td>${p.brand||''}</td><td>${fmt(p.cost_price)}</td><td>${fmt(p.selling_price)}</td>
+            <td><input data-id="${p.id}" class="np" type="number" step="0.01" value="${p.selling_price||0}" style="width:100px" /></td></tr>`));
+        body += `<p><button class="ult-btn ult-btn-primary" id="go">Apply prices</button></p>`;
+      } else if (m === 'labels') {
+        title = 'Print Labels'; blurb = 'Barcode / price labels from the scoped catalog.';
+        const rows = await catalog();
+        body = table(['SKU','Name','Barcode','Price'],
+          rows.slice(0,40).map(p => `<tr><td>${p.sku}</td><td>${p.name}</td><td>${p.barcode||p.sku}</td><td>${fmt(p.selling_price)}</td></tr>`));
+        body += `<p><button class="ult-btn ult-btn-primary" onclick="print()">Print</button></p>`;
+      } else if (m === 'variations') {
+        title = 'Variations'; blurb = 'Color / storage rows under one parent.';
+        const { data } = await supabase.from('product_variations').select('sku, variation_name, label, sell_inc, product_id').limit(200);
+        body = table(['SKU','Variation','Sell inc.'],
+          (data||[]).map(v => `<tr><td>${v.sku||''}</td><td>${v.variation_name||v.label||''}</td><td>${fmt(v.sell_inc)}</td></tr>`));
+      } else if (m === 'import_products' || m === 'import_stock' || m === 'import_sales') {
+        title = m.replace(/_/g,' ');
+        blurb = 'CSV import. Columns: sku,name,brand,category,cost,sell,qty. Does not replace SQL seeds.';
+        body = `<div class="ult-card"><input type="file" id="csv" accept=".csv" /><p class="ult-muted">Parser posts rows into products / product_stock / ops sale drafts.</p><button class="ult-btn ult-btn-primary" id="imp">Import</button></div>`;
+      } else if (m === 'price_groups') {
+        title = 'Selling Price Group';
+        const { data } = await supabase.from('price_groups').select('*');
+        body = table(['Group','Markup %','Notes'], (data||[]).map(r=>`<tr><td>${r.name}</td><td>${r.markup_pct}</td><td>${r.notes||''}</td></tr>`));
+      } else if (m === 'units') {
+        title = 'Units';
+        const { data } = await supabase.from('units').select('*');
+        body = table(['Code','Name','Base ratio'], (data||[]).map(r=>`<tr><td>${r.code}</td><td>${r.name}</td><td>${r.base_ratio}</td></tr>`));
+      } else if (m === 'brands') {
+        title = 'Brands';
+        const rows = await catalog();
+        const map = {};
+        rows.forEach(p => { const b=p.brand||'No brand'; map[b]=(map[b]||0)+1; });
+        body = table(['Brand','SKUs in scope'], Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`));
+      } else if (m === 'warranties') {
+        title = 'Warranties';
+        const { data } = await supabase.from('warranties').select('*');
+        body = table(['Code','Months','Applies to'], (data||[]).map(r=>`<tr><td>${r.code}</td><td>${r.months}</td><td>${r.applies_to||''}</td></tr>`));
+      } else if (m === 'discounts') {
+        title = 'Discounts';
+        const { data } = await supabase.from('discount_rules').select('*');
+        body = table(['Code','Description','Type','Value','Applies'],
+          (data||[]).map(r=>`<tr><td>${r.code}</td><td>${r.description||''}</td><td>${r.kind}</td><td>${r.value}</td><td>${r.applies_to||''}</td></tr>`));
+      } else if (m === 'exp_cat') {
+        title = 'Expense Categories';
+        const { data } = await supabase.from('expense_categories').select('*');
+        body = table(['Category','Description'], (data||[]).map(r=>`<tr><td>${r.name}</td><td>${r.description||''}</td></tr>`));
+      } else if (m === 'invoices' || m === 'pay_purch') {
+        title = m === 'invoices' ? 'Purchase Invoices' : 'Purchase Payments';
+        const rows = await docs('purchase');
+        body = table(['Date','PO','Supplier','Status','Amount'],
+          rows.map(d=>`<tr><td>${d.doc_date}</td><td>${d.doc_no}</td><td>${d.partner_name||''}</td><td>${d.status}</td><td>${fmt(d.total_amount)}</td></tr>`));
+      } else if (m === 'add_purchase' || m === 'add_sale' || m === 'add_draft' || m === 'add_quote' || m === 'add_adj' || m === 'add_xfer' || m === 'add_exp') {
+        const map = {
+          add_purchase: ['purchase','ordered','Add Purchase','Supplier'],
+          add_sale: ['sale','final','Add Sale','Customer'],
+          add_draft: ['draft','draft','Add Draft','Customer'],
+          add_quote: ['quotation','open','Add Quotation','Customer'],
+          add_adj: ['adjustment','completed','Add Stock Adjustment','Reason'],
+          add_xfer: ['transfer','pending','Add Transfer','Route'],
+          add_exp: ['expense','posted','Add Expense','Vendor'],
+        }[m];
+        title = map[2];
+        body = `<div class="ult-card ult-form-grid">
+          <div class="ult-field"><label>Number</label><input id="no" placeholder="auto if blank" /></div>
+          <div class="ult-field"><label>${map[3]}</label><input id="partner" /></div>
+          <div class="ult-field"><label>Amount</label><input id="amt" type="number" step="0.01" value="0" /></div>
+          <div class="ult-field"><label>Notes</label><input id="notes" /></div>
+        </div><p><button class="ult-btn ult-btn-primary" id="sv">Save</button></p>`;
+        window._docKind = map;
+      } else if (m === 'list_pos') {
+        location.replace('/pos-sales.html');
+        return;
+      } else if (m === 'cheques') {
+        title = 'Cheques';
+        blurb = 'Paper instruments — not posted until cleared.';
+        body = table(['Cheque','Payee','Amount','Status'], [
+          `<tr><td>CHQ-UBA-1001</td><td>Franko Trading</td><td>${fmt(5000)}</td><td>Pending</td></tr>`,
+          `<tr><td>CHQ-UBA-1002</td><td>Electroland Ghana</td><td>${fmt(2500)}</td><td>Cleared</td></tr>`
+        ]);
+      } else {
+        title = 'Module';
+        body = `<p>Unknown module <code>${m}</code>. Use the sidebar.</p>`;
+      }
+
+      app.innerHTML = pageChrome(title, blurb || 'Scoped to header subsidiary / location. Live data where tables exist.') + `<div class="ult-card">${body}</div>`;
+
+      document.getElementById('go')?.addEventListener('click', async () => {
+        for (const inp of document.querySelectorAll('.np')) {
+          const { error } = await supabase.from('products').update({ selling_price: Number(inp.value) }).eq('id', inp.dataset.id);
+          if (error) { alert(error.message); return; }
+        }
+        alert('Prices updated');
+      });
+      document.getElementById('sv')?.addEventListener('click', async () => {
+        const k = window._docKind;
+        const no = document.getElementById('no').value.trim() || (k[0].slice(0,2).toUpperCase() + '-' + Date.now().toString().slice(-6));
+        await saveDoc({ doc_type: k[0], doc_no: no, status: k[1], doc_date: new Date().toISOString().slice(0,10),
+          partner_name: document.getElementById('partner').value, total_amount: Number(document.getElementById('amt').value)||0,
+          notes: document.getElementById('notes').value });
+      });
+      document.getElementById('imp')?.addEventListener('click', () => alert('CSV import posts in the next deepen. Use SQL seeds for bulk demo data.'));
+    }
+    render();
+  </script>
+</body>
+</html>

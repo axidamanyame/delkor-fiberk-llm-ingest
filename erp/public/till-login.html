@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Till login — Delkor-Fiberk</title>
+  <link rel="icon" href="/favicon.svg" />
+  <style>
+    :root { --blue:#1d4ed8; --green:#10b981; --ink:#0f172a; --muted:#64748b; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; font-family: Inter, system-ui, sans-serif; color: var(--ink); }
+    body {
+      min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+      background:
+        radial-gradient(900px 420px at 100% 0%, #93c5fd 0%, transparent 55%),
+        radial-gradient(700px 380px at 0% 100%, #6ee7b7 0%, transparent 50%),
+        #eef4fb;
+    }
+    .stage {
+      width: min(1100px, 100%);
+      background: #fff;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, .16);
+    }
+    .hero {
+      position: relative;
+      padding: 48px 28px 56px;
+      text-align: center;
+      color: #fff;
+      background: linear-gradient(120deg, #1d4ed8, #0ea5e9 48%, #10b981);
+    }
+    .hero:after {
+      content: '';
+      position: absolute; left: -8%; right: -8%; bottom: -1px; height: 78px;
+      background: #fff;
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+    }
+    .hero p { margin: 0 0 6px; letter-spacing: .12em; text-transform: uppercase; font-size: 13px; opacity: .9; position: relative; z-index: 1; }
+    .hero h1 { margin: 0; font-size: clamp(32px, 5vw, 48px); font-weight: 800; position: relative; z-index: 1; }
+    .pin-row {
+      position: relative; z-index: 2;
+      margin: 22px auto 0;
+      display: flex; gap: 10px; justify-content: center; align-items: center;
+      max-width: 420px;
+    }
+    .pin-wrap {
+      flex: 1; display: flex; align-items: center; gap: 8px;
+      background: #fff; color: var(--ink);
+      border-radius: 999px; padding: 8px 14px;
+      box-shadow: 0 8px 20px rgba(15,23,42,.12);
+    }
+    #pin { border: 0; outline: 0; flex: 1; font-size: 22px; letter-spacing: .35em; width: 100%; background: transparent; font-weight: 700; }
+    .go {
+      border: 0; background: var(--green); color: #fff; font-weight: 800;
+      border-radius: 999px; padding: 12px 22px; cursor: pointer; font-size: 15px;
+    }
+    .go:disabled { opacity: .5; cursor: wait; }
+    .desk {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px;
+      padding: 0 28px 8px;
+    }
+    .desk.hidden { display: none; }
+    .desk label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin: 0 0 4px; }
+    .desk select, .desk input {
+      width: 100%; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 10px 12px; font: inherit; background: #fff;
+    }
+    .desk input[readonly] { background: #f8fafc; color: #0f172a; font-weight: 800; }
+    .hq-over { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 700; color: #1e3a8a; padding: 4px 0 8px; }
+    .hq-over[hidden] { display: none !important; }
+    .err { text-align: center; color: #b91c1c; min-height: 18px; margin: 0 24px 6px; font-size: 13px; }
+    .body { display: grid; grid-template-columns: 150px minmax(0,1fr) 220px; gap: 18px; padding: 8px 28px 28px; align-items: start; }
+    .side { display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+    .tile {
+      border: 0; border-radius: 18px; color: #fff; font-weight: 800; cursor: pointer;
+      min-height: 88px; display: grid; place-items: center; gap: 4px; padding: 12px;
+    }
+    .tile small { font-weight: 600; font-size: 12px; opacity: .9; }
+    .tile.login { background: linear-gradient(180deg, #34d399, #059669); }
+    .tile.attend { background: linear-gradient(180deg, #60a5fa, #1d4ed8); cursor: default; }
+    .keys, .nums { display: grid; gap: 8px; }
+    .keys { grid-template-columns: repeat(10, 1fr); }
+    .nums { grid-template-columns: repeat(3, minmax(64px, 1fr)); }
+    button.key {
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      border-radius: 12px; min-height: 44px; font-weight: 700; cursor: pointer; color: #0f172a;
+    }
+    button.key:active { transform: translateY(1px); background: #e2e8f0; }
+    button.key.wide { grid-column: span 2; }
+    button.key.space { grid-column: span 4; }
+    button.key.num { background: #2563eb; color: #fff; border-color: #1d4ed8; font-size: 18px; min-height: 56px; width: 100%; }
+    button.key.clear { background: #fb7185; color: #fff; border-color: #f43f5e; }
+    @media (max-width: 800px) {
+      .body, .desk { grid-template-columns: 1fr; }
+      .side { flex-direction: row; }
+      .tile { flex: 1; min-height: 64px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <header class="hero">
+      <p>Till</p>
+      <h1>Welcome Back</h1>
+      <form class="pin-row" id="form">
+        <label class="pin-wrap">
+          <span aria-hidden="true">🔒</span>
+          <input id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" />
+        </label>
+        <button class="go" type="submit" id="go">Login</button>
+      </form>
+    </header>
+    <p class="err" id="err"></p>
+    <div class="desk" id="desk">
+      <div>
+        <label for="reg-sub">Subsidiary</label>
+        <select id="reg-sub"></select>
+      </div>
+      <div>
+        <label for="reg-loc">Location</label>
+        <select id="reg-loc"></select>
+      </div>
+      <div>
+        <label for="momo">MoMo on hand (GH₵)</label>
+        <input id="momo" type="number" step="0.01" min="0" value="0" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="cash">Cash on hand (GH₵)</label>
+        <input id="cash" type="number" step="0.01" min="0" value="0" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="total-hand">Total cash on hand (GH₵)</label>
+        <input id="total-hand" type="number" step="0.01" min="0" value="0" readonly />
+      </div>
+      <div>
+        <label for="notes">Note</label>
+        <input id="notes" placeholder="Morning till" />
+      </div>
+      <label class="hq-over" id="hq-over-wrap" hidden>
+        <input type="checkbox" id="hq-over" />
+        HQ override this opening (no silent alert, skip block)
+      </label>
+    </div>
+    <div class="body">
+      <div class="side">
+        <button type="button" class="tile login" id="tile-login">Login<br><small>Open the till</small></button>
+        <div class="tile attend" id="chk-status">Check-in<br><small id="chk-when">Recorded when the till opens</small></div>
+      </div>
+      <div class="keys" id="alpha"></div>
+      <div class="nums" id="nums"></div>
+    </div>
+  </div>
+  <script type="module">
+    import { requireAuth, supabase, writeAudit, SUBSIDIARIES, saveActiveSubsidiary, getActiveSubsidiary, operatingCode } from './js/supabaseClient.js';
+    import { loadTillPin, findMyOpenSession, tillUrl, DEFAULT_TILL_PIN } from './js/pos-gate.js';
+    import { getActiveLocation, saveActiveLocation, BUSINESS_LOCATIONS, findLocation, pairFromLocation } from './js/scope.js';
+    import { loadMyProfile, tillLocations, tillSubsidiaries, isHqRole, isOwnerRole } from './js/access-rules.js';
+    import { recordPunch, alreadyClockedInToday, punchesToday } from './js/time-clock.js';
+    import {
+      systemExpectedTotal, recordTillOpening, fetchPublicIp, readGeo, verifyAttendance,
+    } from './js/till-open.js';
+    import { loadTillPolicy, canEditTillPolicy } from './js/till-policy.js';
+
+    const MODE = new URLSearchParams(location.search).get('mode');
+    const pinEl = document.getElementById('pin');
+    const err = document.getElementById('err');
+    const goBtn = document.getElementById('go');
+    const desk = document.getElementById('desk');
+
+    const session = await requireAuth();
+    if (!session) {
+      location.replace('/login.html?next=/till-login.html');
+      throw new Error('auth');
+    }
+
+    const want = String(await loadTillPin(session.user.id) || DEFAULT_TILL_PIN);
+    const already = await findMyOpenSession(session.user.id);
+    let myProfile = null;
+    try { myProfile = await loadMyProfile(); } catch { /* local */ }
+    const pol = await loadTillPolicy();
+    const hqUser = canEditTillPolicy(myProfile?.role_name || myProfile?.role);
+    if (hqUser) {
+      const wrap = document.getElementById('hq-over-wrap');
+      if (wrap) wrap.hidden = false;
+    }
+    if (!pol.till_policy_on || !pol.till_count_required) {
+      document.getElementById('momo')?.closest('div')?.classList.add('desk-opt');
+    }
+
+    let allLocs = [];
+    async function locsFor() {
+      const seed = BUSINESS_LOCATIONS.filter((l) => !l.hub && l.sellable !== false).map((l) => ({
+        code: l.code, name: l.name, subsidiary_code: l.subsidiary,
+      }));
+      const { data } = await supabase.from('business_locations').select('*').limit(200);
+      const rows = (data || []).map((r) => {
+        const hit = findLocation(r.code || r.name);
+        return hit ? { ...r, code: hit.code, name: hit.name, subsidiary_code: hit.subsidiary } : r;
+      });
+      const wanted = rows.filter((r) => seed.some((s) => s.code === r.code || s.name === r.name));
+      const pool = wanted.length ? wanted : seed;
+      return tillLocations(pool, myProfile);
+    }
+
+    function fillLocs(code) {
+      const locs = allLocs.filter((l) => {
+        if (l.is_active === false) return false;
+        const parent = findLocation(l.code || l.name)?.subsidiary || l.subsidiary_code;
+        return parent === code;
+      });
+      const pref = getActiveLocation();
+      document.getElementById('reg-loc').innerHTML = locs.length
+        ? locs.map((l, i) => {
+            const sel = pref && locs.some((x) => x.code === pref || x.name === pref)
+              ? (l.code === pref || l.name === pref)
+              : i === 0;
+            return `<option value="${l.code || l.id}" ${sel ? 'selected' : ''}>${l.name}</option>`;
+          }).join('')
+        : '<option value="">No branch for this company</option>';
+    }
+
+    function paintCheckIn() {
+      const el = document.getElementById('chk-when');
+      if (!el) return;
+      const last = punchesToday(session.user.id).find((p) => p.type !== 'clock_out');
+      if (last?.clocked_at) {
+        const t = new Date(last.clocked_at);
+        el.textContent = 'In at ' + t.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    paintCheckIn();
+
+    function syncTotal() {
+      const momo = Number(document.getElementById('momo')?.value) || 0;
+      const cash = Number(document.getElementById('cash')?.value) || 0;
+      const el = document.getElementById('total-hand');
+      if (el) el.value = (momo + cash).toFixed(2);
+    }
+    document.getElementById('momo')?.addEventListener('input', syncTotal);
+    document.getElementById('cash')?.addEventListener('input', syncTotal);
+    syncTotal();
+
+    function stampCheckIn(locName, extra = {}) {
+      if (alreadyClockedInToday(session.user.id)) { paintCheckIn(); return; }
+      recordPunch({
+        type: 'clock_in',
+        note: 'Till check-in' + (locName ? ' · ' + locName : ''),
+        user_id: session.user.id,
+        user_email: session.user.email,
+        staff: session.user.email,
+        office: locName || '',
+        ip: extra.ip || '',
+        location: extra.geo ? `${extra.geo.lat},${extra.geo.lng}` : '',
+        method: extra.method || '',
+        verified: extra.verified,
+        role: myProfile?.role_name || myProfile?.role || '',
+      });
+      paintCheckIn();
+    }
+
+    if (already?.id) {
+      desk.classList.add('hidden');
+    } else {
+      allLocs = await locsFor();
+      const subs = tillSubsidiaries(myProfile, SUBSIDIARIES.filter((s) => s.code !== 'group' && s.code !== 'ops'), BUSINESS_LOCATIONS);
+      let sub = getActiveSubsidiary();
+      let code = operatingCode(sub) || (sub?.code !== 'group' && sub?.code !== 'ops' ? sub?.code : subs[0]?.code);
+      if (!subs.some((s) => s.code === code)) code = subs[0]?.code;
+      document.getElementById('reg-sub').innerHTML = subs.map((s) =>
+        `<option value="${s.code}" ${s.code === code ? 'selected' : ''}>${s.short || s.name}</option>`
+      ).join('');
+      fillLocs(code);
+      document.getElementById('reg-sub').onchange = async (e) => {
+        const s = SUBSIDIARIES.find((x) => x.code === e.target.value);
+        if (s) {
+          try { await saveActiveSubsidiary(session.user.id, s); } catch { /* ignore */ }
+        }
+        fillLocs(e.target.value);
+      };
+    }
+
+    function typeKey(k) {
+      const active = document.activeElement;
+      const target = (active && (active.id === 'momo' || active.id === 'cash' || active.id === 'notes')) ? active : pinEl;
+      if (k === 'CLEAR') { target.value = ''; return; }
+      if (k === '←') { target.value = String(target.value || '').slice(0, -1); return; }
+      if (k === 'ENTER') { document.getElementById('form').requestSubmit(); return; }
+      if (k === 'SPACE') { target.value += ' '; return; }
+      if (target === pinEl && pinEl.value.length >= 8) return;
+      target.value = String(target.value || '') + k;
+      if (target.id === 'momo' || target.id === 'cash') syncTotal();
+    }
+
+    const letters = 'QWERTYUIOPASDFGHJKLZXCVBNM'.split('');
+    const alpha = document.getElementById('alpha');
+    letters.forEach((ch) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'key'; b.textContent = ch;
+      b.onclick = () => typeKey(ch);
+      alpha.appendChild(b);
+    });
+    [['←', ''], ['SPACE', 'space'], ['ENTER', 'wide']].forEach(([lab, cls]) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'key ' + cls; b.textContent = lab;
+      b.onclick = () => typeKey(lab);
+      alpha.appendChild(b);
+    });
+    const nums = document.getElementById('nums');
+    ['7','8','9','4','5','6','1','2','3','0','CLEAR','ENTER'].forEach((lab) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key num' + (lab === 'CLEAR' ? ' clear' : '');
+      b.textContent = lab === 'CLEAR' ? 'CLEAR' : lab;
+      b.onclick = () => typeKey(lab);
+      nums.appendChild(b);
+    });
+
+    async function openRegister() {
+      const locSel = document.getElementById('reg-loc');
+      const locId = locSel?.value;
+      const locNameRaw = locSel?.selectedOptions[0]?.textContent || '';
+      const pair = pairFromLocation(locId || locNameRaw, document.getElementById('reg-sub').value);
+      if (!pair.location_code) { err.textContent = 'Pick a branch for this company.'; return; }
+      const op = pair.subsidiary;
+      const locName = pair.location_name;
+      saveActiveLocation(pair.location_code);
+      const subHit = SUBSIDIARIES.find((s) => s.code === op);
+      if (subHit) {
+        try { await saveActiveSubsidiary(session.user.id, subHit); } catch { /* ignore */ }
+      }
+      const momoAmt = Number(document.getElementById('momo')?.value) || 0;
+      const cashAmt = Number(document.getElementById('cash')?.value) || 0;
+      const totalEntered = Number((momoAmt + cashAmt).toFixed(2));
+      if (!op || op === 'group') { err.textContent = 'Select a subsidiary first.'; return; }
+      if (momoAmt < 0 || cashAmt < 0 || Number.isNaN(totalEntered)) {
+        err.textContent = 'MoMo and cash must be 0 or more.';
+        return;
+      }
+      const [expected, ip, geo] = await Promise.all([
+        systemExpectedTotal({ locationCode: pair.location_code, locationName: locName, subsidiaryCode: op }),
+        hqUser ? Promise.resolve('') : fetchPublicIp(),
+        hqUser ? Promise.resolve(null) : readGeo(),
+      ]);
+      const attend = hqUser
+        ? { ok: true, method: 'leadership' }
+        : verifyAttendance({ ip, geo, locationCode: pair.location_code, role: myProfile?.role_name || myProfile?.role });
+      stampCheckIn(locName, { ip, geo, method: attend.method, verified: attend.ok });
+      const difference = Number((totalEntered - expected).toFixed(2));
+      const hqOverride = !!(hqUser && document.getElementById('hq-over')?.checked);
+      if (pol.till_policy_on && pol.till_block_mismatch && difference !== 0 && !hqOverride) {
+        err.textContent = 'Totals do not match the system record. HQ must override this opening.';
+        return;
+      }
+      const row = {
+        cashier_id: session.user.id,
+        cashier_email: session.user.email,
+        subsidiary_code: op,
+        location_name: locName,
+        location_code: pair.location_code,
+        opening_float: totalEntered,
+        momo_on_hand: momoAmt,
+        cash_on_hand: cashAmt,
+        system_expected_total: expected,
+        till_difference: difference,
+        notes: document.getElementById('notes').value.trim() || null,
+        status: 'open',
+      };
+      let { data, error } = await supabase.from('pos_sessions').insert(row).select('id').single();
+      if (error && /momo_on_hand|cash_on_hand|system_expected|till_difference|column/i.test(error.message || '')) {
+        const slim = {
+          cashier_id: row.cashier_id,
+          cashier_email: row.cashier_email,
+          subsidiary_code: row.subsidiary_code,
+          location_name: row.location_name,
+          location_code: row.location_code,
+          opening_float: row.opening_float,
+          notes: row.notes,
+          status: 'open',
+        };
+        const r2 = await supabase.from('pos_sessions').insert(slim).select('id').single();
+        data = r2.data; error = r2.error;
+        if (error && /location_code|column/i.test(error.message || '')) {
+          delete slim.location_code;
+          const r3 = await supabase.from('pos_sessions').insert(slim).select('id').single();
+          data = r3.data; error = r3.error;
+        }
+      } else if (error && /location_code|column/i.test(error.message || '')) {
+        delete row.location_code;
+        const r2 = await supabase.from('pos_sessions').insert(row).select('id').single();
+        data = r2.data; error = r2.error;
+      }
+      const sessionId = data?.id || ('local-' + Date.now());
+      try {
+        await recordTillOpening({
+          pos_session_id: sessionId,
+          cashier_id: session.user.id,
+          cashier_email: session.user.email,
+          cashier_name: myProfile?.full_name || session.user.email,
+          subsidiary_code: op,
+          location_code: pair.location_code,
+          location_name: locName,
+          momo_on_hand: momoAmt,
+          cash_on_hand: cashAmt,
+          total_entered: totalEntered,
+          system_expected_total: expected,
+          difference,
+          note: row.notes,
+          public_ip: ip,
+          geo_lat: geo?.lat,
+          geo_lng: geo?.lng,
+          attend_method: attend.method,
+          attend_verified: attend.ok,
+          hq_override: hqOverride,
+        });
+      } catch { /* never block the till */ }
+      if (error) {
+        try { sessionStorage.setItem('df_pos_session_' + sessionId, JSON.stringify({ id: sessionId, ...row, opened_at: new Date().toISOString() })); } catch { /* ignore */ }
+        location.assign(tillUrl(sessionId, MODE === 'repair'));
+        return;
+      }
+      try {
+        await writeAudit({
+          action: 'POS_OPEN', entity_type: 'pos_session', entity_id: data.id,
+          subsidiary_code: op, summary: 'Open register ' + locName,
+        });
+      } catch { /* ignore */ }
+      location.assign(tillUrl(data.id, MODE === 'repair'));
+    }
+
+    async function unlock() {
+      err.textContent = '';
+      const got = String(pinEl.value || '').trim();
+      if (!got) { err.textContent = 'Enter the till PIN.'; pinEl.focus(); return; }
+      if (got !== want) { err.textContent = 'PIN does not match this till.'; pinEl.value = ''; pinEl.focus(); return; }
+      try { sessionStorage.setItem('df_till_ok', '1'); } catch { /* ignore */ }
+      goBtn.disabled = true;
+      if (already?.id) {
+        const locName = document.getElementById('reg-loc')?.selectedOptions?.[0]?.textContent || '';
+        const [ip, geo] = hqUser
+          ? ['', null]
+          : await Promise.all([fetchPublicIp(), readGeo()]);
+        const attend = hqUser
+          ? { ok: true, method: 'leadership' }
+          : verifyAttendance({ ip, geo, locationCode: document.getElementById('reg-loc')?.value, role: myProfile?.role_name || myProfile?.role });
+        stampCheckIn(locName, { ip, geo, method: attend.method, verified: attend.ok });
+        location.assign(tillUrl(already.id, MODE === 'repair'));
+        return;
+      }
+      await openRegister();
+      goBtn.disabled = false;
+    }
+
+    document.getElementById('form').onsubmit = (e) => { e.preventDefault(); unlock(); };
+    document.getElementById('tile-login').onclick = () => unlock();
+    pinEl.focus();
+  </script>
+</body>
+</html>

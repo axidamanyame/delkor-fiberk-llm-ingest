@@ -1,0 +1,199 @@
+/* Easybuy ACM order list inside Field Ops. Source columns, ERP chrome. */
+
+.bo-page { max-width: 1280px; }
+.bo-lead { margin: 0 0 14px; color: var(--ult-muted); font-size: 13px; line-height: 1.45; max-width: 70ch; }
+
+.bo-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  background: var(--ult-card);
+  border: 1px solid var(--ult-border);
+  border-radius: 20px;
+  box-shadow: var(--ult-shadow);
+  margin: 0 0 16px;
+  overflow: hidden;
+}
+.bo-kpi {
+  padding: 16px 12px 14px;
+  text-align: center;
+  border-left: 1px solid var(--ult-border);
+}
+.bo-kpi:first-child { border-left: 0; }
+.bo-kpi span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ult-muted);
+  margin-bottom: 6px;
+}
+.bo-kpi b {
+  display: block;
+  font-size: clamp(18px, 2vw, 26px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ult-text);
+}
+.bo-kpi.hot b { color: #b91c1c; }
+
+.bo-filters {
+  background: var(--ult-card);
+  border: 1px solid var(--ult-border);
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  margin: 0 0 14px;
+}
+.bo-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+.bo-field { display: flex; flex-direction: column; gap: 4px; min-width: 140px; }
+.bo-field.grow { flex: 1; min-width: 180px; }
+.bo-field label {
+  font-size: 11px; font-weight: 700; color: var(--ult-muted);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.bo-field input, .bo-field select {
+  min-height: 40px;
+  border: 1px solid var(--ult-border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  background: var(--ult-card);
+  color: var(--ult-text);
+}
+.bo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bo-chip {
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ult-border);
+  background: var(--ult-bg);
+  color: var(--ult-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.bo-chip.on { background: #0f172a; color: #f8fafc; border-color: #0f172a; }
+.bo-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.bo-actions .ult-btn { min-height: 40px; border-radius: 10px; }
+
+.bo-card {
+  background: var(--ult-card);
+  border: 1px solid var(--ult-border);
+  border-radius: 16px;
+  box-shadow: var(--ult-shadow);
+  overflow: hidden;
+}
+.bo-card h2 {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--ult-border);
+}
+.bo-table-wrap { overflow: auto; }
+.bo-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bo-table th {
+  position: sticky; top: 0;
+  background: var(--ult-card-2);
+  color: var(--ult-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: left;
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--ult-border);
+  white-space: nowrap;
+}
+.bo-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--ult-border);
+  vertical-align: middle;
+  color: var(--ult-text);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bo-table tbody tr { cursor: pointer; }
+.bo-table tbody tr:hover { background: var(--ult-side-hover); }
+.bo-table .num { font-variant-numeric: tabular-nums; text-align: right; }
+.bo-table td.wrap { white-space: normal; max-width: 220px; }
+
+.bo-st {
+  display: inline-block;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 3px 8px; border-radius: 999px; text-transform: uppercase;
+}
+.bo-st-normal { background: #f1f5f9; color: #334155; }
+.bo-st-overdue-1 { background: #fff7ed; color: #9a3412; }
+.bo-st-overdue-2-6 { background: #ffedd5; color: #9a3412; }
+.bo-st-overdue-6 { background: #fef2f2; color: #b91c1c; }
+.bo-st-finished { background: #ecfdf5; color: #047857; }
+
+.bo-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ult-border);
+  font-size: 12px; color: var(--ult-muted);
+}
+.bo-pager { display: flex; align-items: center; gap: 4px; }
+.bo-pager button, .bo-pager span {
+  min-width: 36px; min-height: 36px;
+  border: 1px solid var(--ult-border);
+  background: var(--ult-card);
+  border-radius: 8px;
+  font: inherit; font-size: 12px; font-weight: 650;
+  cursor: pointer; color: var(--ult-text);
+}
+.bo-pager button.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+.bo-pager button:disabled { opacity: .4; cursor: default; }
+.bo-pager select {
+  min-height: 36px; border-radius: 8px; border: 1px solid var(--ult-border);
+  font: inherit; font-size: 12px; padding: 0 8px; background: var(--ult-card); color: var(--ult-text);
+}
+
+.bo-drawer {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .45);
+  z-index: 80; display: flex; justify-content: flex-end;
+}
+.bo-drawer-card {
+  width: min(440px, 100%);
+  background: var(--ult-card);
+  color: var(--ult-text);
+  height: 100%;
+  overflow: auto;
+  padding: 22px 22px 40px;
+  box-shadow: -12px 0 40px rgba(0,0,0,.2);
+}
+.bo-drawer-card h3 { margin: 0 0 4px; font-size: 20px; letter-spacing: -0.02em; font-weight: 650; }
+.bo-dl { margin: 14px 0 0; display: grid; grid-template-columns: 110px 1fr; gap: 8px 12px; font-size: 13px; }
+.bo-dl dt { color: var(--ult-muted); font-weight: 600; }
+.bo-dl dd { margin: 0; word-break: break-all; font-variant-numeric: tabular-nums; }
+.bo-drawer-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.bo-drawer-actions .ult-btn { min-height: 40px; border-radius: 10px; }
+
+@media (max-width: 980px) {
+  .bo-kpis { grid-template-columns: 1fr 1fr; }
+  .bo-kpi { border-left: 0; border-top: 1px solid var(--ult-border); }
+  .bo-kpi:nth-child(-n+2) { border-top: 0; }
+}
+@media (max-width: 640px) {
+  .bo-kpis { grid-template-columns: 1fr; }
+  .bo-kpi { border-top: 1px solid var(--ult-border); }
+  .bo-kpi:first-child { border-top: 0; }
+}
+
+html[data-theme="dark"] .bo-table th { background: #0f172a; }
+html[data-theme="dark"] .bo-chip.on { background: #e2e8f0; color: #0f172a; border-color: var(--ult-border); }
+html[data-theme="dark"] .bo-st-normal { background: #1e293b; color: #cbd5e1; }
+html[data-theme="dark"] .bo-st-finished { background: #134e4a; color: #99f6e4; }
+html[data-theme="dark"] .bo-st-overdue-6 { background: #450a0a; color: #fecaca; }

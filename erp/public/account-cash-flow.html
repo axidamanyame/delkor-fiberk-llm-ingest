@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cash Flow — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import {
+    payNav, esc, ensurePayBooks, loadPayAccounts, loadFlows,
+    scopePay, accountSelect, locOptions, byLoc, filtersCard, bindFilt,
+    tableBar, tableFoot, decorateFlows, descLabel, methodLabel, fmtDate,
+  } from './js/pay-accounts.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const year = new Date().getFullYear();
+  const q = new URLSearchParams(location.search);
+  const F = {
+    account: q.get('account') || '',
+    loc: '',
+    from: `${year}-01-01`,
+    to: `${year}-12-31`,
+    type: '',
+  };
+
+  async function paint() {
+    await ensurePayBooks();
+    const accounts = scopePay(await loadPayAccounts());
+    const allFlows = scopePay(await loadFlows());
+    const decorated = decorateFlows(accounts, allFlows);
+    let rows = decorated.slice();
+    if (F.loc) rows = byLoc(rows, F.loc);
+    if (F.account) rows = rows.filter((r) => String(r.account_id) === String(F.account));
+    if (F.type) rows = rows.filter((r) => String(r.sub_type || '').toLowerCase() === F.type);
+    if (F.from) rows = rows.filter((r) => String(r.operation_date || '').slice(0, 10) >= F.from);
+    if (F.to) rows = rows.filter((r) => String(r.operation_date || '').slice(0, 10) <= F.to);
+    const totD = rows.reduce((s, r) => s + Number(r.debit || 0), 0);
+    const totC = rows.reduce((s, r) => s + Number(r.credit || 0), 0);
+    const types = [
+      ['', 'All'], ['sell', 'Sell'], ['purchase', 'Purchase'], ['expense', 'Expense'],
+      ['opening', 'Opening Balance'], ['transfer', 'Fund Transfer'], ['deposit', 'Deposit'],
+    ];
+
+    app.innerHTML = `
+      ${payNav('cf')}
+      <div class="acc-top">
+        <div>
+          <h1>Cash Flow</h1>
+          <p class="sub">${esc(scopeCaption())}</p>
+        </div>
+      </div>
+      ${filtersCard(`
+        <label>Account:
+          <select id="f-acc">${accountSelect(accounts, F.account, 'All')}</select>
+        </label>
+        <label>Business Location:
+          <select id="f-loc">${locOptions(F.loc)}</select>
+        </label>
+        <label>Date Range:
+          <span class="range-pair">
+            <input id="f-from" type="date" value="${esc(F.from)}" />
+            <input id="f-to" type="date" value="${esc(F.to)}" />
+          </span>
+        </label>
+        <label>Transaction Type:
+          <select id="f-type">${types.map(([v, l]) => `<option value="${v}" ${F.type === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </label>
+      `)}
+      <div class="home-card">
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Date</th><th>Account</th><th>Description</th><th>Payment Method</th>
+            <th>Payment details</th><th>Debit</th><th>Credit</th>
+            <th>Account Balance <span class="info-i" title="Running balance of this account after the transaction">i</span></th>
+            <th>Total Balance <span class="info-i" title="Sum of all payment-account balances after the transaction">i</span></th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr>
+              <td>${esc(fmtDate(r.operation_date))}</td>
+              <td>${esc(r.account_name || '')}</td>
+              <td>${esc(descLabel(r.sub_type))}</td>
+              <td>${esc(methodLabel(r.method))}</td>
+              <td>${esc(r.payment_details || '')}</td>
+              <td>${r.debit ? fmt(r.debit) : ''}</td>
+              <td>${r.credit ? fmt(r.credit) : ''}</td>
+              <td>${fmt(r.account_balance)}</td>
+              <td>${fmt(r.total_balance)}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="9">No data available in table</td></tr>'}
+          </tbody>
+          <tfoot><tr>
+            <td colspan="5"><strong>Total:</strong></td>
+            <td><strong>${fmt(totD)}</strong></td>
+            <td><strong>${fmt(totC)}</strong></td>
+            <td></td><td></td>
+          </tr></tfoot>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+
+    bindFilt(app);
+    bindTable(app, { title: 'Cash Flow', storageKey: 'pay-cf' });
+    app.querySelector('#f-acc').addEventListener('change', (e) => { F.account = e.target.value; paint(); });
+    app.querySelector('#f-loc').addEventListener('change', (e) => { F.loc = e.target.value; paint(); });
+    app.querySelector('#f-from').addEventListener('change', (e) => { F.from = e.target.value; paint(); });
+    app.querySelector('#f-to').addEventListener('change', (e) => { F.to = e.target.value; paint(); });
+    app.querySelector('#f-type').addEventListener('change', (e) => { F.type = e.target.value; paint(); });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

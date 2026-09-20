@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Printers — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .prn-split { display:grid; grid-template-columns: minmax(0,1fr) 280px; gap:18px; align-items:start; }
+    @media (max-width: 900px) { .prn-split { grid-template-columns: 1fr; } }
+    .th-preview { background:#f1f5f9; border:1px dashed #94a3b8; border-radius:14px; padding:12px; }
+    .th-preview h3 { margin:0 0 8px; font-size:13px; }
+    .th-preview iframe { width:100%; height:520px; border:0; background:#fff; border-radius:8px; }
+    .note-pill { display:inline-block; background:#fff7ed; color:#9a3412; border:1px solid #fdba74; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; }
+  </style>
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { BUSINESS_LOCATIONS } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { loadRows, saveRow, deleteRow, setDefault, esc, actMenu } from './js/ls-rows.js';
+  import { thermalReceiptHtml, thermalCss, printThermal, sampleSale, THERMAL_DEFAULTS } from './js/thermal-receipt.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const id = q.get('id');
+  const view = q.get('view') === '1';
+  const KEY = 'df_printers';
+  const TABLE = 'receipt_printers';
+  const seed = BUSINESS_LOCATIONS.map((l) => ({
+    id: 'prn-' + l.code, name: l.name + ' 80mm', location_code: l.code,
+    connection_type: 'browser', capability_profile: 'simple', characters_per_line: 42,
+    ip_address: '', port: 9100, path: '', is_default: l.code === 'FIB-SHOP',
+    paper_mm: 80, heading: 'DELKOR-FIBERK', tin: THERMAL_DEFAULTS.tin,
+    footer: THERMAL_DEFAULTS.footer, copies: 1,
+  }));
+  const rows = await loadRows(TABLE, KEY, seed);
+
+  function formData(row) {
+    return {
+      ...THERMAL_DEFAULTS,
+      ...row,
+      paper_mm: Number(row.paper_mm) === 58 ? 58 : 80,
+    };
+  }
+
+  function paintPreview(row) {
+    const frame = document.getElementById('th-frame');
+    if (!frame) return;
+    const html = `<!DOCTYPE html><html><head><style>${thermalCss(row.paper_mm)}</style></head>
+      <body>${thermalReceiptHtml(sampleSale(), row)}</body></html>`;
+    frame.srcdoc = html;
+  }
+
+  if (id) {
+    const row = formData(id === 'new' ? {} : (rows.find((r) => String(r.id) === id) || {}));
+    const dis = view ? 'disabled' : '';
+    app.innerHTML = `
+      <h1>${view ? 'View' : row.id ? 'Edit' : 'Add'} Printer</h1>
+      <p class="sub">Paper (thermal) only. WhatsApp / SMS still use the red digital card.</p>
+      <form id="f" class="sell-card">
+        <div class="prn-split">
+          <div>
+            <h3>Device</h3>
+            <div class="sell-grid">
+              <label class="fld">Name *<input name="name" value="${esc(row.name)}" ${dis} required></label>
+              <label class="fld">Location<select name="location_code" ${dis}>
+                ${BUSINESS_LOCATIONS.map((l) => `<option value="${l.code}" ${row.location_code === l.code ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}
+              </select></label>
+              <label class="fld">Connection type<select name="connection_type" ${dis}>
+                ${['browser', 'network', 'windows', 'linux'].map((c) => `<option ${row.connection_type === c ? 'selected' : ''}>${c}</option>`).join('')}
+              </select></label>
+              <label class="fld">Capability profile<select name="capability_profile" ${dis}>
+                ${['simple', 'SP2000', 'TM-T88IV', 'TM-T88V'].map((c) => `<option ${row.capability_profile === c ? 'selected' : ''}>${c}</option>`).join('')}
+              </select></label>
+              <label class="fld">Characters per line<input name="characters_per_line" type="number" value="${row.characters_per_line || 42}" ${dis}></label>
+              <label class="fld">IP address<input name="ip_address" value="${esc(row.ip_address)}" ${dis}></label>
+              <label class="fld">Port<input name="port" type="number" value="${row.port || 9100}" ${dis}></label>
+              <label class="fld">Path (windows / linux)<input name="path" value="${esc(row.path)}" ${dis}></label>
+            </div>
+            <h3 style="margin-top:18px">Thermal slip</h3>
+            <p><span class="note-pill">This is what the till prints on paper</span></p>
+            <div class="sell-grid">
+              <label class="fld">Paper size<select name="paper_mm" ${dis}>
+                <option value="80" ${Number(row.paper_mm) !== 58 ? 'selected' : ''}>80mm (standard till)</option>
+                <option value="58" ${Number(row.paper_mm) === 58 ? 'selected' : ''}>58mm (compact)</option>
+              </select></label>
+              <label class="fld">Copies<input name="copies" type="number" min="1" max="3" value="${row.copies || 1}" ${dis}></label>
+              <label class="fld">Heading<input name="heading" value="${esc(row.heading || THERMAL_DEFAULTS.heading)}" ${dis}></label>
+              <label class="fld">TIN<input name="tin" value="${esc(row.tin || THERMAL_DEFAULTS.tin)}" ${dis}></label>
+            </div>
+            <label class="fld">Footer (paper)<textarea name="footer" rows="3" ${dis}>${esc(row.footer || THERMAL_DEFAULTS.footer)}</textarea></label>
+            <p><label class="chk"><input type="checkbox" name="is_default" ${row.is_default ? 'checked' : ''} ${dis}> Set as default for this shop</label></p>
+            <p>${view ? `<a class="ult-btn ult-btn-primary" href="/printers.html?id=${esc(row.id)}">Edit</a>` : '<button class="ult-btn ult-btn-primary">Save</button>'}
+               <button type="button" class="ult-btn ult-btn-outline" id="print-sample">Print sample slip</button>
+               <a class="ult-btn ult-btn-outline" href="/printers.html">Back</a></p>
+          </div>
+          <aside class="th-preview">
+            <h3>Live thermal preview</h3>
+            <iframe id="th-frame" title="Thermal receipt preview"></iframe>
+          </aside>
+        </div>
+      </form>`;
+    const grab = () => {
+      const data = { ...row };
+      document.querySelectorAll('#f [name]').forEach((el) => { data[el.name] = el.type === 'checkbox' ? el.checked : el.value; });
+      data.paper_mm = Number(data.paper_mm) === 58 ? 58 : 80;
+      data.copies = Number(data.copies) || 1;
+      return data;
+    };
+    paintPreview(row);
+    document.getElementById('f').addEventListener('input', () => paintPreview(grab()));
+    document.getElementById('print-sample').onclick = () => {
+      if (!printThermal(sampleSale(), grab())) toast('Allow pop-ups to print the sample');
+    };
+    if (!view) document.getElementById('f').onsubmit = async (e) => {
+      e.preventDefault();
+      if (!(await confirmAction('Save this printer?'))) return;
+      await saveRow(TABLE, KEY, grab());
+      toast('Printer saved'); location.href = '/printers.html';
+    };
+  } else {
+    app.innerHTML = `
+      <h1>Receipt Printers</h1>
+      <p class="sub">Thermal paper slips for the till. WhatsApp / SMS use a public customer page — no ERP login, not the grok.me preview.</p>
+      <section class="sell-card" style="margin:12px 0 18px">
+        <h3>Digital customer link</h3>
+        <p class="sub">Customers never log in. WhatsApp and SMS both send the same two-line message plus this public URL. Leave blank to use <b>https://delkorfiberk.vercel.app</b> (live ERP). Each sale appends <code>/r/</code> plus a unique receipt code.</p>
+        <label class="fld">Public origin (optional)
+          <input id="pub-origin" placeholder="https://delkorfiberk.vercel.app" value="">
+        </label>
+        <p><button type="button" class="ult-btn ult-btn-primary" id="save-origin">Save public origin</button></p>
+      </section>
+      <p style="text-align:right"><a class="ult-btn ult-btn-primary" href="/printers.html?id=new">Add</a></p>
+      <section class="home-card" data-tbl="pr">
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr><th>Action</th><th>Name</th><th>Paper</th><th>Connection</th><th>Profile</th><th>Chars</th><th>IP</th><th>Port</th><th>Location</th></tr></thead>
+          <tbody>${rows.map((r) => `<tr>
+            <td>${actMenu(r.id, [
+              { label: 'View', href: `/printers.html?id=${r.id}&view=1` },
+              { label: 'Edit', href: `/printers.html?id=${r.id}` },
+              { label: 'Print sample', act: 'sample' },
+              { label: 'Set as default', act: 'def' },
+              { label: 'Delete', act: 'del' },
+            ])}${r.is_default ? ' <span class="pill paid">Default</span>' : ''}</td>
+            <td>${esc(r.name)}</td>
+            <td>${esc(r.paper_mm || 80)}mm</td>
+            <td>${esc(r.connection_type)}</td><td>${esc(r.capability_profile)}</td>
+            <td>${esc(r.characters_per_line)}</td><td>${esc(r.ip_address)}</td><td>${esc(r.port)}</td>
+            <td>${esc(r.location_code)}</td>
+          </tr>`).join('') || '<tr data-dummy="1"><td colspan="9" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+      </section>`;
+    bindTable(app.querySelector('[data-tbl="pr"]'), { title: 'Printers', storageKey: 'printers' });
+    try {
+      const saved = localStorage.getItem('df_receipt_public_origin') || '';
+      document.getElementById('pub-origin').value = /axidigetek-erp\.vercel\.app/i.test(saved)
+        ? 'https://delkorfiberk.vercel.app'
+        : saved;
+    } catch { /* ignore */ }
+    document.getElementById('save-origin').onclick = () => {
+      let v = document.getElementById('pub-origin').value.trim().replace(/\/$/, '');
+      if (!v || /axidigetek-erp\.vercel\.app/i.test(v)) v = 'https://delkorfiberk.vercel.app';
+      document.getElementById('pub-origin').value = v;
+      try { localStorage.setItem('df_receipt_public_origin', v); } catch { /* ignore */ }
+      toast(v ? 'Public origin saved' : 'Using live ERP origin');
+    };
+    app.onclick = async (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'del') {
+        if (!(await confirmAction('Delete this printer?'))) return;
+        await deleteRow(TABLE, KEY, b.dataset.id); toast('Deleted'); location.reload();
+      }
+      if (b.dataset.act === 'def') { await setDefault(TABLE, KEY, b.dataset.id); toast('Default set'); location.reload(); }
+      if (b.dataset.act === 'sample') {
+        const row = rows.find((r) => String(r.id) === String(b.dataset.id));
+        if (!printThermal(sampleSale(), row || {})) toast('Allow pop-ups to print');
+      }
+    };
+  }
+</script>
+</body>
+</html>

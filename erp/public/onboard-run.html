@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Onboarding test — Delkor-Fiberk</title>
+  <style>
+    body { margin:0; min-height:100vh; display:grid; place-items:center; background:#071628; color:#fff; font:600 16px Inter,system-ui,sans-serif; }
+    .box { text-align:center; padding:24px; }
+    p { color:#94a3b8; font-weight:500; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Onboarding test</h1>
+    <p>Signing Kwame Mensah into orientation, then issuing a Cashier access key…</p>
+  </div>
+  <script type="module">
+    import { snapshotSession } from './js/supabaseClient.js';
+    import { upsertUser } from './js/access-gate.js';
+
+    const email = 'kwame.orient@delkorfiberk.com';
+    const row = upsertUser({
+      id: 'pending-preview',
+      email,
+      username: 'kwame.orient',
+      full_name: 'Mr. Kwame Mensah',
+      first_name: 'Kwame',
+      last_name: 'Mensah',
+      prefix: 'Mr.',
+      role: 'Pending',
+      role_name: 'Pending',
+      role_id: 'r-pending',
+      status: 'pending',
+      access_unlocked: false,
+      access_key: null,
+      allow_login: true,
+      is_active: true,
+      created_at: new Date().toISOString(),
+    });
+    snapshotSession({
+      access_token: 'local',
+      token_type: 'bearer',
+      user: {
+        id: row.id,
+        email,
+        user_metadata: { full_name: row.full_name, role: 'Pending' },
+      },
+    });
+    try {
+      localStorage.setItem('df_logged_in', '1');
+      sessionStorage.setItem('df_logged_in', '1');
+    } catch { /* ignore */ }
+    location.replace('/orientation.html?onboard=1');
+  </script>
+</body>
+</html>

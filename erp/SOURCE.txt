@@ -1,0 +1,11 @@
+SOURCE OF TRUTH
+Loaded 2026-09-13 from the zip you uploaded: Delkor-Fiberk ERP.zip
+
+All debugging and fixes go in this folder only.
+  /workspace/Our Project Updates/public   ← site (HTML / JS / CSS)
+  /workspace/Our Project Updates/api      ← /api/ai
+  /workspace/Our Project Updates/tools    ← diagnostics
+  /workspace/Our Project Updates/vercel.json
+
+Do not edit /workspace/erp-app for new work.
+The older tree is archived at artifacts/BACKUP-erp-app-before-fresh-2026-09-13.tar

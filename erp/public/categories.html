@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Categories</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .page{color:var(--ult-text)} h1{margin:0;font-size:22px} .sub{color:#3d4f66;font-size:14px;font-weight:400}
+    .card{background:var(--ult-card);border:1px solid var(--ult-border);border-radius:12px;padding:16px}
+    .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap}
+    .add{background:#4f46e5;color:#fff;border-radius:999px;padding:10px 18px;font-weight:700;text-decoration:none}
+    .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+    .bar .grow{flex:1}
+    .bar select,.bar input,.bar button{border:1px solid #111;background:var(--ult-card);border-radius:8px;padding:5px 10px;font-size:12px}
+    table.ult-table th,table.ult-table td{color:var(--ult-text)}
+    .pill{border-radius:999px;padding:4px 10px;font-size:12px;text-decoration:none;border:1px solid;margin-right:6px;cursor:pointer;background:var(--ult-card)}
+    .edit{color:#6d28d9;border-color:#c4b5fd}
+    .del{color:#e11d48;border-color:#fda4af}
+    .col-vis-menu,.pdf-orient{position:absolute;top:28px;background:#fff;border:1px solid #111;border-radius:8px;padding:8px;z-index:40}
+    .pager button{border:1px solid #111;background:var(--ult-card);padding:4px 10px}
+    .pager button.on{background:#1d4ed8;color:#fff}
+    .legend{font-size:13px;color:#475569;margin:0 0 10px}
+    .view-tabs{display:flex;gap:0;border:1px solid #c7d2fe;border-radius:999px;overflow:hidden}
+    .view-tabs button{border:0;background:var(--ult-card);color:#4338ca;font-weight:700;padding:8px 18px;cursor:pointer}
+    .view-tabs button.on{background:#4f46e5;color:#fff}
+    .cat-tree{list-style:none;margin:0;padding:0;max-width:820px}
+    .cat-tree ul{list-style:none;margin:0;padding:0 0 0 22px;border-left:2px solid #c7d2fe}
+    .cat-tree li{margin:0}
+    .cat-tree details{margin:0}
+    .cat-tree summary{
+      list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+      padding:6px 8px;border-radius:8px;font-weight:700;color:var(--ult-text);
+    }
+    .cat-tree summary::-webkit-details-marker{display:none}
+    .cat-tree summary:hover,.cat-tree .twig:hover{background:#eef2ff}
+    .cat-tree .twig{
+      display:flex;align-items:center;gap:8px;padding:5px 8px;color:#334155;font-size:13px;border-radius:8px
+    }
+    .cat-tree .chev{width:14px;color:#4338ca;flex:0 0 14px}
+    details > summary .chev::before{content:'▸'}
+    details[open] > summary .chev::before{content:'▾'}
+    .cat-tree .code{font-size:11px;font-weight:700;color:#4338ca;background:#eef2ff;border-radius:999px;padding:1px 8px}
+    .cat-tree .cnt{font-size:11px;font-weight:700;color:#64748b;background:#f1f5f9;border-radius:999px;padding:1px 8px}
+    .cat-tree .cat-row{display:flex;align-items:flex-start;gap:8px}
+    .cat-tree .cat-row > details{flex:1;min-width:0}
+    .cat-tree .cat-row > .acts{flex:0 0 auto;padding-top:4px}
+    .branch-h{font-size:15px}
+    .branch-h{font-size:15px}
+    .hint-live{font-size:11px;font-weight:600;color:#059669;background:#ecfdf5;border-radius:999px;padding:1px 8px}
+    .tree-search{min-width:220px;height:36px;border:1px solid #111;border-radius:8px;padding:6px 12px}
+    .hide-node{display:none !important}
+    .chan{font-size:10px;font-weight:800;color:#0f766e;background:#ccfbf1;border-radius:999px;padding:1px 7px}
+    .cat-child{color:#334155}
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { confirmAction, ackResult } from './js/confirm-action.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { writeLs, readLs, saveRow, deleteRow, uid } from './js/ls-rows.js';
+  import { openDeskModal } from './js/desk-modal.js';
+  import { KEYS as CAT_KEYS, SEED_CATEGORIES, SEED_UNITS } from './js/catalog-seed.js';
+  import { TAXONOMY } from './js/catalog-taxonomy.js';
+  import {
+    PRODUCT_CLASSES, ITEM_KINDS, ITEM_GROUPS, PRODUCT_FAMILIES,
+    PRICING_CLASSES, TAX_CLASSES, COSTING_METHODS, INVENTORY_CLASSES, PRODUCT_STATUSES,
+  } from './js/product-class.js';
+  import { excludeMigrated, siloGateHtml, knownSiloCount, PACK_METRICS } from './js/fiberk-silo.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+  const VIEW_KEY = 'df_cat_view';
+  function viewOf() {
+    const q = new URLSearchParams(location.search).get('view');
+    if (q === 'tree' || q === 'table' || q === 'merch') return q;
+    try { return sessionStorage.getItem(VIEW_KEY) || 'table'; } catch { return 'table'; }
+  }
+  function setView(v) {
+    try { sessionStorage.setItem(VIEW_KEY, v); } catch { /* ignore */ }
+    const u = new URL(location.href);
+    u.searchParams.set('view', v);
+    history.replaceState({}, '', u);
+  }
+  function lab(row) { return Array.isArray(row) ? row[1] : row; }
+  function twigs(list) {
+    return (list || []).map((x) => `<div class="twig">${esc(lab(x))}</div>`).join('');
+  }
+  function branch(title, inner, { open = false, live = false, count = 0, cls = '' } = {}) {
+    return `<li>
+      <details ${open ? 'open' : ''} class="${cls}">
+        <summary><span class="chev"></span><span class="branch-h">${esc(title)}</span>
+          ${live ? '<span class="hint-live">live</span>' : ''}
+          ${count ? `<span class="cnt">${count}</span>` : ''}
+        </summary>
+        <ul>${inner}</ul>
+      </details>
+    </li>`;
+  }
+
+  async function load() {
+    const stored = excludeMigrated(readLs(CAT_KEYS.categories, []) || []);
+    const live = stored.length ? stored : SEED_CATEGORIES;
+    if (!stored.length) writeLs(CAT_KEYS.categories, SEED_CATEGORIES);
+    const view = viewOf();
+    const brands = [...new Set((readLs(CAT_KEYS.brands, []) || []).map((b) => b && b.name).filter(Boolean))].sort();
+    const units = (readLs(CAT_KEYS.units, SEED_UNITS) || SEED_UNITS);
+    const suppliers = (readLs(CAT_KEYS.suppliers, []) || []).map((s) => s.name || s.company).filter(Boolean);
+    const chan = new URLSearchParams(location.search).get('channel') || '';
+    const rows = live.filter((r) => !chan || r.channel === chan);
+
+    const actBtns = (id, { del = true } = {}) => `
+      <details class="act">
+        <summary class="act-btn">Actions</summary>
+        <menu>
+          <button type="button" class="btn-edit" data-edit="${esc(id)}">Edit</button>
+          ${del ? `<button type="button" class="btn-del" data-del="${esc(id)}">Delete</button>` : ''}
+        </menu>
+      </details>`;
+
+    const lines = rows.map((r) => {
+      const label = r.parent_id ? `--${r.name}` : r.name;
+      return `<tr data-id="${esc(r.id)}">
+        <td><input type="checkbox" data-pick="${esc(r.id)}" /></td>
+        <td>${actBtns(r.id)}</td>
+        <td class="${r.parent_id ? 'cat-child' : ''}"><strong>${esc(label)}</strong>
+          ${r.channel ? `<span class="chan">${esc(r.channel)}</span>` : ''}
+        </td>
+        <td>${esc(r.code || r.short_code || '')}</td>
+        <td>${esc(r.description || '')}</td>
+        <td>${esc(r.parent_name || '—')}</td>
+        <td>${Number(r.product_count || 0)}</td>
+      </tr>`;
+    }).join('');
+
+    const parents = rows.filter((r) => !r.parent_id);
+    const childrenOf = (id) => rows.filter((r) => String(r.parent_id) === String(id));
+    const catTree = parents.map((parent) => {
+      const kids = childrenOf(parent.id);
+      const inner = kids.map((ch) => `
+        <li><div class="twig"><span>${esc(ch.name)}</span>
+          ${ch.code ? `<span class="code">${esc(ch.code)}</span>` : ''}
+          <span class="cnt">${ch.product_count || 0}</span>
+          <span class="acts">${actBtns(ch.id)}</span>
+        </div></li>`).join('') || '<li><div class="twig">No subcategories</div></li>';
+      return `<li><div class="cat-row">
+        <details>
+          <summary><span class="chev"></span><strong>${esc(parent.name)}</strong>
+            ${parent.code ? `<span class="code">${esc(parent.code)}</span>` : ''}
+            <span class="cnt">${kids.length}</span>
+          </summary>
+          <ul>${inner}</ul>
+        </details>
+        <span class="acts">${actBtns(parent.id, { del: false })}</span>
+      </div></li>`;
+    }).join('');
+
+    const merchTree = TAXONOMY.map((parent) => {
+      const kids = parent.children.map((ch) => `
+        <li><div class="twig">${esc(ch.name)} <span class="code">${esc(ch.code)}</span></div></li>`).join('');
+      return `<li><details open>
+        <summary><span class="chev"></span><strong>${esc(parent.name)}</strong>
+          <span class="code">${esc(parent.code)}</span>
+          <span class="cnt">${parent.children.length}</span>
+        </summary>
+        <ul>${kids}</ul>
+      </details></li>`;
+    }).join('');
+
+    const treeHtml = view === 'merch' ? `<ul class="cat-tree">
+      ${branch('Product Class', `
+        ${branch('Class Description', twigs(PRODUCT_CLASSES), { live: true, count: PRODUCT_CLASSES.length })}
+        ${branch('Product Type', twigs(ITEM_KINDS), { live: true, count: ITEM_KINDS.length })}
+        ${branch('Item Group', twigs(ITEM_GROUPS), { live: true, count: ITEM_GROUPS.length })}
+        ${branch('Product Family', twigs(PRODUCT_FAMILIES), { live: true, count: PRODUCT_FAMILIES.length })}
+      `, { open: true })}
+      ${branch('Merchandising category', merchTree, { open: true, live: true, count: TAXONOMY.length })}
+      ${branch('Brand', twigs(brands.length ? brands : ['(no brands yet)']), { live: true, count: brands.length })}
+      ${branch('Unit of Measure', twigs(units.map((u) => u.name ? `${u.name} (${u.short_name || u.name})` : u)), { live: true, count: units.length })}
+      ${branch('Pricing', `${twigs(['Retail Price', 'Wholesale Price', 'Distributor Price', 'Agent Price'])}${branch('Pricing Class', twigs(PRICING_CLASSES), { live: true, count: PRICING_CLASSES.length })}`)}
+      ${branch('Costing', `${twigs(['Cost', 'Costing Class'])}${branch('Costing Method', twigs(COSTING_METHODS), { live: true })}`)}
+      ${branch('Inventory Tracking', `${twigs(['Track Serial', 'Track Batch', 'Track Expiry', 'Min Stock', 'Max Stock', 'Reorder Point'])}${branch('Inventory Class', twigs(INVENTORY_CLASSES), { live: true })}`)}
+      ${branch('Supplier & Warranty', `${suppliers.length ? twigs(suppliers) : '<div class="twig">Supplier — from the product form</div>'}${twigs(['Warranty Period'])}`)}
+      ${branch('Taxation', `${twigs(['Tax Rate'])}${branch('Tax Class', twigs(TAX_CLASSES), { live: true })}`)}
+      ${branch('Status', twigs(PRODUCT_STATUSES), { live: true, count: 3 })}
+    </ul>` : `<ul class="cat-tree">${catTree}</ul>`;
+
+    const channels = [...new Set(live.map((r) => r.channel).filter(Boolean))].sort();
+    const chanOpts = channels.map((c) => `<option ${c === chan ? 'selected' : ''}>${esc(c)}</option>`).join('');
+    const m = PACK_METRICS.categories || { n: live.length, parents: parents.length, children: Math.max(0, live.length - parents.length) };
+    const tabs = `<div class="view-tabs">
+      <button type="button" data-view="table" class="${view==='table'?'on':''}">Table</button>
+      <button type="button" data-view="tree" class="${view==='tree'?'on':''}">Tree</button>
+      <button type="button" data-view="merch" class="${view==='merch'?'on':''}">Merch</button>
+    </div>`;
+
+    app.innerHTML = `
+      <h1>Categories <span class="sub">Manage your categories</span></h1>
+      <p>${esc(scopeCaption())}</p>
+      <p class="legend">${live.length} categories · ${m.parents || 0} parents · ${m.children || 0} subcategories</p>
+      <div class="card" ${view==='table' ? 'data-tbl="t"' : ''}>
+        <div class="head">
+          <h2>${view==='tree' ? 'Category tree' : view==='merch' ? 'Merchandising classification' : 'Manage your categories'}</h2>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            ${view!=='table' ? '<input class="tree-search" id="tree-q" placeholder="Search the tree…" />' : ''}
+            ${tabs}
+            <button type="button" class="add" id="add-cat">+ Add</button>
+          </div>
+        </div>
+        ${view==='table' ? `
+        <div class="filter-section" id="filt-box">
+          <div class="filter-header">Filters <span class="filter-chevron">▼</span></div>
+          <div class="filter-body">
+            <div class="filters">
+              <div>Channel<br><select id="f-chan"><option value="">All</option>${chanOpts}</select></div>
+            </div>
+          </div>
+        </div>
+        <div class="bar">
+          <label>Show <select data-tbl-size><option selected>25</option><option>50</option><option>100</option><option>All</option></select> entries</label>
+          <div class="grow"></div>
+          <button type="button" data-exp="csv">Export CSV</button>
+          <button type="button" data-exp="xls">Export Excel</button>
+          <button type="button" data-exp="print">Print</button>
+          <button type="button" data-exp="cols">Column visibility</button>
+          <button type="button" data-exp="pdf">Export PDF</button>
+          <input data-tbl-search placeholder="Search …" />
+        </div>
+        <div class="ult-table-wrap"><table class="ult-table">
+          <thead><tr>
+            <th><input type="checkbox" id="pick-all" /></th>
+            <th>Action</th>
+            <th>Category</th><th>Category Code</th><th>Description</th><th>Parent</th><th>Products</th>
+          </tr></thead>
+          <tbody>${lines || '<tr data-dummy="1"><td colspan="7" style="text-align:center">No data available in table</td></tr>'}</tbody>
+        </table></div>
+        <div style="display:flex;justify-content:space-between;margin-top:10px"><div data-tbl-info></div><div class="pager" data-tbl-pager></div></div>
+        ` : treeHtml}
+      </div>`;
+
+    if (view === 'table') {
+      bindTable(app.querySelector('[data-tbl="t"]'), { title: 'Categories', storageKey: 'cats-live-v1' });
+      app.querySelector('#pick-all')?.addEventListener('change', (e) => {
+        app.querySelectorAll('tbody [type="checkbox"]').forEach((c) => { c.checked = e.target.checked; });
+      });
+      app.querySelector('#f-chan')?.addEventListener('change', (e) => {
+        const u = new URL(location.href);
+        if (e.target.value) u.searchParams.set('channel', e.target.value);
+        else u.searchParams.delete('channel');
+        history.replaceState({}, '', u);
+        load();
+      });
+    } else {
+      const qEl = document.getElementById('tree-q');
+      qEl?.addEventListener('input', () => {
+        const q = qEl.value.trim().toLowerCase();
+        app.querySelectorAll('.cat-tree li').forEach((li) => {
+          const hit = !q || (li.textContent || '').toLowerCase().includes(q);
+          li.classList.toggle('hide-node', !hit);
+          if (hit && q) {
+            let p = li.parentElement;
+            while (p) {
+              if (p.tagName === 'DETAILS') p.open = true;
+              p = p.parentElement;
+            }
+          }
+        });
+      });
+    }
+    app.querySelectorAll('[data-view]').forEach((b) => {
+      b.onclick = () => { setView(b.dataset.view); load(); };
+    });
+    function catForm(row, isNew) {
+      const parents = live.filter((r) => !r.parent_id && String(r.id) !== String(row.id));
+      const parentOpts = parents.map((p) => `<option value="${esc(p.id)}" ${String(p.id)===String(row.parent_id)?'selected':''}>${esc(p.name)}</option>`).join('');
+      openDeskModal({
+        title: isNew ? 'Add category' : 'Edit',
+        saveLabel: isNew ? 'Save' : 'Update',
+        body: `<label>Category name:*</label><input name="name" required value="${esc(row.name || '')}" />
+          <label>Category Code:</label><input name="code" value="${esc(row.code || row.short_code || '')}" placeholder="Category Code" />
+          <p class="dm-hint">Category code is same as HSN code</p>
+          <label>Description:</label><textarea name="description">${esc(row.description || '')}</textarea>
+          <label class="dm-check"><input type="checkbox" name="as_sub" ${row.parent_id ? 'checked' : ''} /> Add as sub taxonomy</label>
+          <label>Select parent taxonomy:</label>
+          <select name="parent_id"><option value="">—</option>${parentOpts}</select>`,
+        onSave: async (fd) => {
+          const asSub = fd.get('as_sub') === 'on';
+          const parentId = asSub ? String(fd.get('parent_id') || '') : '';
+          const parent = live.find((r) => String(r.id) === parentId);
+          const next = {
+            ...row,
+            id: row.id || uid(),
+            name: String(fd.get('name') || '').trim(),
+            code: String(fd.get('code') || '').trim(),
+            description: String(fd.get('description') || '').trim(),
+            parent_id: parentId || null,
+            parent_name: parent?.name || '',
+          };
+          if (!next.name) return false;
+          await saveRow('categories', CAT_KEYS.categories, next);
+          ackResult(true, isNew ? 'Category added.' : 'Category updated.');
+          load();
+        },
+      });
+    }
+    document.getElementById('add-cat')?.addEventListener('click', () => catForm({}, true));
+    app.querySelectorAll('[data-edit]').forEach((b) => {
+      b.onclick = () => catForm(live.find((r) => String(r.id) === String(b.dataset.edit)) || { id: b.dataset.edit }, false);
+    });
+    app.querySelectorAll('[data-del]').forEach((b) => {
+      b.onclick = async () => {
+        if (!(await confirmAction('Delete this category?', 'This cannot be undone.'))) return;
+        await deleteRow('categories', CAT_KEYS.categories, b.dataset.del);
+        ackResult(true, 'Deleted.');
+        load();
+      };
+    });
+  }
+  load().catch((err) => {
+    console.error(err);
+    app.innerHTML = `<h1>Categories</h1><p class="sub">Could not open the book. ${esc(err?.message || err)}</p>`;
+  });
+  window.addEventListener(SCOPE_EVENT, () => { load().catch(() => {}); });
+</script>
+</body>
+</html>

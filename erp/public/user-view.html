@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>View User — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-main { max-width: none !important; width: 100%; }
+    .vu { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+    @media (max-width: 900px) { .vu { grid-template-columns: 1fr; } }
+    .vu-side { background: var(--ult-card); border: 1px solid var(--ult-border); border-top: 3px solid #1e40af; border-radius: 8px; padding: 20px 16px; text-align: center; }
+    .vu-av { width: 88px; height: 88px; border-radius: 50%; background: #e5e7eb; color: #374151; font-weight: 800; font-size: 28px; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px; }
+    .vu-name { font-weight: 700; font-size: 16px; }
+    .vu-role { color: #9ca3af; font-size: 13px; margin-bottom: 12px; }
+    .vu-row { display: flex; justify-content: space-between; padding: 8px 0; border-top: 1px solid #f3f4f6; font-size: 13px; text-align: left; }
+    .vu-row span { color: #6b7280; }
+    .vu-row b { font-weight: 600; color: #2563eb; }
+    .badge { background: #22c55e; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+    .badge.off { background: #9ca3af; }
+    .vu-edit { display: inline-block; margin-top: 16px; background: #5b4dff; color: #fff; text-decoration: none; border-radius: 8px; padding: 8px 16px; font-weight: 700; font-size: 13px; }
+    .vu-main { background: var(--ult-card); border: 1px solid var(--ult-border); border-radius: 8px; min-height: 480px; }
+    .vu-tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; border-bottom: 1px solid var(--ult-border); }
+    .vu-tabs button { border: 0; background: var(--ult-card); padding: 14px 8px; font-weight: 600; cursor: pointer; color: #6b7280; border-bottom: 3px solid transparent; }
+    .vu-tabs button.on { color: var(--ult-text); border-bottom-color: #1e40af; }
+    .vu-body { padding: 16px 20px 24px; }
+    .vu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 24px; font-size: 13px; }
+    @media (max-width: 900px) { .vu-grid { grid-template-columns: 1fr; } }
+    .vu-grid div { padding: 2px 0; }
+    .vu-grid b { font-weight: 600; }
+    .vu-sec { margin: 16px 0 8px; font-weight: 700; }
+    .vu-hr { border: 0; border-top: 1px solid var(--ult-border); margin: 16px 0; }
+    .vu-switch { margin-left: auto; max-width: 240px; }
+  </style>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/__grok/icon-180.png" />
+</head>
+<body>
+  <main class="ult-main" id="app">Loading user…</main>
+  <script type="module">
+    import { supabase, isRemoteKey } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { loadRows } from './js/ls-rows.js';
+    import { KEYS as CAT_KEYS, SEED_USERS, SEED_ROLES } from './js/catalog-seed.js';
+    import { displayRole } from './js/access-rules.js';
+    import { publicJobLabel } from './js/staff-jobs.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const dash = (v) => (v === 0 || v ? esc(v) : '—');
+    const id = new URLSearchParams(location.search).get('id');
+    let row = {};
+    let roles = [];
+    let people = [];
+    let tab = 'info';
+    let err = '';
+
+    function initials() {
+      const n = row.full_name || [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || '?';
+      const p = String(n).trim().split(/\s+/);
+      return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
+    }
+    function displayName() {
+      return [row.prefix, row.first_name || row.full_name, row.last_name].filter(Boolean).join(' ') || row.email || 'User';
+    }
+    function roleName() {
+      return publicJobLabel(row, row.email) || displayRole(roles.find((r) => String(r.id) === String(row.role_id))?.name || row.role || row.role_name || '');
+    }
+
+    async function load() {
+      try {
+        if (!id) {
+          app.innerHTML = pageChrome('View User', '') + `<p class="ult-alert">No user selected.</p><p><a href="/users.html">Back to users</a></p>`;
+          return;
+        }
+        const [remote, local, roleRows] = await Promise.all([
+          isRemoteKey(id) ? supabase.from('profiles').select('*').eq('id', id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+          loadRows('profiles', CAT_KEYS.users, SEED_USERS),
+          loadRows('app_roles', CAT_KEYS.roles, SEED_ROLES),
+        ]);
+        people = local;
+        roles = roleRows;
+        const match = (u) => u && (
+          String(u.id) === String(id)
+          || String(u.email || '').toLowerCase() === String(id).toLowerCase()
+          || String(u.username || '').toLowerCase() === String(id).toLowerCase()
+        );
+        row = remote.data || local.find(match) || {};
+        if (!row.email && !row.full_name && isRemoteKey(id)) {
+          const again = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+          if (again.data) row = { ...row, ...again.data };
+        }
+        err = '';
+        if (!row.id && !row.email) {
+          app.innerHTML = pageChrome('View User', '') + `<p class="ult-alert">User not found.</p><p><a href="/users.html">Back to users</a></p>`;
+          return;
+        }
+        render();
+      } catch (e) {
+        app.innerHTML = pageChrome('View User', '') + `<p class="ult-alert">${esc(e.message || e)}</p><p><a href="/users.html">Back to users</a></p>`;
+      }
+    }
+
+    function kv(label, value) {
+      return `<div><b>${esc(label)}</b> ${dash(value)}</div>`;
+    }
+
+    function render() {
+      const active = row.is_active !== false;
+      app.innerHTML = pageChrome('View User', '') + `
+        ${err ? `<div class="ult-alert">${esc(err)}</div>` : ''}
+        <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+          <select class="vu-switch" id="jump">
+            ${people.map((u) => `<option value="${esc(u.id)}" ${String(u.id)===String(id)?'selected':''}>${esc(u.full_name || u.email || u.id)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="vu">
+          <aside class="vu-side">
+            <div class="vu-av">${esc(initials())}</div>
+            <div class="vu-name">${esc(displayName())}</div>
+            <div class="vu-role">${esc(roleName())}</div>
+            <div class="vu-row"><span>Username</span><b>${esc(row.username || (row.email || '').split('@')[0])}</b></div>
+            <div class="vu-row"><span>Email</span><b>${esc(row.email || '')}</b></div>
+            <div class="vu-row"><span>Is active ?</span><span class="badge ${active ? '' : 'off'}">${active ? 'Active' : 'Inactive'}</span></div>
+            ${row.access_key ? `<div class="vu-row"><span>Access key</span><b style="letter-spacing:.06em">${esc(row.access_key)}</b></div>
+            <button type="button" class="vu-edit" id="copy-key" style="margin-top:8px;background:#4338ca">Copy access key</button>` : ''}
+            <a class="vu-edit" href="/user-edit.html?id=${esc(id || '')}">✎ Edit</a>
+          </aside>
+          <section class="vu-main">
+            <div class="vu-tabs">
+              <button type="button" class="${tab==='info'?'on':''}" data-tab="info">👤 User Information</button>
+              <button type="button" class="${tab==='docs'?'on':''}" data-tab="docs">📎 Documents & Note</button>
+              <button type="button" class="${tab==='act'?'on':''}" data-tab="act">📋 Activities</button>
+            </div>
+            <div class="vu-body">
+              ${tab === 'info' ? `
+                <div class="vu-grid">
+                  ${kv('Sales Commission Percentage (%):', (Number(row.sales_commission_pct || 0)).toFixed(2) + '%')}
+                  ${kv('Allowed Contacts:', row.allow_selected_contacts ? 'Selected' : 'All')}
+                </div>
+                <div class="vu-sec">More Informations</div>
+                <div class="vu-grid">
+                  ${kv('Date of birth:', row.dob)}
+                  ${kv('Facebook Link:', row.facebook)}
+                  ${kv('Custom field 1:', row.custom_1)}
+                  ${kv('Gender:', row.gender)}
+                  ${kv('Twitter Link:', row.twitter)}
+                  ${kv('Custom field 2:', row.custom_2)}
+                  ${kv('Marital Status:', row.marital_status)}
+                  ${kv('Social Media 1:', row.social_1)}
+                  ${kv('Custom field 3:', row.custom_3)}
+                  ${kv('Blood Group:', row.blood_group)}
+                  ${kv('Social Media 2:', row.social_2)}
+                  ${kv('Custom field 4:', row.custom_4)}
+                  ${kv('Mobile Number:', row.mobile)}
+                  ${kv('Alternate contact number:', row.alt_mobile)}
+                  ${kv('Family contact number:', row.family_contact)}
+                  ${kv('ID proof name:', row.id_proof_name)}
+                  ${kv('ID proof number:', row.id_proof_number)}
+                </div>
+                <hr class="vu-hr" />
+                <div class="vu-grid">
+                  ${kv('City:', row.city)}
+                  ${kv('Region:', row.region)}
+                  ${kv('Digital Address:', row.ghana_post_gps)}
+                  ${kv('Permanent Address:', row.address_permanent)}
+                  ${kv('Current Address:', row.address_current)}
+                </div>
+                <hr class="vu-hr" />
+                <div class="vu-sec">Bank Details:</div>
+                <div class="vu-grid">
+                  ${kv("Account Holder's Name:", row.bank_holder)}
+                  ${kv('Bank Name:', row.bank_name)}
+                  ${kv('Branch:', row.bank_branch)}
+                  ${kv('Account Number:', row.bank_account)}
+                  ${kv('Bank Identifier Code:', row.bank_code)}
+                  ${kv('Tax Payer ID:', row.tin)}
+                </div>
+                <hr class="vu-hr" />
+                <div class="vu-sec">HRM Details:</div>
+                <div class="vu-grid">
+                  ${kv('Department:', row.department)}
+                  ${kv('Designation:', row.designation)}
+                  ${kv('Basic salary:', row.basic_salary)}
+                  ${kv('Pay Cycle:', row.salary_period)}
+                  ${kv('Primary work location:', row.work_location || (row.all_locations !== false ? 'All locations' : ''))}
+                </div>
+              ` : tab === 'docs' ? `
+                <p>No documents on file for this user.</p>
+                <p class="ult-muted">Upload is available from HRM → Documents when a file is attached to this profile.</p>
+              ` : `
+                <div class="vu-grid">
+                  ${kv('Created', row.created_at ? new Date(row.created_at).toLocaleString('en-GB') : '—')}
+                  ${kv('Last updated', row.updated_at ? new Date(row.updated_at).toLocaleString('en-GB') : '—')}
+                  ${kv('Role', roleName())}
+                  ${kv('Subsidiary', row.subsidiary_code || row.home_subsidiary || '—')}
+                  ${kv('Allow login', row.allow_login === false ? 'No' : 'Yes')}
+                </div>
+              `}
+            </div>
+          </section>
+        </div>
+      `;
+      app.querySelectorAll('[data-tab]').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+      app.querySelector('#copy-key')?.addEventListener('click', async () => {
+        const k = String(row.access_key || '');
+        if (!k) return;
+        let ok = false;
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = k;
+          ta.setAttribute('readonly', '');
+          ta.style.cssText = 'position:fixed;opacity:0.01';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          ta.remove();
+        } catch { /* ignore */ }
+        try { if (!ok && navigator.clipboard?.writeText) { await navigator.clipboard.writeText(k); ok = true; } } catch { /* ignore */ }
+        alert(ok ? ('Copied ' + k) : ('Access key: ' + k));
+      });
+      app.querySelector('#jump')?.addEventListener('change', (e) => {
+        if (e.target.value) location.href = '/user-view.html?id=' + encodeURIComponent(e.target.value);
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

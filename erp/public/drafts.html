@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>List Drafts</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { supabase, fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { filterBySidebar, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { loadRows, actMenu } from './js/ls-rows.js';
+  import { KEYS as CAT_KEYS, SEED_SALES } from './js/catalog-seed.js';
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const data = await loadRows('sales_orders', CAT_KEYS.sales, SEED_SALES);
+  const rows = filterBySidebar(data || []).filter((r) => String(r.status||'').toLowerCase() === 'draft');
+  app.innerHTML = `
+    <h1>List Drafts</h1>
+    <p class="ult-muted">${scopeCaption()} — unsaved / incomplete sales</p>
+    <div class="ult-card" data-tbl="drafts">
+      <div class="ult-table-wrap"><table class="ult-table">
+        <thead><tr><th>Action</th><th>Date</th><th>Reference</th><th>Customer</th><th>Total</th></tr></thead>
+        <tbody>${rows.map((r)=>`<tr data-id="${r.id}">
+          <td>${actMenu(r.id, [
+            { href: `/draft-form.html?id=${encodeURIComponent(r.id)}&view=1`, label: 'View' },
+            { href: `/draft-form.html?id=${encodeURIComponent(r.id)}`, label: 'Edit' },
+            { href: `/sales-form.html?id=${encodeURIComponent(r.id)}`, label: 'Finish sale' },
+          ])}</td>
+          <td>${String(r.order_date||r.created_at||'').slice(0,10)}</td>
+          <td>${r.reference||r.reference_no||''}</td>
+          <td>${r.customer_name||''}</td>
+          <td>${fmt(r.total_amount)}</td>
+        </tr>`).join('') || '<tr data-dummy="1"><td colspan="5">No data available in table</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+  bindTable(app.querySelector('[data-tbl="drafts"]'), { title: 'Drafts', storageKey: 'drafts' });
+</script>
+</body>
+</html>

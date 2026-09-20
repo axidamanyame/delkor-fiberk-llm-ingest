@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account ledger — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { accNav, esc, loadAccounts, loadJournals, loadTransfers, scopeAccounts, scopeDocs,
+    tableBar, tableFoot, fmtDate, inRange, subLabel, ensureDemoBooks, fiberkDateRange,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const id = new URLSearchParams(location.search).get('id');
+  const fk = fiberkDateRange();
+  const F = { from: fk.from, to: fk.to };
+
+  async function paint() {
+    await ensureDemoBooks();
+    const accounts = scopeAccounts(await loadAccounts());
+    const acc = accounts.find((a) => String(a.id) === String(id)) || (await loadAccounts()).find((a) => String(a.id) === String(id));
+    if (!acc) {
+      app.innerHTML = `${accNav('coa')}<h1>Account ledger</h1><p>Account not found. <a href="/accounting-coa.html">Back</a></p>`;
+      return;
+    }
+    const journals = scopeDocs(await loadJournals());
+    const transfers = scopeDocs(await loadTransfers());
+    const isDebit = acc.account_type === 'Asset' || acc.account_type === 'Expenses';
+    let bal = Number(acc.opening_balance || 0);
+    const rows = [];
+    if (inRange(acc.as_of, F.from, F.to) || !acc.as_of) {
+      rows.push({ date: acc.as_of || F.from, ref: 'Opening', note: 'Opening balance', debit: isDebit && bal > 0 ? bal : 0, credit: !isDebit && bal > 0 ? bal : 0, running: bal });
+    }
+    journals.forEach((j) => {
+      if (!inRange(j.journal_date, F.from, F.to)) return;
+      (j.lines || []).forEach((ln) => {
+        if (String(ln.account_id) !== String(acc.id) && ln.account !== acc.name) return;
+        const d = Number(ln.debit || 0);
+        const c = Number(ln.credit || 0);
+        bal += isDebit ? (d - c) : (c - d);
+        rows.push({ date: j.journal_date, ref: j.ref_no, note: ln.note || j.note || '', debit: d, credit: c, running: bal, href: `/accounting-journal-form.html?id=${j.id}&view=1` });
+      });
+    });
+    transfers.forEach((t) => {
+      if (!inRange(t.transfer_date, F.from, F.to)) return;
+      const amt = Number(t.amount || 0);
+      const fromMe = String(t.from_account_id) === String(acc.id) || t.from_account === acc.name;
+      const toMe = String(t.to_account_id) === String(acc.id) || t.to_account === acc.name;
+      if (!fromMe && !toMe) return;
+      const d = toMe ? amt : 0;
+      const c = fromMe ? amt : 0;
+      bal += isDebit ? (d - c) : (c - d);
+      rows.push({ date: t.transfer_date, ref: t.ref_no, note: t.note || (fromMe ? `To ${t.to_account}` : `From ${t.from_account}`), debit: d, credit: c, running: bal, href: `/accounting-transfer-form.html?id=${t.id}&view=1` });
+    });
+    rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    app.innerHTML = `
+      ${accNav('coa')}
+      <div class="acc-top">
+        <div>
+          <h1>${esc(acc.name)}</h1>
+          <p class="sub">${esc(acc.gl_code || '')} · ${esc(acc.account_type)} / ${esc(acc.sub_type || '')} · ${esc(subLabel(acc.subsidiary_code))} · ${esc(scopeCaption())}</p>
+        </div>
+        <div>
+          <a class="ult-add" href="/accounting-account-form.html?id=${esc(acc.id)}">Edit</a>
+          <a class="ult-btn ult-btn-outline" href="/accounting-coa.html">Back</a>
+        </div>
+      </div>
+      <div class="home-card">
+        <div class="filters" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
+          <label>From <input id="f-from" type="date" value="${esc(F.from)}" /></label>
+          <label>To <input id="f-to" type="date" value="${esc(F.to)}" /></label>
+        </div>
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th>Date</th><th>Reference No</th><th>Note</th><th>Debit</th><th>Credit</th><th>Balance</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr ${r.href ? `data-view="${esc(r.href)}"` : ''}>
+              <td>${esc(fmtDate(r.date))}</td>
+              <td>${esc(r.ref)}</td>
+              <td>${esc(r.note)}</td>
+              <td>${r.debit ? fmt(r.debit) : ''}</td>
+              <td>${r.credit ? fmt(r.credit) : ''}</td>
+              <td>${fmt(r.running)}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="6">No data available in table</td></tr>'}
+          </tbody>
+          <tfoot><tr><td colspan="3"><strong>Closing</strong></td><td></td><td></td><td><strong>${fmt(bal)}</strong></td></tr></tfoot>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+    app.querySelector('#f-from').onchange = (e) => { F.from = e.target.value; paint(); };
+    app.querySelector('#f-to').onchange = (e) => { F.to = e.target.value; paint(); };
+    bindTable(app, { title: acc.name + ' ledger', storageKey: 'ledger' });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>

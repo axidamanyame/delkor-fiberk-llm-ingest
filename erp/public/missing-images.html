@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Missing Images — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { listMissing } from './js/media-sync.js';
+  await mountUltimateShell();
+  const rows = await listMissing().catch(() => []);
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Missing Images', 'No image_url on the product')}
+    <p><a class="ult-btn ult-btn-outline" href="/media-sync.html">Dashboard</a></p>
+    <div class="ult-card"><table class="ult-table">
+      <thead><tr><th>SKU</th><th>Name</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${r.sku || ''}</td><td>${r.name || ''}</td></tr>`).join('') || '<tr><td colspan="2">All listed products have an image_url.</td></tr>'}</tbody>
+    </table></div>`;
+</script>
+</body>
+</html>

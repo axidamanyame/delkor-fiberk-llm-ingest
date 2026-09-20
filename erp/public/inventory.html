@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Legacy Inventory — Axidigetek ERP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/main.css" />
+</head>
+<body>
+  <div id="app" class="app"></div>
+  <script type="module">
+    import { getCurrentUserWithRole } from "/js/auth.js";
+    import { mountShell } from "/js/shell.js";
+    import { supabase } from "/js/supabaseClient.js";
+
+    const ctx = await getCurrentUserWithRole();
+    if (!ctx) throw new Error("no session");
+    const { contentEl } = await mountShell({
+      title: "Legacy Inventory", active: "inventory", role: ctx.role,
+      userName: (ctx.fullName || "User").split("@")[0]
+    });
+
+    contentEl.innerHTML = `
+      <div class="card"><div class="card-body muted">Prefer <a href="/stock.html">Stock</a> and <a href="/products.html">Products</a> for the new flow. This table is the original simple inventory.</div></div>
+      <div class="card">
+        <div class="card-header"><h3>Inventory list</h3></div>
+        <div class="card-body no-pad">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Item</th><th>SKU</th><th>Stock</th><th>Min</th></tr></thead>
+              <tbody id="body"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    const { data, error } = await supabase.from("inventory").select("*").order("updated_at", { ascending: false });
+    const body = document.getElementById("body");
+    if (error) body.innerHTML = `<tr><td colspan="5" class="empty-state">${error.message}</td></tr>`;
+    else if (!data?.length) body.innerHTML = `<tr><td colspan="5" class="empty-state">Empty</td></tr>`;
+    else body.innerHTML = data.map(i => `
+      <tr>
+        <td><code class="text-sm">${(i.id||"").slice(0,8)}…</code></td>
+        <td>${i.item_name||"—"}</td><td>${i.sku||"—"}</td>
+        <td>${i.stock??"—"}</td><td>${i.min_stock??"—"}</td>
+      </tr>`).join("");
+  </script>
+</body>
+</html>

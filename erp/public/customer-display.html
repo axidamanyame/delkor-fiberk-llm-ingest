@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Customer display — Delkor-Fiberk</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <link rel="stylesheet" href="/css/receipt.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; width: 100%; margin: 0; overflow: hidden; }
+    body { font-family: Inter, system-ui, sans-serif; background: #dbe4f0; color: #0f172a; }
+    .wrap {
+      display: grid; grid-template-rows: 56px minmax(0,1fr) 28px;
+      height: 100dvh; width: 100%; max-width: 100vw; overflow: hidden;
+    }
+    .top {
+      margin: 8px 10px 0; border-radius: 12px; display:flex; align-items:center;
+      position:relative; overflow:hidden; min-height:56px;
+      background: linear-gradient(90deg,#1d4ed8,#0ea5e9,#10b981,#7c3aed,#b91c1c,#1d4ed8);
+      background-size: 300% 100%;
+      animation: barShift 36s linear infinite;
+    }
+    .banner { flex:1; overflow:hidden; margin-right:52px; }
+    .track {
+      display:flex; gap: 72px; width:max-content;
+      animation: marquee 36s linear infinite;
+      white-space: nowrap; align-items: center;
+    }
+    .seg { font-size: clamp(20px, 2.6vw, 34px); font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+    .seg.axi { color:#fff; text-shadow: 0 2px 0 rgba(29,78,216,.35); }
+    .seg.fiberk { color:#fef3c7; }
+    .seg.bnpl { color:#dcfce7; }
+    .seg.delkor { color:#ede9fe; }
+    @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    @keyframes barShift { 0%{background-position:0 50%} 100%{background-position:100% 50%} }
+    .fs { position:absolute; right:12px; top:8px; width:40px; height:40px; border:1px solid #e2e8f0; border-radius:10px; background:#fff; cursor:pointer; color:#4f46e5; }
+    .grid {
+      display:flex; gap:0; padding:10px; min-height:0; min-width:0;
+      width:100%; max-width:100%; align-items:stretch; overflow:hidden;
+    }
+    .card {
+      background:#fff; border-radius:14px; padding:16px 18px;
+      display:flex; flex-direction:column; min-height:0; min-width:0;
+      overflow:auto; flex: 0 0 auto;
+    }
+    .promo {
+      position: relative; min-height:0; min-width:0; height:auto;
+      border-radius:14px; overflow:hidden; background:#111; flex: 1 1 auto;
+    }
+    .split {
+      flex: 0 0 14px; cursor: col-resize; position: relative; touch-action: none; user-select: none; z-index: 2;
+    }
+    .split::before {
+      content:''; position:absolute; left:5px; top:16%; bottom:16%; width:4px;
+      border-radius:4px; background:#94a3b8;
+    }
+    .split::after {
+      content:'⋮'; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+      color:#334155; font-weight:800; font-size:16px; pointer-events:none;
+    }
+    .split:hover::before, .split.dragging::before { background:#2563eb; box-shadow:0 0 0 4px rgba(37,99,235,.18); }
+    body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
+    .swiper { position:absolute; inset:0; width:100% !important; height:100% !important; }
+    .swiper-wrapper, .swiper-slide { width:100% !important; height:100% !important; }
+    .swiper-slide {
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+      text-align:center; color:#fff; padding:32px; background-size:cover;
+    }
+    .swiper-slide h2 { font-size: clamp(28px, 4vw, 48px); margin: 8px 0; color:#fff; }
+    .swiper-slide p { font-size:18px; max-width:440px; color:#fff; }
+    .ad-slide {
+      background:#fff !important; padding:0 !important; position:relative;
+      justify-content:flex-end !important; align-items:stretch !important; text-align:left !important;
+    }
+    .ad-slide img { width:100%; height:calc(100% - 92px); object-fit:contain; background:#fff; display:block; }
+    .ad-slide .ad-copy {
+      width:100%; background:rgba(15,23,42,.9); padding:12px 20px 14px; box-sizing:border-box;
+    }
+    .ad-slide .ad-copy h2 { margin:0 0 4px; font-size:clamp(22px,3vw,34px); }
+    .ad-slide .ad-copy p { margin:0; max-width:none; font-size:15px; }
+    table { width:100%; border-collapse:collapse; table-layout:fixed; }
+    th,td { padding:10px 6px; text-align:left; border-bottom:1px solid #eef2f7; font-size:14px; overflow:hidden; text-overflow:ellipsis; }
+    th { color:#3d4f66; font-size:12px; text-transform:uppercase; }
+    .foot { margin-top:auto; padding-top:12px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:14px; }
+    .pay { grid-column:1/-1; background:#f97316; color:#fff; border-radius:10px; display:flex; justify-content:space-between; padding:14px 16px; font-weight:800; gap:8px; }
+    .card.has-receipt { padding: 0; background: transparent; overflow: auto; }
+    .card.has-receipt #ticket-live { display: none; }
+    .card.has-receipt #ticket-receipt { display: block; }
+    #ticket-receipt { display: none; }
+    #ticket-receipt .receipt { margin: 0; max-width: none; min-height: 0; box-shadow: none; border-radius: 14px; }
+    #ticket-receipt .foot { display: none; }
+    @media(max-width:900px){
+      .grid { flex-direction:column; }
+      .split { display:none; }
+      .card, .promo { flex: 1 1 50% !important; width: auto !important; max-width: none !important; min-height: 240px; }
+      .promo { min-height: 42vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="banner" aria-live="polite">
+        <div class="track" id="welcome-track"></div>
+      </div>
+      <button class="fs" id="fs" title="Full screen">⛶</button>
+    </div>
+    <div class="grid" id="split-grid">
+      <section class="card" id="ticket-pane">
+        <div id="ticket-live">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong id="cust">Walk-In Customer</strong>
+          <button class="fs" style="position:static" id="fs2">⛶</button>
+        </div>
+        <table>
+          <thead><tr><th>Product</th><th>Quantity</th><th>Price inc. tax</th><th>Subtotal</th></tr></thead>
+          <tbody id="rows"><tr><td colspan="4" style="color:#5b6b80">Scan a product on the till</td></tr></tbody>
+        </table>
+        <div class="foot">
+          <div>Items: <b id="items">0</b></div>
+          <div>Total: <b id="sub">GH₵ 0.00</b></div>
+          <div>Discount (−): <b id="disc">GH₵ 0.00</b></div>
+          <div>Order Tax (+): <b id="tax">GH₵ 0.00</b></div>
+          <div>Shipping (+): <b id="ship">GH₵ 0.00</b></div>
+          <div style="color:#15803d">Total Payable: <b id="tot">GH₵ 0.00</b></div>
+          <div class="pay">
+            <span>Total Paying<br><b id="paying">GH₵ 0.00</b></span>
+            <span>Change Return<br><b id="chg">GH₵ 0.00</b></span>
+            <span>Balance<br><b id="bal">GH₵ 0.00</b></span>
+          </div>
+        </div>
+        </div>
+        <div id="ticket-receipt"></div>
+      </section>
+      <div class="split" id="pane-split" title="Drag to resize · double-click to reset"></div>
+      <aside class="promo" id="promo-pane">
+        <div class="swiper" id="promo-swiper">
+          <div class="swiper-wrapper">
+            <div class="swiper-slide" style="background:linear-gradient(135deg,#b91c1c,#f59e0b)">
+              <div style="font-size:72px;font-weight:800">60%</div>
+              <h2>Fiberk week</h2>
+              <p>Phones and accessories — ask the cashier for today’s bundle price.</p>
+            </div>
+            <div class="swiper-slide" style="background:linear-gradient(135deg,#1d4ed8,#0ea5e9)">
+              <h2>Axidigetek Online</h2>
+              <p>Scan the SKU on this till. Stock and fulfilment stay on the same ticket.</p>
+            </div>
+            <div class="swiper-slide" style="background:linear-gradient(135deg,#15803d,#84cc16)">
+              <h2>Buy Now Pay Later</h2>
+              <p>Hire-purchase for approved customers. Staff can attach a BNPL plan at checkout.</p>
+            </div>
+            <div class="swiper-slide" style="background:linear-gradient(135deg,#7c3aed,#db2777)">
+              <h2>Delkor Logistics</h2>
+              <p>Accra and Kumasi delivery when shipping is added on the ticket.</p>
+            </div>
+            <div class="swiper-slide ad-slide" data-ad="0"></div>
+            <div class="swiper-slide ad-slide" data-ad="1"></div>
+            <div class="swiper-slide ad-slide" data-ad="2"></div>
+            <div class="swiper-slide ad-slide" data-ad="3"></div>
+            <div class="swiper-slide ad-slide" data-ad="4"></div>
+            <div class="swiper-slide ad-slide" data-ad="5"></div>
+          </div>
+          <div class="swiper-pagination"></div>
+        </div>
+      </aside>
+    </div>
+    <div class="copy">Delkor-Fiberk ERP — V1.0 · Copyright © 2026 All rights reserved.</div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script type="module">
+    import { fmt } from './js/supabaseClient.js';
+    import { digitalReceiptCardHtml } from './js/public-receipt-html.js';
+    const tog = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    document.getElementById('fs').onclick = tog;
+    document.getElementById('fs2').onclick = tog;
+
+    const SPLIT_KEY = 'df_cust_display_split';
+    const ticket = document.getElementById('ticket-pane');
+    const promo = document.getElementById('promo-pane');
+    const handle = document.getElementById('pane-split');
+    const grid = document.getElementById('split-grid');
+    let splitPct = 33.333;
+    try {
+      const saved = Number(localStorage.getItem(SPLIT_KEY));
+      if (saved >= 22 && saved <= 50) splitPct = saved;
+      else localStorage.removeItem(SPLIT_KEY);
+    } catch { /* ignore */ }
+
+    function applySplit(pct) {
+      splitPct = Math.min(50, Math.max(25, Number(pct) || 33.333));
+      const handleW = handle.getBoundingClientRect().width || 14;
+      const total = Math.max(320, grid.clientWidth - handleW);
+      const tw = Math.round(total * (splitPct / 100));
+      ticket.style.flex = `0 0 ${tw}px`;
+      ticket.style.width = tw + 'px';
+      ticket.style.maxWidth = tw + 'px';
+      promo.style.flex = '1 1 auto';
+      promo.style.width = 'auto';
+      promo.style.minWidth = '0';
+      try { swiper?.update?.(); } catch { /* ignore */ }
+    }
+
+    const AD_POOL = [
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1785834470/bpecsezbjhx6ndryxuby.jpg', title: 'Itel A06', line: 'Mint phone on a weekly hire-purchase plan.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1785835449/xynntvozymdpzeljvmsu.jpg', title: 'Itel Power', line: 'Long-battery phone. Ask for this week’s plan.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1785837702/h2tkzhklslpttyctx4zq.jpg', title: 'Itel A series', line: 'Own it today, pay small small.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1785837851/la9d4y1cszqqfh50dnlr.jpg', title: 'Itel A06', line: 'Grey finish. Scan the SKU on this till.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1783984657/otivxg1snirfcjht6tng.jpg', title: 'Samsung Galaxy A', line: 'Cash sale on Axidigetek. Scan to add.', brand: 'Axidigetek' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1783877850/tavaghwntyubk6zpkvxd.jpg', title: 'Galaxy A06', line: 'Gold, silver or navy — ask the cashier.', brand: 'Axidigetek' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1781633056/yjbi3hp96c2rtb4vedmf.jpg', title: 'Infinix', line: 'Blue Infinix in stock on this till.', brand: 'Axidigetek' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1781611754/v02kjtcabeg3wep32911.jpg', title: 'Display freezer', line: 'Hire-purchase appliance. 3–6 month plans.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1781782136/azqmdzrb8ycizpnxibdd.jpg', title: 'Itel green', line: 'Weekly phone plan. Ask on this till.', brand: 'BuyNowPaysLater' },
+      { src: 'https://res.cloudinary.com/dgyblnpkr/image/upload/v1781606585/glhtul2wns05lne45c2b.webp', title: 'Double-door fridge', line: 'Home fridge — cash or BNPL at checkout.', brand: 'Axidigetek' },
+    ];
+
+    function hourBucket() {
+      return Math.floor(Date.now() / 3600000);
+    }
+
+    function pickSix(pool) {
+      const start = hourBucket() % pool.length;
+      const out = [];
+      for (let i = 0; i < 6; i += 1) out.push(pool[(start + i) % pool.length]);
+      return out;
+    }
+
+    function paintAds(list) {
+      document.querySelectorAll('.ad-slide').forEach((el) => {
+        const i = Number(el.dataset.ad || 0);
+        const ad = list[i] || list[0];
+        if (!ad) return;
+        el.style.backgroundImage = 'none';
+        el.innerHTML = `<img src="${ad.src}" alt="${ad.title}" /><div class="ad-copy"><p style="margin:0 0 4px;letter-spacing:.12em;text-transform:uppercase;font-size:12px">${ad.brand}</p><h2>${ad.title}</h2><p>${ad.line}</p></div>`;
+      });
+    }
+
+    let ads = pickSix(AD_POOL);
+    paintAds(ads);
+    setInterval(() => { ads = pickSix(AD_POOL); paintAds(ads); }, 60 * 60 * 1000);
+
+    const swiper = new Swiper('#promo-swiper', {
+      loop: true,
+      effect: 'fade',
+      fadeEffect: { crossFade: true },
+      autoplay: { delay: 4500, disableOnInteraction: false },
+      // banner loop = 8 × 4.5s so the header and carousel share the same beat
+      pagination: { el: '.swiper-pagination', clickable: true },
+      speed: 700,
+      observer: true,
+      observeParents: true,
+    });
+    applySplit(splitPct);
+    window.addEventListener('resize', () => applySplit(splitPct));
+
+    handle.onpointerdown = (e) => {
+      if (e.button || window.matchMedia('(max-width:900px)').matches) return;
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = ticket.getBoundingClientRect().width;
+      const total = Math.max(320, grid.clientWidth - (handle.getBoundingClientRect().width || 14));
+      handle.classList.add('dragging');
+      document.body.classList.add('resizing');
+      try { handle.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      const move = (ev) => applySplit(((startW + (ev.clientX - startX)) / total) * 100);
+      const up = () => {
+        handle.classList.remove('dragging');
+        document.body.classList.remove('resizing');
+        handle.onpointermove = null;
+        handle.onpointerup = null;
+        handle.onpointercancel = null;
+        try { localStorage.setItem(SPLIT_KEY, String(splitPct.toFixed(2))); } catch { /* ignore */ }
+      };
+      handle.onpointermove = move;
+      handle.onpointerup = up;
+      handle.onpointercancel = up;
+    };
+    handle.ondblclick = () => {
+      applySplit(33.333);
+      try { localStorage.setItem(SPLIT_KEY, '33.333'); } catch { /* ignore */ }
+    };
+
+    const sid = new URLSearchParams(location.search).get('session') || '';
+    const key = 'dfk-till-display:' + (sid || 'local');
+    function money(n){ try { return fmt(n||0); } catch { return 'GH₵ ' + Number(n||0).toFixed(2); } }
+    function cashierName(st) {
+      const raw = st?.cashierName || st?.cashier_name || st?.cashier || '';
+      if (raw) return String(raw).replace(/@.*$/, '');
+      try {
+        const auth = JSON.parse(localStorage.getItem('df_auth') || '{}');
+        return auth?.user?.user_metadata?.full_name || (auth?.user?.email || '').split('@')[0] || 'the cashier';
+      } catch { return 'the cashier'; }
+    }
+    function paintBanner(name) {
+      const line = `WELCOME, YOUR SALES REP TODAY IS ${String(name || 'THE CASHIER').toUpperCase()}`;
+      const brands = ['axi', 'fiberk', 'bnpl', 'delkor'];
+      const bits = [...brands, ...brands].map((b) => `<span class="seg ${b}">${line}</span>`).join('');
+      const track = document.getElementById('welcome-track');
+      if (track && track.dataset.name !== name) {
+        track.dataset.name = name;
+        track.innerHTML = bits;
+      }
+    }
+    paintBanner(cashierName(null));
+    function paint(st){
+      if (!st) return;
+      paintBanner(cashierName(st));
+      const recBox = document.getElementById('ticket-receipt');
+      if (st.receipt) {
+        ticket.classList.add('has-receipt');
+        recBox.innerHTML = digitalReceiptCardHtml(st.receipt, { actionsHtml: '' });
+        if (splitPct < 38) applySplit(42);
+        return;
+      }
+      ticket.classList.remove('has-receipt');
+      recBox.innerHTML = '';
+      document.getElementById('cust').textContent = st.customer || 'Walk-In Customer';
+      const lines = st.lines || [];
+      document.getElementById('rows').innerHTML = lines.length ? lines.map(l => `<tr>
+        <td>${l.name||''}</td><td>${l.qty||0}</td><td>${money(l.price)}</td>
+        <td>${money(Number(l.qty||0)*Number(l.price||0))}</td></tr>`).join('') : '<tr><td colspan="4" style="color:#5b6b80">Waiting for items…</td></tr>';
+      document.getElementById('items').textContent = st.items ?? 0;
+      document.getElementById('sub').textContent = money(st.subtotal);
+      document.getElementById('disc').textContent = money(st.discount);
+      document.getElementById('tax').textContent = money(st.tax);
+      document.getElementById('ship').textContent = money(st.shipping);
+      document.getElementById('tot').textContent = money(st.total);
+      document.getElementById('paying').textContent = money(st.paying ?? st.total);
+      document.getElementById('chg').textContent = money(st.change);
+      document.getElementById('bal').textContent = money(st.balance);
+    }
+    try { paint(JSON.parse(localStorage.getItem(key)||'null')); } catch {}
+    window.addEventListener('storage', e => { if (e.key===key) paint(JSON.parse(e.newValue||'null')); });
+    try { const ch = new BroadcastChannel('dfk-till'); ch.onmessage = ev => paint(ev.data); } catch {}
+  </script>
+</body>
+</html>

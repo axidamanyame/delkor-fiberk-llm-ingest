@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Call logs — Collections</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { table } from './js/collections.js';
+  import { loadBook } from './js/collections-home.js';
+  import { formatCallWhen, sortCallsRecent } from './js/call-when.js';
+  import { bindTable } from './js/home-tables.js';
+  import { esc } from './js/ls-rows.js';
+  await mountUltimateShell();
+  const { calls } = await loadBook();
+  const rows = sortCallsRecent(calls || []);
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Call logs', 'Same diary as the Collections floor — newest first')}
+    <p><a class="ult-btn ult-btn-outline" href="/collections-desk.html?pane=diary">Call diary</a>
+       <a class="ult-btn ult-btn-outline" href="/collections-home.html">Dashboard</a></p>
+    ${table(['When','Customer','Agent','Outcome','Promise','Notes'],
+      rows.map((r) => `<tr>
+        <td>${esc(formatCallWhen(r))}</td>
+        <td>${esc(r.name || r.phone || '')}</td>
+        <td>${esc(r.agent || '')}</td>
+        <td>${esc(r.outcome || '')}</td>
+        <td>${esc(r.next_follow_up || r.promise_date || '')}</td>
+        <td>${esc(r.response || r.follow_up || r.notes || '')}</td>
+      </tr>`).join(''))}`;
+  bindTable(document.querySelector('[data-tbl]'), { title: 'Call logs', storageKey: 'col-call-logs' });
+</script>
+</body>
+</html>

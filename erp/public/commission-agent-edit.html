@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commission agent — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <style>
+    .ult-main { max-width: none !important; width: 100%; }
+    .fg { display:grid; grid-template-columns: 1fr 1fr; gap:16px 24px; }
+    @media (max-width: 800px) { .fg { grid-template-columns: 1fr; } }
+    .fld { display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:600; }
+    .fld input, .fld textarea { font-weight:400; padding:8px 10px; border:1px solid #d1d5db; border-radius:6px; }
+    .fld textarea { min-height:80px; }
+    .update { display:block; margin:24px auto 8px; background:#5b4dff; color:#fff; border:0; border-radius:10px; padding:12px 36px; font-weight:700; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase, getActiveSubsidiary } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { subsidiarySelect, locationSelect, stampScope, regionSelect, ghanaGps, ghanaRegion, stampGhanaAddress } from './js/entity-scope.js';
+    import { loadFormRow, fillForm } from './js/ls-rows.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const id = new URLSearchParams(location.search).get('id');
+    let row = {}, err = '';
+
+    async function load() {
+      if (id) {
+        row = (await loadFormRow('sales_commission_agents', 'df_commission_agents', id)) || {};
+        if (!row.id) {
+          const q = await supabase.from('sales_commission_agents').select('*').eq('id', id).maybeSingle();
+          err = q.error?.message || '';
+          row = q.data || {};
+        }
+      }
+      app.innerHTML = pageChrome(id ? 'Edit commission agent' : 'Add commission agent', '') + `
+        ${err ? `<div class="ult-alert">${esc(err)}</div>` : ''}
+        <form id="f" class="ult-card">
+          <div class="fg">
+            <label class="fld">Name:*<input name="full_name" required value="${esc(row.full_name)}" /></label>
+            <label class="fld">Email:<input name="email" type="email" value="${esc(row.email)}" /></label>
+            <label class="fld">Contact Number:<input name="phone" value="${esc(row.phone)}" /></label>
+            <label class="fld">Sales Commission Percentage (%):<input name="commission_percent" type="number" step="0.01" value="${esc(row.commission_percent ?? 0)}" /></label>
+            ${subsidiarySelect(row.subsidiary_code || getActiveSubsidiary()?.code)}
+            ${locationSelect(row.subsidiary_code || getActiveSubsidiary()?.code, row.location_code)}
+            <label class="fld"><span></span><label><input type="checkbox" name="is_field_agent" ${row.is_field_agent || row.location_code === 'BNPL-FIELD' ? 'checked' : ''}/> Field agent (BNPL Field Sales)</label></label>
+            <label class="fld">City:<input name="city" value="${esc(row.city || 'Accra')}" /></label>
+            <label class="fld">Region:${regionSelect(ghanaRegion(row) || 'Greater Accra')}</label>
+            <label class="fld">Digital Address:<input name="ghana_post_gps" value="${esc(ghanaGps(row))}" placeholder="e.g. GA-123-4567" /></label>
+            <label class="fld" style="grid-column:1/-1">Address:<textarea name="address">${esc(row.address || '')}</textarea></label>
+            <label class="fld"><span></span><label><input type="checkbox" name="is_active" ${row.is_active !== false ? 'checked' : ''}/> Is active</label></label>
+          </div>
+          <button class="update" type="submit">Save</button>
+          <div style="text-align:center"><a href="/commission-agents.html">Back to list</a></div>
+        </form>
+      `;
+      fillForm(app.querySelector('#f'), row);
+      app.querySelector('#f').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const go = await (await import('./js/confirm-action.js')).confirmAction(id ? 'Update this agent?' : 'Save this agent?', 'Confirm to write commission agent details.');
+        if (!go) return;
+        const f = e.target;
+        const payload = {
+          full_name: f.full_name.value.trim(),
+          email: f.email.value.trim() || null,
+          phone: f.phone.value.trim() || null,
+          address: f.address.value.trim() || null,
+          city: f.city.value.trim() || 'Accra',
+          region: f.region.value || 'Greater Accra',
+          ghana_post_gps: f.ghana_post_gps.value.trim() || null,
+          commission_percent: Number(f.commission_percent.value || 0),
+          is_active: f.is_active.checked,
+          is_field_agent: f.is_field_agent?.checked || false,
+        };
+        try { stampScope(payload, f); stampGhanaAddress(payload, payload); } catch (ex) { alert(ex.message); return; }
+        const res = id
+          ? await supabase.from('sales_commission_agents').update(payload).eq('id', id)
+          : await supabase.from('sales_commission_agents').insert(payload);
+        if (res.error) { alert(res.error.message); return; }
+        location.href = '/commission-agents.html';
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

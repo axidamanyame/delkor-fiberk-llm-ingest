@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Put Away — Operations Hub</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { bindTable } from './js/home-tables.js';
+  import { readLs, esc, actMenu } from './js/ls-rows.js';
+  import { KEYS } from './js/catalog-seed.js';
+  import { OPS_HUB } from './js/scope.js';
+
+  await mountUltimateShell();
+  const app = document.getElementById('app');
+  const hub = (p) => /OPS-HUB|VW-GROUP|GRP-HQ/i.test(String(p.location_code || OPS_HUB.code));
+  const qty = (p) => Number(p.current_stock ?? p.stock ?? p.qty ?? 0);
+  const rows = (readLs(KEYS.products, []) || []).filter((p) => hub(p) && qty(p) > 0);
+
+  app.innerHTML = `
+    ${pageChrome('Put Away')}
+    <div class="ult-card" data-tbl="away">
+      <div class="ult-table-wrap"><table class="ult-table">
+        <thead><tr>
+          <th>Action</th><th>SKU</th><th>Name</th><th>Qty at Hub</th>
+        </tr></thead>
+        <tbody>${rows.map((p) => `<tr data-id="${esc(p.id)}">
+          <td>${actMenu(p.id, [
+            { href: `/product-form.html?id=${encodeURIComponent(p.id)}&view=1`, label: 'View' },
+            { href: `/stock-transfer-form.html?from=${encodeURIComponent(OPS_HUB.code)}&product=${encodeURIComponent(p.id)}`, label: 'Transfer' },
+          ])}</td>
+          <td>${esc(p.sku || '')}</td>
+          <td>${esc(p.name || '')}</td>
+          <td>${qty(p)}</td>
+        </tr>`).join('') || '<tr data-dummy="1"><td colspan="4" style="text-align:center">Nothing at Operations Hub to put away</td></tr>'}</tbody>
+      </table></div>
+    </div>`;
+  bindTable(app.querySelector('[data-tbl="away"]'), { title: 'Put Away', storageKey: 'put-away' });
+</script>
+</body>
+</html>

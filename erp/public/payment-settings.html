@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Payment gateways — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    const session = await mountUltimateShell();
+    if (!session) throw new Error('auth');
+    const app = document.getElementById('app');
+    const { data, error } = await supabase.from('payment_gateways').select('*').order('code');
+    app.innerHTML = pageChrome('Payment gateways', 'Cash · MTN MoMo · Telecel · AirtelTigo · Paystack · UBA') + `
+      ${error ? `<div class="ult-alert">${error.message} — run sql/40_pos_three.sql</div>` : ''}
+      <div class="ult-card">
+        <p class="ult-muted">Public key is enough for Paystack popup on the till. Secret keys stay in Supabase Edge / never in this static app.</p>
+        <table class="ult-table">
+          <thead><tr><th>Code</th><th>Name</th><th>Public key</th><th>Active</th><th></th></tr></thead>
+          <tbody>
+            ${(data || []).map((g) => `<tr data-code="${g.code}">
+              <td><code>${g.code}</code></td>
+              <td>${g.name}</td>
+              <td><input class="pk" value="${g.public_key || ''}" placeholder="pk_live_… or leave blank" style="width:100%" /></td>
+              <td><input type="checkbox" class="on" ${g.is_active ? 'checked' : ''} /></td>
+              <td><button type="button" class="ult-btn ult-btn-success save">Save</button></td>
+            </tr>`).join('') || '<tr><td colspan="5">No gateways</td></tr>'}
+          </tbody>
+        </table>
+      </div>`;
+    app.querySelectorAll('.save').forEach((btn) => {
+      btn.onclick = async () => {
+        const tr = btn.closest('tr');
+        const { error: e } = await supabase.from('payment_gateways').update({
+          public_key: tr.querySelector('.pk').value.trim() || null,
+          is_active: tr.querySelector('.on').checked,
+        }).eq('code', tr.dataset.code);
+        btn.textContent = e ? e.message : 'Saved';
+      };
+    });
+  </script>
+</body>
+</html>

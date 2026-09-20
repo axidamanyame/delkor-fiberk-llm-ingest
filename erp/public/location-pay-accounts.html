@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Default payment accounts — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+  <main class="ult-main" id="app"></main>
+  <script type="module">
+    import { supabase } from './js/supabaseClient.js';
+    import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+    import { esc } from './js/account-rules.js';
+    import { BUSINESS_LOCATIONS } from './js/scope.js';
+    await mountUltimateShell();
+    const app = document.getElementById('app');
+    const METHODS = ['cash','momo','bank','card','cheque','credit'];
+    let accounts = [];
+    let maps = [];
+    let locations = [];
+    let loc = '';
+    let err = '';
+
+    async function load() {
+      const [a, m, l] = await Promise.all([
+        supabase.from('payment_accounts').select('id,name,account_type').eq('is_closed', false).order('name'),
+        supabase.from('location_default_accounts').select('*'),
+        supabase.from('business_locations').select('code,name').order('name'),
+      ]);
+      err = a.error?.message || '';
+      accounts = a.data || [];
+      maps = m.data || [];
+      locations = (l.data && l.data.length)
+        ? l.data
+        : BUSINESS_LOCATIONS.map((x) => ({ code: x.code, name: x.name }));
+      loc = loc || locations[0].code;
+      render();
+    }
+
+    function current(method) {
+      return maps.find((x) => x.location_code === loc && x.method_code === method)?.account_id || '';
+    }
+
+    function render() {
+      app.innerHTML = pageChrome('Default accounts by method', 'On Add/Edit location you map each Pay Via method to a payment account. POS then auto-selects that account.') + `
+        ${err && err.includes('payment_accounts') ? `<div class="ult-alert">${esc(err)} — run sql/97</div>` : ''}
+        <div class="ult-card" style="max-width:640px">
+          <label>Location
+            <select id="loc">${locations.map((l) => `<option value="${esc(l.code)}" ${l.code===loc?'selected':''}>${esc(l.name || l.code)}</option>`).join('')}</select>
+          </label>
+          <div class="ult-table-wrap"><table class="ult-table">
+            <thead><tr><th>Payment method</th><th>Default payment account</th></tr></thead>
+            <tbody>
+              ${METHODS.map((m) => `<tr>
+                <td>${esc(m)}</td>
+                <td>
+                  <select class="map" data-method="${m}">
+                    <option value="">— none —</option>
+                    ${accounts.map((a) => `<option value="${a.id}" ${current(m)===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}
+                  </select>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>
+          <p class="ult-muted">When a cashier picks MoMo on a sale, the mapped MoMo collection account is posted.</p>
+        </div>`;
+      document.getElementById('loc').onchange = (e) => { loc = e.target.value; render(); };
+      app.querySelectorAll('.map').forEach((sel) => {
+        sel.onchange = async () => {
+          const payload = { location_code: loc, method_code: sel.dataset.method, account_id: sel.value || null };
+          const { error } = await supabase.from('location_default_accounts').upsert(payload, { onConflict: 'location_code,method_code' });
+          if (error) alert(error.message);
+          else { maps = maps.filter((x) => !(x.location_code===loc && x.method_code===sel.dataset.method)); maps.push(payload); }
+        };
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

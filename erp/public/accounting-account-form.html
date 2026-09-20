@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { getActiveLocation, formLocOptions, SCOPE_EVENT, getActiveSubsidiary } from './js/scope.js';
+  import { confirmAction, toast } from './js/confirm-action.js';
+  import { OPERATING_SUBSIDIARIES } from './js/supabaseClient.js';
+  import {
+    accNav, esc, loadAccounts, loadSubTypes, loadDetailTypes, saveRow, KEYS, TYPES, currentSubCode,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const q = new URLSearchParams(location.search);
+  const editId = q.get('id');
+  const viewOnly = q.get('view') === '1';
+  let existing = null;
+  let subTypes = [];
+  let details = [];
+  let accounts = [];
+
+  async function boot() {
+    [accounts, subTypes, details] = await Promise.all([loadAccounts(), loadSubTypes(), loadDetailTypes()]);
+    if (editId) existing = accounts.find((a) => String(a.id) === String(editId)) || null;
+    paint();
+  }
+
+  function val(id, fallback = '') {
+    return document.getElementById(id)?.value ?? existing?.[fallback] ?? '';
+  }
+
+  function paint() {
+    const ro = viewOnly ? 'disabled' : '';
+    const type = document.getElementById('atype')?.value || existing?.account_type || 'Asset';
+    const subSel = document.getElementById('asub')?.value || existing?.sub_type || '';
+    const detSel = document.getElementById('adet')?.value || existing?.detail_type || '';
+    const subs = subTypes.filter((s) => s.account_type === type);
+    const dets = details.filter((d) => !subSel || d.parent === subSel);
+    const showBal = (subs.find((s) => s.name === subSel) || {}).show_balance !== 0;
+    const det = dets.find((d) => d.name === detSel);
+    const subCode = existing?.subsidiary_code || currentSubCode();
+    const title = viewOnly ? 'View account' : (editId ? 'Edit account' : 'Add account');
+
+    app.innerHTML = `
+      ${accNav('coa')}
+      <h1>${esc(title)}</h1>
+      <form id="acc-form" class="st-card">
+        <div class="st-grid4">
+          <label class="fld">Name:*
+            <input id="aname" ${ro} required value="${esc(existing?.name || '')}" />
+          </label>
+          <label class="fld">General Ledger (GL) Code:
+            <input id="agl" ${ro} value="${esc(existing?.gl_code || '')}" />
+          </label>
+          <label class="fld">Account Type:*
+            <select id="atype" ${ro}>
+              ${TYPES.map((t) => `<option ${type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Account Sub Type:*
+            <select id="asub" ${ro}>
+              <option value="">Please Select</option>
+              ${subs.map((s) => `<option ${subSel === s.name ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Detail Type:*
+            <select id="adet" ${ro}>
+              <option value="">Please Select</option>
+              ${dets.map((d) => `<option ${detSel === d.name ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Parent Account:
+            <select id="aparent" ${ro}>
+              <option value="">None</option>
+              ${accounts.filter((a) => a.account_type === type && String(a.id) !== String(editId)).map((a) =>
+                `<option ${existing?.parent_account === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Subsidiary:*
+            <select id="asubc" ${ro}>
+              ${OPERATING_SUBSIDIARIES.map((s) => `<option value="${esc(s.code)}" ${subCode === s.code ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+            </select>
+          </label>
+          <label class="fld">Business Location:
+            <select id="aloc" ${ro}>${formLocOptions(existing?.location_code || getActiveLocation() || '', { includeVirtual: true, placeholder: 'All locations' })}</select>
+          </label>
+          ${showBal ? `<label class="fld">Opening Balance:
+            <input id="abal" type="number" step="0.01" ${ro} value="${esc(existing?.opening_balance ?? 0)}" />
+          </label>
+          <label class="fld">As of:
+            <input id="aasof" type="date" ${ro} value="${esc((existing?.as_of || new Date().toISOString()).slice(0, 10))}" />
+          </label>` : ''}
+          <label class="fld">Status:
+            <select id="astat" ${ro}>
+              <option ${existing?.status !== 'Inactive' ? 'selected' : ''}>Active</option>
+              <option ${existing?.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+            </select>
+          </label>
+        </div>
+        ${det?.description ? `<p class="sub" id="det-desc">${esc(det.description)}</p>` : ''}
+        <label class="fld">Description:
+          <textarea id="adesc" rows="3" ${ro}>${esc(existing?.description || '')}</textarea>
+        </label>
+        ${viewOnly ? `<div class="st-save"><a class="ult-add" href="/accounting-account-form.html?id=${esc(editId)}">Edit</a>
+          <a class="ult-btn ult-btn-outline" href="/accounting-coa.html">Back</a></div>`
+          : `<div class="st-save"><button type="submit">${editId ? 'Update' : 'Save'}</button>
+          <a class="ult-btn ult-btn-outline" href="/accounting-coa.html" style="margin-left:8px">Cancel</a></div>`}
+      </form>`;
+
+    ['atype', 'asub', 'adet'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('change', () => {
+        if (id === 'atype') {
+          const as = document.getElementById('asub'); if (as) as.value = '';
+          const ad = document.getElementById('adet'); if (ad) ad.value = '';
+        }
+        if (id === 'asub') {
+          const ad = document.getElementById('adet'); if (ad) ad.value = '';
+        }
+        existing = {
+          ...(existing || {}),
+          name: document.getElementById('aname')?.value,
+          gl_code: document.getElementById('agl')?.value,
+          account_type: document.getElementById('atype')?.value,
+          sub_type: document.getElementById('asub')?.value,
+          detail_type: document.getElementById('adet')?.value,
+          parent_account: document.getElementById('aparent')?.value,
+          subsidiary_code: document.getElementById('asubc')?.value,
+          location_code: document.getElementById('aloc')?.value,
+          opening_balance: document.getElementById('abal')?.value,
+          as_of: document.getElementById('aasof')?.value,
+          status: document.getElementById('astat')?.value,
+          description: document.getElementById('adesc')?.value,
+        };
+        paint();
+      });
+    });
+
+    document.getElementById('acc-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('aname').value.trim();
+      const account_type = document.getElementById('atype').value;
+      const sub_type = document.getElementById('asub').value;
+      const detail_type = document.getElementById('adet').value;
+      if (!name || !account_type || !sub_type || !detail_type) {
+        toast('Name, type, sub type and detail type are required', 'error');
+        return;
+      }
+      const ok = await confirmAction(editId ? 'Update account?' : 'Save account?', name);
+      if (!ok) return;
+      await saveRow('chart_of_accounts', KEYS.accounts, {
+        ...(existing || {}),
+        id: existing?.id,
+        name,
+        gl_code: document.getElementById('agl').value.trim(),
+        account_type,
+        sub_type,
+        detail_type,
+        parent_account: document.getElementById('aparent').value,
+        subsidiary_code: document.getElementById('asubc').value || currentSubCode(),
+        location_code: document.getElementById('aloc').value,
+        opening_balance: Number(document.getElementById('abal')?.value || 0),
+        as_of: document.getElementById('aasof')?.value || '',
+        status: document.getElementById('astat').value,
+        description: document.getElementById('adesc').value,
+      });
+      toast(editId ? 'Account updated' : 'Account saved');
+      location.assign('/accounting-coa.html');
+    });
+  }
+
+  window.addEventListener(SCOPE_EVENT, () => { if (!editId) paint(); });
+  boot();
+</script>
+</body>
+</html>

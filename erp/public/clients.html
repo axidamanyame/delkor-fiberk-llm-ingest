@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clients — Delkor-Fiberk</title>
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+  <link rel="stylesheet" href="/css/client-desk.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { mountUltimateShell, pageChrome } from './js/ultimate-shell.js';
+  import { CLIENT_KINDS, loadClientPeople } from './js/client-desk.js';
+  await mountUltimateShell();
+  const people = loadClientPeople();
+  const count = (g) => people.filter((p) => String(p.group_name || p.client_group) === g).length;
+  document.getElementById('app').innerHTML = `
+    ${pageChrome('Clients', 'Investors, Partners, and Consultants — not shop customers. Open a type to see who they are and the communication log.')}
+    <div class="chooser">
+      ${Object.entries(CLIENT_KINDS).map(([href, cfg]) => `
+        <a href="/${href.toLowerCase()}.html">
+          <strong>${cfg.title}</strong>
+          <span>${cfg.who}</span>
+          <em style="display:block;margin-top:10px;font-style:normal;font-weight:700;color:#1d4ed8">${count(href)} on file</em>
+        </a>`).join('')}
+    </div>`;
+</script>
+</body>
+</html>

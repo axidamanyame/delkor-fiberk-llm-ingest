@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transfer — Delkor-Fiberk</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/ultimate-pos.css" />
+</head>
+<body>
+<main class="ult-main page" id="app">Loading…</main>
+<script type="module">
+  import { fmt } from './js/supabaseClient.js';
+  import { mountUltimateShell } from './js/ultimate-shell.js';
+  import { SCOPE_EVENT, scopeCaption, getActiveLocation } from './js/scope.js';
+  import { bindTable } from './js/home-tables.js';
+  import { actMenu } from './js/ls-rows.js';
+  import { confirmAction, toast, datePreset } from './js/confirm-action.js';
+  import {
+    accNav, esc, loadTransfers, loadAccounts, scopeDocs, scopeAccounts, tableBar, tableFoot,
+    fmtDate, subLabel, deleteRow, KEYS, inRange, ensureDemoBooks,
+  } from './js/accounting.js';
+
+  const session = await mountUltimateShell();
+  if (!session) location.replace('/login.html');
+  const app = document.getElementById('app');
+  const yr = datePreset('this_year');
+  const F = { from: yr.from, to: yr.to, fromAcc: '', toAcc: '' };
+  let showFilt = false;
+
+  async function paint() {
+    await ensureDemoBooks();
+    F.loc = getActiveLocation();
+    const accounts = scopeAccounts(await loadAccounts());
+    let rows = scopeDocs(await loadTransfers());
+    rows = rows.filter((r) => inRange(r.transfer_date || r.operation_date, F.from, F.to));
+    if (F.fromAcc) rows = rows.filter((r) => String(r.from_account_id) === F.fromAcc || r.from_account === F.fromAcc);
+    if (F.toAcc) rows = rows.filter((r) => String(r.to_account_id) === F.toAcc || r.to_account === F.toAcc);
+    const accOpt = (cur) => `<option value="">All</option>` + accounts.map((a) =>
+      `<option value="${esc(a.id)}" ${cur === String(a.id) ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+
+    app.innerHTML = `
+      ${accNav('xfer')}
+      <div class="acc-top">
+        <div>
+          <h1>Transfer</h1>
+          <p class="sub">${esc(scopeCaption())}</p>
+        </div>
+        <a class="ult-add" href="/accounting-transfer-form.html">+ Add</a>
+      </div>
+      <div class="home-card">
+        <div class="pf ${showFilt ? 'open' : ''}">
+          <button type="button" class="pf-btn" id="filt-tog">
+            <span style="display:flex;align-items:center"><span class="pf-ico">☰</span><span class="label">Filters</span></span>
+            <span class="pf-chev">▾</span>
+          </button>
+          <div class="pf-body">
+            <div class="filters">
+              <label>Date from: <input id="f-from" type="date" value="${esc(F.from)}" /></label>
+              <label>Date to: <input id="f-to" type="date" value="${esc(F.to)}" /></label>
+              <label>Transfer From: <select id="f-fa">${accOpt(F.fromAcc)}</select></label>
+              <label>Transfer To: <select id="f-ta">${accOpt(F.toAcc)}</select></label>
+            </div>
+          </div>
+        </div>
+        ${tableBar()}
+        <div class="ult-table-wrap"><table class="ult-table loc-table">
+          <thead><tr>
+            <th data-nosort="1">Action</th>
+            <th>Date</th>
+            <th>Reference No</th>
+            <th>From Account</th>
+            <th>To Account</th>
+            <th>Amount</th>
+            <th>Added By</th>
+            <th>Additional notes</th>
+            <th>Subsidiary</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr data-view="/accounting-transfer-form.html?id=${esc(r.id)}&view=1">
+              <td>${actMenu(r.id, [
+                { href: `/accounting-transfer-form.html?id=${r.id}&view=1`, label: 'View' },
+                { href: `/accounting-transfer-form.html?id=${r.id}`, label: 'Edit' },
+                { act: 'del', label: 'Delete' },
+              ])}</td>
+              <td>${esc(fmtDate(r.transfer_date || r.operation_date))}</td>
+              <td>${esc(r.ref_no)}</td>
+              <td>${esc(r.from_account)}</td>
+              <td>${esc(r.to_account)}</td>
+              <td>${fmt(r.amount)}</td>
+              <td>${esc(r.added_by || '')}</td>
+              <td>${esc(r.note || '')}</td>
+              <td>${esc(subLabel(r.subsidiary_code))}</td>
+            </tr>`).join('') || '<tr data-dummy="1"><td colspan="9">No data available in table</td></tr>'}
+          </tbody>
+        </table></div>
+        ${tableFoot()}
+      </div>`;
+    app.querySelector('#filt-tog').onclick = () => { showFilt = !showFilt; paint(); };
+    app.querySelector('#f-from').onchange = (e) => { F.from = e.target.value; paint(); };
+    app.querySelector('#f-to').onchange = (e) => { F.to = e.target.value; paint(); };
+    app.querySelector('#f-fa').onchange = (e) => { F.fromAcc = e.target.value; paint(); };
+    app.querySelector('#f-ta').onchange = (e) => { F.toAcc = e.target.value; paint(); };
+    app.querySelectorAll('[data-act="del"]').forEach((b) => {
+      b.onclick = async () => {
+        const ok = await confirmAction('Delete transfer?', 'This cannot be undone.');
+        if (!ok) return;
+        await deleteRow('accounting_transfers', KEYS.transfers, b.dataset.id);
+        toast('Transfer deleted');
+        paint();
+      };
+    });
+    bindTable(app, { title: 'Transfer', storageKey: 'xfer' });
+  }
+  window.addEventListener(SCOPE_EVENT, paint);
+  paint();
+</script>
+</body>
+</html>
