@@ -6,7 +6,7 @@ Last updated: 2026-09-20
 
 If chat history and this file disagree, **this file + live code win**.
 
-**Other assistants: start at `START-HERE.md`, then `LOCKSTEP.md`.**
+**Other assistants: start at `ATTACH-ME.md`, then `START-HERE.md`, then `LOCKSTEP.md`.**
 Do not ask the founder to drop files into `ollama-electron`. That folder is not this sitting’s build. This zip is how you get current.
 
 ---
@@ -100,7 +100,7 @@ The in-house model. One brain for the group.
 
 | | |
 |---|---|
-| **How KorBek gets current** | The founder attaches **this zip** (or the public git). The KorBek assistant reads `START-HERE.md`. |
+| **How KorBek gets current** | The founder attaches **this zip** (or the public git). The KorBek assistant reads `ATTACH-ME.md` then `START-HERE.md`. |
 | **Must load** | `PROJECTS.md`, `LOCKSTEP.md`, `ERP-CONSTITUTION.md`, catalog training, `WHAT-WE-BUILT.md` |
 | **Live ERP writes** | Not connected yet. Propose and log. Never claim a remote apply. Never hold API keys. |
 | **Later, when that desktop folder is open** | Electron + Ollama, default model `qwen2.5-coder:7b`. Until the founder opens it, do **not** ask them to copy files there. |
@@ -131,12 +131,12 @@ The pack other assistants (and later KorBek) ingest so they know what was built 
 | | |
 |---|---|
 | **Public git** | https://github.com/axidamanyame/delkor-fiberk-llm-ingest |
-| **What is in it** | `START-HERE.md`, `LOCKSTEP.md`, `WHAT-WE-BUILT.md`, `PROJECTS.md`, constitutions, catalog training, sanitized `erp/` tree. |
+| **What is in it** | `ATTACH-ME.md`, `START-HERE.md`, `LOCKSTEP.md`, `WHAT-WE-BUILT.md`, `PROJECTS.md`, constitutions, catalog training, sanitized `erp/` tree. |
 | **What is out** | Photos, bank/customer CSVs, `.env`, live Supabase keys, patch zips, `node_modules`. |
 | **Not** | A Vercel deploy. To run the ERP, use the live folder, not this pack. |
 | **Not** | An ollama-electron install. |
 
-Load order: `START-HERE.md` → `PROJECTS.md` → `LOCKSTEP.md` → `WHAT-WE-BUILT.md` → your lane (ERP constitution / catalog training / both). Then index `erp/` with `INGEST-GLOBS.txt`. Chat loses to code + these docs.
+Load order: `ATTACH-ME.md` → `START-HERE.md` → `PROJECTS.md` → `LOCKSTEP.md` → `WHAT-WE-BUILT.md` → your lane (ERP constitution / catalog training / both). Then index `erp/` with `INGEST-GLOBS.txt`. Chat loses to code + these docs.
 
 ---
 
