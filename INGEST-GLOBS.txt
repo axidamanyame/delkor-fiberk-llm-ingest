@@ -1,4 +1,7 @@
 # Index these (RAG / corpus)
+START-HERE.md
+LOCKSTEP.md
+WHAT-WE-BUILT.md
 PROJECTS.md
 SYSTEM-PROMPT.md
 ERP-CONSTITUTION.md
@@ -6,6 +9,10 @@ LLM-HANDOFF.md
 CHAT-EXPORT.md
 FILEMAP.md
 README.md
+FOR-FOUNDER.txt
+agents/**/*.md
+catalog/**/*.md
+catalog/**/*.json
 erp/public/js/**/*.js
 erp/public/*.html
 erp/public/css/*.css

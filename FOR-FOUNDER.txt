@@ -1,0 +1,17 @@
+This zip is for the other assistants — not for your PC.
+
+Attach it in the other two Grok chats (Supply Chain Catalog, and KorBek).
+In each chat say:
+
+  Read START-HERE.md. Stay in lock-step with this pack.
+
+That is the whole job.
+
+Do not copy this into ollama-electron. KorBek is not being built in that
+folder yet. When that workspace is open, that assistant loads this zip
+itself.
+
+Public always-on copy (same files):
+https://github.com/axidamanyame/delkor-fiberk-llm-ingest
+
+Dated 2026-09-20. Code + these docs beat old chat.

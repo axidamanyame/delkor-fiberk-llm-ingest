@@ -3,9 +3,10 @@
 This file is the constitution for any model that must understand what we built.
 It is not the product. The product is the folder. Feed both.
 
-**Read `PROJECTS.md` first.** That is the shared map of ERP, KorBek, Supply Chain Catalog, BNPL field apps, and this ingest pack. This file is the ERP layer only.
+**Read `START-HERE.md`, then `PROJECTS.md`, then `LOCKSTEP.md` first.** Those are the shared map of the three lock-step projects (ERP, Supply Chain Catalog, KorBek AI). This file is the ERP layer only.
 
 Last updated: 2026-09-20
+
 
 ---
 
@@ -136,12 +137,13 @@ Reports URL map (ERP Reports, not module reports):
 
 ## 5. How to load this into our own LLM
 
-Give the model **four layers**, in this order:
+Give the model **these layers**, in this order:
 
-1. **`PROJECTS.md`** — which product is which (ERP vs KorBek vs Catalog vs BNPL vs ingest).
-2. **`ERP-CONSTITUTION.md` / this file** as the system / constitution prompt.
-3. **The site** as retrieval: `public/js/*.js`, `public/*.html` for hubs, `public/css/ultimate-pos.css`, SQL.
-4. **Chat export JSON** as extra “owner said” evidence. If chat and code disagree, **code + constitution win**. Chat is how we got here; the folder is what is true.
+1. **`START-HERE.md` + `PROJECTS.md` + `LOCKSTEP.md`** — which of the three projects, who owns what.
+2. **`WHAT-WE-BUILT.md` + `ERP-CONSTITUTION.md` / this file** as the system / constitution prompt.
+3. **The site** as retrieval: `erp/public/js/*.js`, `erp/public/*.html` for hubs, CSS, SQL.
+4. Catalog training if the question touches stalls, photos, or shop codes.
+5. **Chat export JSON** as extra “owner said” evidence. If chat and code disagree, **code + constitution win**.
 
 Do **not** train on:
 
@@ -149,26 +151,10 @@ Do **not** train on:
 - Screenshot dumps of other people’s data.
 - `node_modules`, `.git`, platform `__grok` chrome.
 
-Suggested ingest globs:
-
-```
-PROJECTS.md
-ERP-CONSTITUTION.md
-LLM-HANDOFF.md
-public/js/**/*.js
-public/*.html
-public/css/*.css
-public/sql/**/*.sql
-*.sql
-LOCAL-RUN.txt
-SOURCE.txt
-```
-
-Skip: `public/uploads/fk-catalog/**` (product photos, not language), `node_modules`, zip backups.
-
 Public clone: https://github.com/axidamanyame/delkor-fiberk-llm-ingest
 
-KorBek on the PC reads `knowledge/PROJECTS.md` + `knowledge/ERP-CONSTITUTION.md` via `knowledge.js`. Do not paste this into the KorBek chat.
+KorBek is a **separate workspace**. Other assistants get current by reading this pack. Do **not** tell the founder to copy files into ollama-electron — that folder is not this sitting’s build.
+
 
 ---
 

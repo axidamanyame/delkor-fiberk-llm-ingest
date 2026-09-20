@@ -2,16 +2,30 @@
 
 Start here when the model needs to change or explain a surface.
 
-## Shared map (every assistant)
+## Lock-step (every assistant)
 
 | File | Role |
 |---|---|
-| `PROJECTS.md` | Which product is which: ERP, KorBek, Catalog, BNPL field apps, ingest |
+| `START-HERE.md` | Assistant entry. Which of the three you are. Do not ask for ollama-electron. |
+| `LOCKSTEP.md` | Shared contract: owners, frozen rules, interfaces. |
+| `WHAT-WE-BUILT.md` | ERP snapshot as of 2026-09-20. Do not redo. |
+| `PROJECTS.md` | Which product is which: ERP, Catalog, KorBek, BNPL, this pack |
 | `SYSTEM-PROMPT.md` | Short constitution — paste as system prompt |
 | `ERP-CONSTITUTION.md` | Same rules, KorBek knowledge filename |
 | `LLM-HANDOFF.md` | Longer ERP constitution |
+| `agents/AGENTS.erp.md` | Project instructions if you are the ERP workspace |
+| `agents/AGENTS.catalog.md` | Project instructions if you are the Catalog workspace |
+| `agents/AGENTS.korbek.md` | Project instructions if you are the KorBek workspace |
 
-## Shell and people
+## Catalog
+
+| File | Role |
+|---|---|
+| `catalog/SUPPLY-CHAIN-CATALOG-MASTER-TRAINING.md` | Canonical Catalog + Vendor App rules |
+| `catalog/sku-evidence.json` | Avenue + FBK1829 → **A1** |
+| `catalog/CHANGELOG.md` | Dated Catalog / map changes |
+
+## Shell and people (ERP)
 
 | File | Role |
 |---|---|
